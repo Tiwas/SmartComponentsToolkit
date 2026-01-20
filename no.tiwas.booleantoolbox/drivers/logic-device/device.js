@@ -4,6 +4,35 @@ const FormulaEvaluator = require("../../lib/FormulaEvaluator");
 const Homey = require("homey");
 const Logger = require("../../lib/Logger");
 
+/**
+ * LogicDeviceDevice - Dynamic Logic Device with linked inputs
+ *
+ * Unlike Logic Units which have fixed inputs set via flow cards, Logic Devices
+ * can link their inputs directly to capabilities of other Homey devices. When
+ * a linked capability changes, the formula is automatically re-evaluated.
+ *
+ * Key Features:
+ * - Dynamic input linking to other device capabilities
+ * - Automatic capability listeners for real-time updates
+ * - Settings-based configuration (JSON for formulas and input_links)
+ * - Supports only ONE formula (use Logic Units for multiple formulas)
+ * - onoff capability controls enable/disable state
+ * - alarm_generic shows formula result
+ * - alarm_config shows configuration error state
+ *
+ * Called by:
+ *   - Homey runtime - Device lifecycle management
+ *   - Flow cards - Via handler methods
+ *   - Capability listeners - On linked device changes
+ *
+ * Calls:
+ *   - FormulaEvaluator - For secure AST-based formula evaluation
+ *   - Logger - For logging operations
+ *   - Homey API - For device queries and capability listeners
+ *
+ * @class LogicDeviceDevice
+ * @extends Homey.Device
+ */
 module.exports = class LogicDeviceDevice extends Homey.Device {
   async onInit() {
     const driverName = `Device: ${this.driver.id}`;

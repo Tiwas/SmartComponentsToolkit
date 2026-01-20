@@ -3,16 +3,41 @@
 /**
  * WaiterManager - Singleton class for managing async flow waiters
  *
- * Purpose: Hold flow branches "alive" and trigger them asynchronously when conditions are met
+ * Holds Homey flow branches "alive" and triggers them asynchronously when
+ * conditions are met. Enables "wait until" functionality in flows where
+ * the flow pauses until a device capability reaches a target value.
  *
  * Features:
- * - Create waiters with unique IDs and timeouts
- * - Wildcard pattern matching for bulk operations
- * - Flow lifecycle tracking and cleanup
- * - Memory-safe with configurable limits
+ * - Create waiters with unique IDs and configurable timeouts
+ * - Wildcard pattern matching for bulk operations (e.g., "winter-*")
+ * - Flow lifecycle tracking and automatic cleanup
+ * - Memory-safe with configurable limits (default 100 waiters)
+ * - Device capability monitoring with automatic resolution
+ *
+ * Called by:
+ *   - app.js - Creates singleton instance, registers flow cards
+ *   - Flow card handlers - Creating and controlling waiters
+ *
+ * @class WaiterManager
+ * @singleton
  */
-
 class WaiterManager {
+    /**
+     * Creates or returns the singleton WaiterManager instance.
+     *
+     * Sets up storage maps, configuration limits, and starts the
+     * periodic cleanup interval for orphaned waiters.
+     *
+     * @param {Object} homey - Homey API instance
+     * @param {Logger} logger - Logger instance for output
+     *
+     * Called by:
+     *   - app.js onInit() - During application startup
+     *
+     * Calls:
+     *   - WaiterManager.cleanupOrphans() - Via interval timer
+     *   - Logger.info() - Initialization logging
+     */
     constructor(homey, logger) {
         if (WaiterManager.instance) {
             return WaiterManager.instance;
@@ -41,7 +66,15 @@ class WaiterManager {
     }
 
     /**
-     * Generate unique waiter ID
+     * Generates a unique waiter ID using timestamp and random string.
+     *
+     * @returns {string} Unique waiter ID in format "waiter-{timestamp}-{random}"
+     *
+     * Called by:
+     *   - WaiterManager.createWaiter() - When no custom ID is provided
+     *
+     * Calls:
+     *   - (none)
      */
     generateWaiterId() {
         const timestamp = Date.now();
@@ -107,13 +140,30 @@ class WaiterManager {
     }
 
     /**
-     * Create a new waiter
+     * Creates a new waiter to hold a flow branch until conditions are met.
      *
-     * @param {string} id - Waiter ID (auto-generated if not provided)
+     * The waiter will resolve (continue the flow) when either:
+     * - The target device capability reaches the specified value (YES-output)
+     * - The timeout expires (NO-output)
+     * - The waiter is manually triggered via flow action
+     *
+     * @param {string} id - Waiter ID (auto-generated if empty/null)
      * @param {object} config - Configuration { timeoutValue, timeoutUnit }
-     * @param {object} flowContext - Flow execution context
-     * @param {object} deviceConfig - Device listening config { deviceId, capability, targetValue }
-     * @returns {Promise<string>} - Returns waiter ID
+     * @param {object} flowContext - Flow execution context { flowId, flowToken }
+     * @param {object} [deviceConfig=null] - Device listening config { deviceId, capability, targetValue }
+     * @returns {Promise<string>} The waiter ID (useful when auto-generated)
+     * @throws {Error} If maximum waiter limit reached or ID conflict
+     *
+     * Called by:
+     *   - Flow action card "create_waiter" in app.js
+     *   - Flow condition card "wait_until_becomes_true" in app.js
+     *
+     * Calls:
+     *   - WaiterManager.generateWaiterId() - If no ID provided
+     *   - WaiterManager.validateTimeout() - Validate timeout bounds
+     *   - WaiterManager.convertToMs() - Convert timeout to milliseconds
+     *   - WaiterManager.removeWaiter() - On timeout expiration
+     *   - Logger methods - For status logging
      */
     async createWaiter(id, config, flowContext, deviceConfig = null) {
         // Check limits
@@ -227,10 +277,27 @@ class WaiterManager {
     }
 
     /**
-     * Remove waiters matching a pattern
+     * Removes waiters matching a pattern, cleaning up all resources.
      *
-     * @param {string} idPattern - Waiter ID or pattern with wildcards
-     * @returns {number} - Number of waiters removed
+     * Handles cleanup of:
+     * - Timeout handles (clearTimeout)
+     * - Capability listeners (removeListener)
+     * - Flow tracking entries
+     * - Waiter storage entries
+     *
+     * @param {string} idPattern - Waiter ID or pattern with wildcards (e.g., "winter-*")
+     * @returns {number} Number of waiters removed
+     *
+     * Called by:
+     *   - WaiterManager.createWaiter() - On timeout expiration
+     *   - WaiterManager.registerCapabilityListener() - On target value match
+     *   - WaiterManager.stopWaiter() - For graceful stop
+     *   - WaiterManager.cleanupOrphans() - For orphan cleanup
+     *   - Flow action cards - For manual waiter removal
+     *
+     * Calls:
+     *   - WaiterManager.getWaitersByPattern() - Find matching waiters
+     *   - Logger methods - For status logging
      */
     removeWaiter(idPattern) {
         const matches = this.getWaitersByPattern(idPattern);
@@ -475,7 +542,19 @@ class WaiterManager {
     }
 
     /**
-     * Cleanup on app shutdown
+     * Cleans up all resources on application shutdown.
+     *
+     * Stops the cleanup interval, cancels all timeout handles,
+     * and clears all storage maps. Should be called when the
+     * Homey app is being unloaded.
+     *
+     * Called by:
+     *   - app.js onUninit() - During application shutdown
+     *
+     * Calls:
+     *   - clearInterval() - Stop cleanup timer
+     *   - clearTimeout() - Cancel waiter timeouts
+     *   - Logger.info() - Shutdown logging
      */
     destroy() {
         if (this.cleanupInterval) {

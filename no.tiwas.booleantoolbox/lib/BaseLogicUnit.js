@@ -3,6 +3,33 @@ const FormulaEvaluator = require("./FormulaEvaluator");
 const Homey = require("homey");
 const Logger = require("./Logger");
 
+/**
+ * BaseLogicUnit - Base class for all Logic Unit devices
+ *
+ * Provides the core functionality for evaluating boolean formulas with
+ * multiple inputs. Logic Units are virtual devices that combine boolean
+ * inputs (A, B, C, etc.) using expressions like "A AND B OR NOT C".
+ *
+ * Key Features:
+ * - Formula evaluation using secure AST-based FormulaEvaluator
+ * - Per-formula input state tracking with namespacing
+ * - Timeout handling for incomplete input sets
+ * - "First Impression" mode (locks inputs after first value)
+ * - Configuration validation with alarm_config capability
+ * - Flow card integration (triggers, conditions, actions)
+ *
+ * Called by:
+ *   - drivers/logic-unit-2..10/device.js - Extends this class
+ *   - Flow cards - Via action/condition/trigger handlers
+ *
+ * Calls:
+ *   - FormulaEvaluator - For secure boolean expression evaluation
+ *   - Logger - For logging operations
+ *   - Homey.Device methods - Capability management
+ *
+ * @class BaseLogicUnit
+ * @extends Homey.Device
+ */
 module.exports = class BaseLogicUnit extends Homey.Device {
   // --- INTERN NAMESPACING (UNDER THE HOOD) ---
   _nsId(formula) {
@@ -38,8 +65,26 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     return vars;
   }
 
+  /** @static Migration key to track onoff capability migration status */
   static MIGRATION_KEY = "migrated_onoff_v1";
 
+  /**
+   * Safely sets a capability value with error handling and validation.
+   *
+   * Prevents setting onoff to false (Logic Units are always enabled),
+   * handles device deletion gracefully, and logs errors appropriately.
+   *
+   * @param {string} cap - Capability ID to set
+   * @param {any} value - Value to set
+   *
+   * Called by:
+   *   - BaseLogicUnit.updateConfigAlarm() - Setting alarm_config
+   *   - BaseLogicUnit.onInit() - Initial capability setup
+   *
+   * Calls:
+   *   - Homey.Device.setCapabilityValue() - Actual capability update
+   *   - Logger methods - For logging
+   */
   async safeSetCapabilityValue(cap, value) {
     if (cap === "onoff" && value === false) {
       this.logger.warn(
@@ -68,6 +113,32 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     }
   }
 
+  /**
+   * Initializes the Logic Unit device when added or app starts.
+   *
+   * Performs:
+   * 1. Logger initialization
+   * 2. FormulaEvaluator creation
+   * 3. Capability setup (onoff, alarm_config)
+   * 4. Migration for existing devices
+   * 5. Formula loading from settings
+   * 6. Configuration validation
+   * 7. Initial formula evaluation
+   * 8. Timeout check interval startup
+   * 9. Settings change polling
+   *
+   * Called by:
+   *   - Homey runtime - When device is added or app starts
+   *
+   * Calls:
+   *   - Logger constructor - Create device logger
+   *   - FormulaEvaluator constructor - Create evaluator
+   *   - BaseLogicUnit.migrateOnoffForExistingDevice() - Migration
+   *   - BaseLogicUnit.initializeFormulas() - Load formulas
+   *   - BaseLogicUnit.updateConfigAlarm() - Validate config
+   *   - BaseLogicUnit.evaluateAllFormulasInitial() - Initial evaluation
+   *   - BaseLogicUnit.startTimeoutChecks() - Start timeout interval
+   */
   async onInit() {
     const driverName = `Device: ${this.driver ? this.driver.id : "unknown-driver"}`;
     this.logger = new Logger(this, driverName);
@@ -987,6 +1058,27 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     return matches ? [...new Set(matches.map((c) => c.toUpperCase()))] : [];
   }
 
+  /**
+   * Sets an input value for a specific formula and triggers evaluation.
+   *
+   * Handles "First Impression" mode by resetting session state when needed,
+   * locking inputs after first value, and tracking session completion.
+   * Automatically triggers formula evaluation after setting the input.
+   *
+   * @param {string} formulaId - ID of the formula to update
+   * @param {string} inputId - Input ID (a, b, c, etc.)
+   * @param {boolean} value - Boolean value to set
+   * @returns {Promise<boolean|null>} Evaluation result or null if not ready
+   *
+   * Called by:
+   *   - BaseLogicUnit.onFlowActionSetInput() - Flow action card
+   *   - BaseLogicUnit.setAllInputsFromFlow() - Bulk set action
+   *   - BaseLogicUnit.setInputForAllFormulasFromFlow() - Set across formulas
+   *
+   * Calls:
+   *   - BaseLogicUnit.evaluateFormula() - Trigger evaluation
+   *   - Logger methods - For logging
+   */
   async setInputForFormula(formulaId, inputId, value) {
     if (this._isDeleting) return null;
     const formula = this.formulas.find((f) => f.id === formulaId);
@@ -1116,6 +1208,34 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     return await this.evaluateFormula(formulaId, false);
   }
 
+  /**
+   * Evaluates a single formula and triggers flow cards on result changes.
+   *
+   * Core evaluation logic:
+   * 1. Validates formula exists and is enabled
+   * 2. Optionally resets input locks (for re-evaluation)
+   * 3. Checks if all required inputs are defined
+   * 4. Normalizes expression syntax (alternative operators)
+   * 5. Namespaces variables for AST evaluation
+   * 6. Evaluates using FormulaEvaluator
+   * 7. Triggers flow cards if result changed
+   *
+   * @param {string} formulaId - ID of the formula to evaluate
+   * @param {boolean} [resetLocks=false] - Whether to reset locked inputs
+   * @returns {Promise<boolean|null>} Evaluation result or null if not ready
+   *
+   * Called by:
+   *   - BaseLogicUnit.setInputForFormula() - After input change
+   *   - BaseLogicUnit.onFlowActionEvaluateFormula() - Manual evaluation
+   *   - BaseLogicUnit.evaluateAllFormulas() - Batch evaluation
+   *   - BaseLogicUnit.evaluateAllFormulasInitial() - Initial evaluation
+   *
+   * Calls:
+   *   - BaseLogicUnit._namespaceExprForFormula() - Variable namespacing
+   *   - BaseLogicUnit._buildNsVariables() - Build variable map
+   *   - FormulaEvaluator.evaluate() - AST evaluation
+   *   - Homey flow.getDeviceTriggerCard() - Trigger flow cards
+   */
   async evaluateFormula(formulaId, resetLocks = false) {
     if (this._isDeleting) return null;
     const formula = this.formulas.find((f) => f.id === formulaId);

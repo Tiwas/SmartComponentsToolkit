@@ -12,7 +12,22 @@ const {
     inputAutocompleteHelper,
 } = require("./lib/BaseLogicDriver");
 
-// Helper function (only for evaluate_expression)
+/**
+ * Helper function for evaluate_expression action card.
+ *
+ * Compares an input value against a rule value using the specified operator.
+ *
+ * @param {number} inputValue - The value to compare
+ * @param {string} operator - Comparison operator (gt, gte, lt, lte)
+ * @param {number} ruleValue - The value to compare against
+ * @returns {boolean} Result of comparison
+ *
+ * Called by:
+ *   - evaluate_expression flow action card
+ *
+ * Calls:
+ *   - (none)
+ */
 function evaluateCondition(inputValue, operator, ruleValue) {
     switch (operator) {
         case "gt":
@@ -28,7 +43,49 @@ function evaluateCondition(inputValue, operator, ruleValue) {
     }
 }
 
+/**
+ * BooleanToolboxApp - Main application class for Boolean Toolbox
+ *
+ * The central coordinator for the Boolean Toolbox Homey app. Manages:
+ * - Application initialization and shutdown
+ * - Global flow card registration (app-level triggers, conditions, actions)
+ * - WaiterManager singleton for async flow gates
+ * - CapturedStateManager singleton for device state capture
+ * - Homey API connection for device/zone queries
+ *
+ * Called by:
+ *   - Homey runtime - Application lifecycle
+ *   - Flow cards - Via registered handlers
+ *
+ * Calls:
+ *   - Logger - For logging operations
+ *   - WaiterManager - For async flow management
+ *   - CapturedStateManager - For state capture/restore
+ *   - Homey SDK - Flow card registration, settings, etc.
+ *
+ * @class BooleanToolboxApp
+ * @extends Homey.App
+ */
 module.exports = class BooleanToolboxApp extends Homey.App {
+    /**
+     * Initializes the application when Homey starts.
+     *
+     * Performs:
+     * 1. Logger initialization with app version banner
+     * 2. Debug mode setting from user preferences
+     * 3. Homey API connection for device queries
+     * 4. WaiterManager and CapturedStateManager initialization
+     * 5. Global flow card registration
+     *
+     * Called by:
+     *   - Homey runtime - On app start
+     *
+     * Calls:
+     *   - Logger constructor and banner()
+     *   - WaiterManager constructor
+     *   - CapturedStateManager constructor
+     *   - BooleanToolboxApp.registerAllFlowCards()
+     */
     async onInit() {
         this.logger = new Logger(this, "App");
         try {
@@ -492,24 +549,18 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             // Register autocomplete for device argument
             waitUntilCard.registerArgumentAutocompleteListener('device', async (query, args) => {
                 try {
-                    this.logger.info(`🔍 Device autocomplete called! Query: "${query}"`);
-                    
                     if (!this.api) {
                         const athomApi = require("athom-api");
                         const { HomeyAPI } = athomApi;
                         this.api = await HomeyAPI.forCurrentHomey(this.homey);
                     }
-                    
+
                     const allDevices = await this.api.devices.getDevices();
-                    this.logger.info(`📱 Found ${Object.keys(allDevices).length} total devices on system`);
-                    
-                    const deviceList = Object.values(allDevices)
+
+                    return Object.values(allDevices)
                         .filter(device => {
-                            // Only devices with capabilities
                             const capabilities = device.capabilities || [];
                             if (capabilities.length === 0) return false;
-                            
-                            // Filter by query if provided
                             if (query) {
                                 return device.name.toLowerCase().includes(query.toLowerCase());
                             }
@@ -519,21 +570,64 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                             name: device.name,
                             description: `${device.capabilities.length} capabilities`,
                             id: device.id,
-                            capabilities: device.capabilities  // VIKTIG for capability autocomplete!
+                            capabilities: device.capabilities
                         }));
-
-                    this.logger.info(`📋 Returning ${deviceList.length} devices with capabilities`);
-                    
-                    return deviceList;                } catch (error) {
+                } catch (error) {
                     this.logger.error('Device autocomplete error:', error);
                     return [];
                 }
             });
 
+            // Register autocomplete for waiter_id argument - generates unique ID
+            waitUntilCard.registerArgumentAutocompleteListener('waiter_id', async (query, args) => {
+                try {
+                    const results = [];
+
+                    // Generate a new unique ID as first option
+                    const newId = `wait_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+                    results.push({
+                        name: newId,
+                        description: 'New auto-generated ID',
+                        id: newId
+                    });
+
+                    // Get existing waiter IDs from flows
+                    const definedIds = await this.getAllDefinedWaiterIds();
+                    for (const id of definedIds) {
+                        if (!query || id.toLowerCase().includes(query.toLowerCase())) {
+                            results.push({
+                                name: id,
+                                description: 'Existing ID from flows',
+                                id: id
+                            });
+                        }
+                    }
+
+                    // If user typed a custom query, add it as an option
+                    if (query && query.trim() && !results.some(r => r.id === query.trim())) {
+                        results.push({
+                            name: query.trim(),
+                            description: 'Custom ID',
+                            id: query.trim()
+                        });
+                    }
+
+                    return results;
+                } catch (error) {
+                    this.logger.error('Waiter ID autocomplete error:', error);
+                    // Return a generated ID even on error
+                    const fallbackId = `wait_${Date.now().toString(36)}`;
+                    return [{ name: fallbackId, description: 'Auto-generated ID', id: fallbackId }];
+                }
+            });
+
             waitUntilCard.registerRunListener(async (args, state) => {
                 try {
-                    // Generate automatic id if not provided
-                    let waiterId = args.waiter_id?.trim();
+                    // Extract waiter_id from autocomplete object or string
+                    let waiterId = args.waiter_id?.id || args.waiter_id?.name || args.waiter_id;
+                    if (typeof waiterId === 'string') {
+                        waiterId = waiterId.trim();
+                    }
                     if (!waiterId) {
                         waiterId = `waiter_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                         this.logger.debug(`🆔 Auto-generated waiter id: ${waiterId}`);
@@ -647,7 +741,14 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             const controlWaiterCard = this.homey.flow.getActionCard("control_waiter");
             controlWaiterCard.registerRunListener(async (args, state) => {
                 try {
-                    const waiterId = args.waiter_id;
+                    // Extract waiter_id from autocomplete object or string
+                    const waiterIdArg = args.waiter_id;
+                    let waiterId = null;
+                    if (typeof waiterIdArg === 'string') {
+                        waiterId = waiterIdArg.trim();
+                    } else if (waiterIdArg && typeof waiterIdArg === 'object') {
+                        waiterId = (waiterIdArg.id || waiterIdArg.name || '').toString().trim();
+                    }
                     const action = args.action;
 
                     if (!waiterId) {
@@ -707,7 +808,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                             if (!query || id.toLowerCase().includes(query.toLowerCase())) {
                                 results.push({
                                     name: id,
-                                    description: '📋 Defined in flow (not active)',
+                                    description: 'Defined in flow (not active)',
                                     id: id
                                 });
                                 seenIds.add(id);
@@ -717,7 +818,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                     return results;
                 } catch (error) {
-                    this.logger.error(`❌ Waiter autocomplete error:`, error);
+                    this.logger.error('Waiter autocomplete error:', error);
                     return [];
                 }
             });
@@ -744,33 +845,110 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
             const waiterIds = new Set();
 
+            // Search regular flows
             const flows = await this.api.flow.getFlows();
+
+            // Also search advanced flows if available
+            let advancedFlows = {};
+            try {
+                if (this.api.flowAdv && typeof this.api.flowAdv.getFlows === 'function') {
+                    advancedFlows = await this.api.flowAdv.getFlows();
+                } else if (this.api.flow && typeof this.api.flow.getAdvancedFlows === 'function') {
+                    advancedFlows = await this.api.flow.getAdvancedFlows();
+                }
+            } catch (advErr) {
+                // Advanced flows not available - ignore
+            }
 
             // Search through all flows for wait_until_becomes_true cards
             for (const flowId in flows) {
                 const flow = flows[flowId];
 
-                // Check if flow has cards
-                if (!flow.cards) continue;
+                // Check conditions (AND cards)
+                if (flow.conditions && Array.isArray(flow.conditions)) {
+                    for (const condition of flow.conditions) {
+                        const isWaiterCard =
+                            condition.id === 'wait_until_becomes_true' ||
+                            condition.id?.endsWith(':wait_until_becomes_true') ||
+                            condition.id?.includes('wait_until_becomes_true');
 
-                // Search through all cards
-                for (const card of flow.cards) {
-                    // Find wait_until_becomes_true condition cards
-                    if (card.type === 'condition' && card.id === 'wait_until_becomes_true') {
-                        // Extract waiter_id from card args
-                        const waiterId = card.args?.waiter_id;
-                        if (waiterId && typeof waiterId === 'string' && waiterId.trim() !== '') {
-                            waiterIds.add(waiterId.trim());
+                        if (isWaiterCard) {
+                            const waiterId = this.extractWaiterId(condition.args?.waiter_id);
+                            if (waiterId) waiterIds.add(waiterId);
+                        }
+                    }
+                }
+
+                // Check actions (THEN cards)
+                if (flow.actions && Array.isArray(flow.actions)) {
+                    for (const action of flow.actions) {
+                        if (action.uri?.includes('wait_until_becomes_true') || action.id === 'wait_until_becomes_true') {
+                            const waiterIdArg = action.args?.waiter_id;
+                            const waiterId = this.extractWaiterId(waiterIdArg);
+                            if (waiterId) waiterIds.add(waiterId);
+                        }
+                    }
+                }
+
+                // Also check legacy 'cards' array if it exists
+                if (flow.cards && Array.isArray(flow.cards)) {
+                    for (const card of flow.cards) {
+                        if (card.uri?.includes('wait_until_becomes_true') || card.id === 'wait_until_becomes_true') {
+                            const waiterIdArg = card.args?.waiter_id;
+                            const waiterId = this.extractWaiterId(waiterIdArg);
+                            if (waiterId) waiterIds.add(waiterId);
                         }
                     }
                 }
             }
 
+            // Search advanced flows (different structure - cards are in a 'cards' object keyed by cardId)
+            for (const flowId in advancedFlows) {
+                const flow = advancedFlows[flowId];
+
+                // Advanced flows have cards in a 'cards' object (not array)
+                if (flow.cards && typeof flow.cards === 'object') {
+                    for (const cardId in flow.cards) {
+                        const card = flow.cards[cardId];
+
+                        // In advanced flows, card.id is the full URI like "homey:app:no.tiwas.booleantoolbox:wait_until_becomes_true"
+                        const isWaiterCard =
+                            card.id === 'wait_until_becomes_true' ||
+                            card.id?.endsWith(':wait_until_becomes_true') ||
+                            card.id?.includes('wait_until_becomes_true');
+
+                        if (isWaiterCard) {
+                            const waiterId = this.extractWaiterId(card.args?.waiter_id);
+                            if (waiterId) waiterIds.add(waiterId);
+                        }
+                    }
+                }
+            }
+
+            this.logger.debug(`Found ${waiterIds.size} waiter IDs from flows`);
             return Array.from(waiterIds).sort();
         } catch (error) {
             this.logger.error('Failed to get defined waiter IDs from flows:', error);
             return [];
         }
+    }
+
+    /**
+     * Extract waiter ID from various formats (string or autocomplete object)
+     */
+    extractWaiterId(waiterIdArg) {
+        if (!waiterIdArg) return null;
+
+        if (typeof waiterIdArg === 'string') {
+            return waiterIdArg.trim() || null;
+        }
+
+        if (typeof waiterIdArg === 'object') {
+            const id = (waiterIdArg.id || waiterIdArg.name || '').toString().trim();
+            return id || null;
+        }
+
+        return null;
     }
 
     /**

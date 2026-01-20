@@ -24,55 +24,8 @@ State Capture Device
 State Device
   Pre-define device states and apply them via flows. Configure states at setup time rather than capturing them dynamically.
 
-== FLOW CARDS ==
-
-Actions:
-  Logic Unit/Device:
-    - Evaluate formula / Evaluate all formulas
-    - Set input value (single or all via JSON)
-    - Clear error state
-    - Validate configuration
-
-  State Capture Device:
-    - Capture state (save to named slot)
-    - Apply captured state
-    - Delete captured state
-    - Push state (to stack)
-    - Pop state (from stack and apply)
-    - Peek and apply (view top without removing)
-    - Clear stack
-    - Export named states (JSON backup)
-    - Import named states (restore from JSON)
-
-  State Device:
-    - Apply state
-
-  Utilities:
-    - Wait (delay execution)
-    - Control waiter (pause/resume gates)
-    - Evaluate expression (inline logic)
-
-Conditions:
-  - Formula result is true/false
-  - Formula has timed out
-  - Device has error
-  - Captured state exists
-  - Stack is empty / Stack depth is X
-  - Wait until becomes true
-
-Triggers:
-  - Formula changed to true/false
-  - Formula timed out
-  - State changed
-  - State captured/applied
-  - Configuration alarm changed
-  - Error occurred
-
 == DOCUMENTATION ==
 
-Full documentation available at: https://tiwas.github.io/SmartComponentsToolkit/
+Full documentation available on GitHub
 
-== SUPPORT ==
 
-Community forum: https://community.homey.app/t/app-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906
-Issues: https://github.com/Tiwas/SmartComponentsToolkit/issues

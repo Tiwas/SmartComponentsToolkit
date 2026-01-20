@@ -33,3 +33,6 @@ codebase-manifest.*
 *.rar
 *.tar.gz
 *.old
+
+# Project Documentation (AI-generated, kept local)
+PROJECT_DOCUMENTATION.md

@@ -3,16 +3,38 @@
 /**
  * CapturedStateManager - Singleton class for managing captured device states
  *
- * Purpose: Store and retrieve snapshots of device states for later application
+ * Stores and retrieves snapshots of device capability states for later restoration.
+ * Enables "scene" functionality where the current state of multiple devices can be
+ * captured and later restored exactly.
  *
  * Features:
- * - Named states (key-value storage)
- * - Stack-based states (push/pop/peek)
- * - Persistent storage via Homey settings
- * - Per-device namespacing
+ * - Named states: Key-value storage for named snapshots (e.g., "morning", "evening")
+ * - Stack-based states: Push/pop/peek operations for undo-like functionality
+ * - Persistent storage: Data survives app restarts via Homey settings
+ * - Per-device namespacing: Each State Capture Device has isolated storage
+ * - Format conversion: Supports both flat and hierarchical state formats
+ *
+ * Called by:
+ *   - app.js - Creates singleton instance
+ *   - state-capture-device/device.js - Capture/restore operations
+ *   - Flow card handlers - Capture, restore, import/export actions
+ *
+ * @class CapturedStateManager
+ * @singleton
  */
-
 class CapturedStateManager {
+    /**
+     * Creates or returns the singleton CapturedStateManager instance.
+     *
+     * @param {Object} homey - Homey API instance (for settings access)
+     * @param {Logger} logger - Logger instance for output
+     *
+     * Called by:
+     *   - app.js onInit() - During application startup
+     *
+     * Calls:
+     *   - Logger.info() - Initialization logging
+     */
     constructor(homey, logger) {
         if (CapturedStateManager.instance) {
             return CapturedStateManager.instance;
@@ -182,12 +204,28 @@ class CapturedStateManager {
     // ==================== NAMED STATES ====================
 
     /**
-     * Capture current state to a named slot (saves in hierarchical format)
-     * @param {string} deviceId - State capture device ID
-     * @param {string} stateName - Name for this state
-     * @param {object} template - Template defining what to capture
-     * @param {object} api - Homey API instance
-     * @returns {object} - { success, errors, state }
+     * Captures current device states to a named slot.
+     *
+     * Reads the current values of all capabilities defined in the template
+     * from their respective devices, converts to hierarchical format, and
+     * stores with the given name.
+     *
+     * @param {string} deviceId - State Capture Device ID (for namespacing)
+     * @param {string} stateName - Name for this state (e.g., "morning", "evening")
+     * @param {object} template - Template defining devices and capabilities to capture
+     * @param {object} api - Homey API instance for device access
+     * @returns {Promise<{success: boolean, errors: Array, state: object}>}
+     * @throws {Error} If maximum named states limit reached
+     *
+     * Called by:
+     *   - state-capture-device/device.js - Via flow action card
+     *   - Flow action "capture_state"
+     *
+     * Calls:
+     *   - CapturedStateManager._getDeviceData() - Load existing data
+     *   - CapturedStateManager._readCurrentValues() - Read device values
+     *   - CapturedStateManager._convertFlatToHierarchical() - Format conversion
+     *   - CapturedStateManager._saveDeviceData() - Persist data
      */
     async captureState(deviceId, stateName, template, api) {
         const data = this._getDeviceData(deviceId);

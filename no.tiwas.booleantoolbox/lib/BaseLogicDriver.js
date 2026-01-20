@@ -2,6 +2,21 @@
 const Homey = require("homey");
 const Logger = require("./Logger");
 
+/**
+ * Autocomplete helper for formula selection in flow cards.
+ *
+ * Retrieves available formulas from the device and filters by query.
+ *
+ * @param {string} query - Search query for filtering formulas
+ * @param {Object} args - Flow card arguments containing device reference
+ * @returns {Promise<Array>} Filtered list of formulas for autocomplete
+ *
+ * Called by:
+ *   - BaseLogicDriver.registerAutocomplete() - For formula argument autocomplete
+ *
+ * Calls:
+ *   - device.getFormulas() - Get available formulas from device
+ */
 async function formulaAutocompleteHelper(query, args) {
     const device = args.device;
     if (!device || typeof device.getFormulas !== "function") {
@@ -34,6 +49,21 @@ async function formulaAutocompleteHelper(query, args) {
     }
 }
 
+/**
+ * Autocomplete helper for input selection in flow cards.
+ *
+ * Retrieves available inputs (A, B, C, etc.) from the device and filters by query.
+ *
+ * @param {string} query - Search query for filtering inputs
+ * @param {Object} args - Flow card arguments containing device reference
+ * @returns {Promise<Array>} Filtered list of inputs for autocomplete
+ *
+ * Called by:
+ *   - BaseLogicDriver.registerAutocomplete() - For input argument autocomplete
+ *
+ * Calls:
+ *   - device.getInputOptions() - Get available inputs from device
+ */
 async function inputAutocompleteHelper(query, args) {
     const device = args.device;
     if (!device || typeof device.getInputOptions !== "function") {
@@ -67,9 +97,48 @@ async function inputAutocompleteHelper(query, args) {
 }
 // --- End Autocomplete Helper Functions ---
 
+/**
+ * BaseLogicDriver - Base class for all Logic Unit drivers
+ *
+ * Handles driver-level functionality shared across all Logic Unit types:
+ * - Flow card registration (triggers, conditions, actions)
+ * - Device pairing workflow
+ * - Autocomplete registration for flow card arguments
+ * - Unique device name generation
+ *
+ * Uses a static flag to ensure shared flow cards are only registered once
+ * by the first Logic Unit driver instance that initializes.
+ *
+ * Called by:
+ *   - drivers/logic-unit-2..10/driver.js - Extends this class
+ *   - Homey runtime - For driver lifecycle
+ *
+ * Calls:
+ *   - Logger - For logging operations
+ *   - Homey.Driver methods - Flow card registration
+ *   - formulaAutocompleteHelper - Formula autocomplete
+ *   - inputAutocompleteHelper - Input autocomplete
+ *
+ * @class BaseLogicDriver
+ * @extends Homey.Driver
+ */
 class BaseLogicDriver extends Homey.Driver {
+    /** @static Flag to prevent duplicate flow card registration */
     static logicUnitCardsRegistered = false;
 
+    /**
+     * Initializes the driver when the app starts.
+     *
+     * Parses the number of inputs from the driver ID, initializes logger,
+     * and registers shared flow cards (only once across all Logic Unit drivers).
+     *
+     * Called by:
+     *   - Homey runtime - When app starts
+     *
+     * Calls:
+     *   - Logger constructor - Create driver logger
+     *   - BaseLogicDriver.registerFlowCards() - Register flow cards (once)
+     */
     async onInit() {
         const driverName = `Driver: ${this.id}`;
         this.logger = new Logger(this, driverName);

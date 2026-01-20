@@ -28,18 +28,18 @@
     "ru": "Ждать пока [[device]] [[capability]] станет [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])"
   },
   "hint": {
-    "en": "This card waits until a device capability reaches a specific value. If the value is already correct, it proceeds immediately (YES). If timeout expires before the value matches, it takes the NO path. Leave Waiter ID empty for auto-generation.",
-    "no": "Dette kortet venter til en enhets capability når en bestemt verdi. Hvis verdien allerede er riktig, fortsetter det umiddelbart (JA). Hvis timeout utløper før verdien matcher, tar det NEI-stien. La Waiter ID stå tom for auto-generering.",
-    "da": "Dette kort venter indtil en enheds capability når en bestemt værdi. Hvis værdien allerede er korrekt, fortsætter det straks (JA). Hvis timeout udløber før værdien matcher, tager det NEJ-vejen. Lad Waiter ID være tom for auto-generering.",
-    "de": "Diese Karte wartet bis eine Geräte-Capability einen bestimmten Wert erreicht. Wenn der Wert bereits korrekt ist, wird sofort fortgesetzt (JA). Wenn Timeout abläuft bevor der Wert übereinstimmt, wird der NEIN-Pfad genommen. Lassen Sie Waiter ID leer für Auto-Generierung.",
-    "es": "Esta tarjeta espera hasta que una capability del dispositivo alcance un valor específico. Si el valor ya es correcto, procede inmediatamente (SÍ). Si el timeout expira antes de que el valor coincida, toma el camino NO. Deje el ID del Waiter vacío para auto-generación.",
-    "fr": "Cette carte attend qu'une capability d'appareil atteigne une valeur spécifique. Si la valeur est déjà correcte, elle continue immédiatement (OUI). Si le timeout expire avant que la valeur corresponde, elle prend le chemin NON. Laissez l'ID Waiter vide pour la génération automatique.",
-    "it": "Questa scheda attende fino a quando una capability del dispositivo raggiunge un valore specifico. Se il valore è già corretto, procede immediatamente (SÌ). Se il timeout scade prima che il valore corrisponda, prende il percorso NO. Lascia l'ID Waiter vuoto per la generazione automatica.",
-    "nl": "Deze kaart wacht tot een apparaat capability een specifieke waarde bereikt. Als de waarde al correct is, gaat het onmiddellijk verder (JA). Als timeout verloopt voordat de waarde overeenkomt, neemt het het NEE-pad. Laat Waiter ID leeg voor auto-generatie.",
-    "sv": "Detta kort väntar tills en enhets capability når ett specifikt värde. Om värdet redan är korrekt, fortsätter det omedelbart (JA). Om timeout löper ut innan värdet matchar, tar det NEJ-vägen. Lämna Waiter ID tomt för auto-generering.",
-    "pl": "Ta karta czeka aż capability urządzenia osiągnie określoną wartość. Jeśli wartość jest już prawidłowa, kontynuuje natychmiast (TAK). Jeśli timeout wygaśnie zanim wartość będzie się zgadzać, przechodzi ścieżką NIE. Pozostaw ID Waiter puste dla auto-generacji.",
-    "fi": "Tämä kortti odottaa kunnes laitteen capability saavuttaa tietyn arvon. Jos arvo on jo oikea, se jatkaa välittömästi (KYLLÄ). Jos timeout vanhenee ennen kuin arvo täsmää, se ottaa EI-polun. Jätä Waiter ID tyhjäksi automaattista luontia varten.",
-    "ru": "Эта карта ждет пока capability устройства достигнет определенного значения. Если значение уже правильное, она продолжает немедленно (ДА). Если timeout истекает до того как значение совпадет, она выбирает путь НЕТ. Оставьте ID Waiter пустым для автогенерации."
+    "en": "Waits until a device capability reaches a specific value. YES if value matches (or already correct), NO if timeout expires. A unique Waiter ID is auto-generated, or select an existing one to reuse.",
+    "no": "Venter til en enhets capability når en bestemt verdi. JA hvis verdien matcher (eller allerede er riktig), NEI hvis timeout utløper. En unik Waiter ID genereres automatisk, eller velg en eksisterende for å gjenbruke.",
+    "da": "Venter indtil en enheds capability når en bestemt værdi. JA hvis værdien matcher (eller allerede er korrekt), NEJ hvis timeout udløber. Et unikt Waiter ID genereres automatisk, eller vælg et eksisterende for at genbruge.",
+    "de": "Wartet bis eine Geräte-Capability einen bestimmten Wert erreicht. JA wenn Wert übereinstimmt (oder bereits korrekt), NEIN wenn Timeout abläuft. Eine eindeutige Waiter ID wird automatisch generiert, oder wählen Sie eine vorhandene zur Wiederverwendung.",
+    "es": "Espera hasta que una capability del dispositivo alcance un valor específico. SÍ si el valor coincide (o ya es correcto), NO si el timeout expira. Se genera automáticamente un ID de Waiter único, o seleccione uno existente para reutilizar.",
+    "fr": "Attend qu'une capability d'appareil atteigne une valeur spécifique. OUI si la valeur correspond (ou est déjà correcte), NON si le timeout expire. Un ID Waiter unique est généré automatiquement, ou sélectionnez-en un existant pour réutiliser.",
+    "it": "Attende fino a quando una capability del dispositivo raggiunge un valore specifico. SÌ se il valore corrisponde (o è già corretto), NO se il timeout scade. Un ID Waiter unico viene generato automaticamente, oppure selezionane uno esistente per riutilizzare.",
+    "nl": "Wacht tot een apparaat capability een specifieke waarde bereikt. JA als waarde overeenkomt (of al correct is), NEE als timeout verloopt. Een unieke Waiter ID wordt automatisch gegenereerd, of selecteer een bestaande om te hergebruiken.",
+    "sv": "Väntar tills en enhets capability når ett specifikt värde. JA om värdet matchar (eller redan är korrekt), NEJ om timeout löper ut. Ett unikt Waiter ID genereras automatiskt, eller välj ett befintligt för att återanvända.",
+    "pl": "Czeka aż capability urządzenia osiągnie określoną wartość. TAK jeśli wartość pasuje (lub już jest prawidłowa), NIE jeśli timeout wygaśnie. Unikalny ID Waiter jest generowany automatycznie, lub wybierz istniejący do ponownego użycia.",
+    "fi": "Odottaa kunnes laitteen capability saavuttaa tietyn arvon. KYLLÄ jos arvo täsmää (tai on jo oikea), EI jos timeout vanhenee. Uniikki Waiter ID luodaan automaattisesti, tai valitse olemassa oleva uudelleenkäyttöön.",
+    "ru": "Ждет пока capability устройства достигнет определенного значения. ДА если значение совпадает (или уже правильное), НЕТ если timeout истекает. Уникальный ID Waiter генерируется автоматически, или выберите существующий для повторного использования."
   },
   "args": [
     {
@@ -244,35 +244,35 @@
       ]
     },
     {
-      "type": "text",
+      "type": "autocomplete",
       "name": "waiter_id",
       "title": {
-        "en": "Waiter ID (optional)",
-        "no": "Waiter ID (valgfri)",
-        "da": "Waiter ID (valgfri)",
-        "de": "Waiter ID (optional)",
-        "es": "ID del Waiter (opcional)",
-        "fr": "ID du Waiter (optionnel)",
-        "it": "ID Waiter (opzionale)",
-        "nl": "Waiter ID (optioneel)",
-        "sv": "Waiter ID (valfritt)",
-        "pl": "ID Waiter (opcjonalne)",
-        "fi": "Waiter ID (valinnainen)",
-        "ru": "ID Waiter (необязательно)"
+        "en": "Waiter ID",
+        "no": "Waiter ID",
+        "da": "Waiter ID",
+        "de": "Waiter ID",
+        "es": "ID del Waiter",
+        "fr": "ID du Waiter",
+        "it": "ID Waiter",
+        "nl": "Waiter ID",
+        "sv": "Waiter ID",
+        "pl": "ID Waiter",
+        "fi": "Waiter ID",
+        "ru": "ID Waiter"
       },
       "placeholder": {
-        "en": "Leave empty for auto-generation",
-        "no": "La stå tom for auto-generering",
-        "da": "Lad stå tom for auto-generering",
-        "de": "Leer lassen für Auto-Generierung",
-        "es": "Dejar vacío para auto-generación",
-        "fr": "Laisser vide pour génération automatique",
-        "it": "Lascia vuoto per generazione automatica",
-        "nl": "Leeg laten voor auto-generatie",
-        "sv": "Lämna tomt för auto-generering",
-        "pl": "Pozostaw puste dla auto-generacji",
-        "fi": "Jätä tyhjäksi automaattista luontia varten",
-        "ru": "Оставьте пустым для автогенерации"
+        "en": "Select or type custom ID",
+        "no": "Velg eller skriv egen ID",
+        "da": "Vælg eller skriv brugerdefineret ID",
+        "de": "Auswählen oder eigene ID eingeben",
+        "es": "Seleccionar o escribir ID personalizado",
+        "fr": "Sélectionner ou saisir un ID personnalisé",
+        "it": "Seleziona o digita ID personalizzato",
+        "nl": "Selecteer of typ aangepaste ID",
+        "sv": "Välj eller skriv anpassat ID",
+        "pl": "Wybierz lub wpisz własne ID",
+        "fi": "Valitse tai kirjoita mukautettu ID",
+        "ru": "Выберите или введите пользовательский ID"
       }
     }
   ]

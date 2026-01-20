@@ -3,19 +3,35 @@
 /**
  * Advanced Logger for Homey Apps
  *
- * NEW: Supports global configuration via loggerConfig.js
- * FIX: Manually performs variable substitution as this.homey.__() fails to do so.
- * FIX (User): Added log level (e.g., [INFO ], [DEBUG]) to the console output.
- * FIX (User): Moved log level to the front of the output.
- * FIX (User): Fixed 'minLevel = 0 || ...' bug.
- * FIX (User): Added config loaded logging and static cache.
- * FIX (User): Moved config log to appear *after* the banner.
- * FIX (User): Fixed bug in _getDefaultConfig catch block return shape.
- * FIX (User): Fixed null-logging in banner().
- * FIX (User): Reverted info() to log as INFO. Code should be explicit.
+ * Provides configurable logging with multiple log levels, category filtering,
+ * emoji symbols for visual distinction, and support for localized messages.
+ * Configuration is loaded from loggerConfig.js or uses sensible defaults.
+ *
+ * Features:
+ * - Log levels: DEBUG, INFO, WARN, ERROR, NONE
+ * - Category-based filtering (e.g., "App", "Device:LogicUnit")
+ * - Visual symbols for different log types
+ * - Timer functionality for performance measurement
+ * - Localization support via Homey's __() function
+ * - Variable substitution in messages
+ *
+ * Called by:
+ *   - app.js - Creates main app logger
+ *   - BaseLogicUnit.js - Creates device-specific loggers
+ *   - BaseLogicDriver.js - Creates driver-specific loggers
+ *   - All driver files - Create category-specific loggers
+ *   - WaiterManager.js - Logging waiter operations
+ *   - CapturedStateManager.js - Logging state operations
+ *
+ * @class Logger
  */
-
 class Logger {
+  /**
+   * Log level constants mapping level names to numeric priorities.
+   * Lower numbers mean more verbose logging.
+   * @static
+   * @type {Object<string, number>}
+   */
   static LEVELS = {
     DEBUG: 0,
     INFO: 1,
@@ -24,6 +40,11 @@ class Logger {
     NONE: 4,
   };
 
+  /**
+   * Emoji symbols used as visual prefixes for different log types.
+   * @static
+   * @type {Object<string, string>}
+   */
   static SYMBOLS = {
     DEBUG: "🔍",
     INFO: "✅",
@@ -38,12 +59,24 @@ class Logger {
     FLOW: "🔄",
   };
 
+  /** @static @private */
   static _globalConfig = null;
 
   /**
-   * Get default configuration
-   * Tries to load from loggerConfig.js, falls back to defaults
+   * Gets the default configuration, loading from loggerConfig.js if available.
+   *
+   * Uses a static cache to avoid re-reading the config file on every Logger instantiation.
+   * Falls back to DEBUG level if config file is not found.
+   *
    * @private
+   * @static
+   * @returns {{config: Object, source: string}} Configuration object and its source
+   *
+   * Called by:
+   *   - Logger.constructor() - When creating new Logger instances
+   *
+   * Calls:
+   *   - require('./loggerConfig') - Loads external configuration
    */
   static _getDefaultConfig() {
     // Use cache if available
@@ -68,9 +101,31 @@ class Logger {
     }
   }
 
+  /**
+   * Creates a new Logger instance.
+   *
+   * Automatically detects the Homey object from the context (App or Device),
+   * loads configuration from loggerConfig.js, and sets up the log level
+   * based on priority: options > categoryLevels > defaultLevel.
+   *
+   * @param {Object} context - The Homey App or Device instance
+   * @param {string} [category="App"] - Category name for log filtering and display
+   * @param {Object} [options={}] - Override options
+   * @param {string} [options.level] - Override log level (DEBUG, INFO, WARN, ERROR, NONE)
+   * @param {boolean} [options.timestamps] - Include timestamps in output
+   * @param {boolean} [options.colors] - Use colored output (if supported)
+   *
+   * Called by:
+   *   - app.js onInit() - Creates main application logger
+   *   - BaseLogicUnit.onInit() - Creates device loggers
+   *   - BaseLogicDriver.onInit() - Creates driver loggers
+   *   - Logger.child() - Creates sub-category loggers
+   *
+   * Calls:
+   *   - Logger._getDefaultConfig() - Loads configuration
+   */
   constructor(context, category = "App", options = {}) {
-    // --- FIKS I KONSTRUKTØR ---
-    // Finner det *ekte* homey-objektet uansett om 'context' er App eller Device
+    // Find the actual homey object whether 'context' is App or Device
     if (context && context.homey) {
       this.homey = context.homey;
     } else if (context && context.app && context.app.homey) {
@@ -123,6 +178,17 @@ class Logger {
     this.timers = new Map();
   }
 
+  /**
+   * Dynamically changes the log level at runtime.
+   *
+   * @param {string} level - New log level (DEBUG, INFO, WARN, ERROR, NONE)
+   *
+   * Called by:
+   *   - External code when log level needs to change dynamically
+   *
+   * Calls:
+   *   - (none)
+   */
   setLevel(level) {
     const upperLevel = level.toUpperCase();
     if (Logger.LEVELS[upperLevel] !== undefined) {
@@ -131,18 +197,79 @@ class Logger {
     }
   }
 
+  /**
+   * Returns the current log level as a string.
+   *
+   * @returns {string} Current log level (DEBUG, INFO, WARN, ERROR, NONE)
+   *
+   * Called by:
+   *   - External code for log level inspection
+   *
+   * Calls:
+   *   - (none)
+   */
   getLevel() {
     return this.options.level;
   }
 
+  /**
+   * Checks if a message at the given level should be logged.
+   *
+   * @private
+   * @param {string} level - The log level to check
+   * @returns {boolean} True if the message should be logged
+   *
+   * Called by:
+   *   - Logger._log() - Before outputting messages
+   *   - Logger._logError() - Before outputting errors
+   *   - Logger.timeStart/timeEnd() - Before timing output
+   *   - Logger.dump() - Before dumping objects
+   *   - Logger.separator() - Before drawing separators
+   *   - Logger.banner() - Before displaying banners
+   *
+   * Calls:
+   *   - (none)
+   */
   _shouldLog(level) {
     return Logger.LEVELS[level] >= this.minLevel;
   }
 
+  /**
+   * Builds the log message prefix with symbol and category.
+   *
+   * @private
+   * @param {string} symbol - Emoji symbol for this log type
+   * @returns {string} Formatted prefix like "🔍 [App]"
+   *
+   * Called by:
+   *   - Logger._log() - For standard log messages
+   *   - Logger._logError() - For error messages
+   *
+   * Calls:
+   *   - (none)
+   */
   _getPrefix(symbol) {
     return `${symbol} [${this.category}]`;
   }
 
+  /**
+   * Formats a message with optional localization and variable substitution.
+   *
+   * Attempts to translate keys that look like locale keys (contain dots),
+   * then performs manual variable substitution for {placeholder} patterns.
+   *
+   * @private
+   * @param {string} keyOrMessage - Message string or locale key
+   * @param {Object} [data] - Data object for variable substitution
+   * @returns {string} Formatted message string
+   *
+   * Called by:
+   *   - Logger._log() - For standard messages
+   *   - Logger._logError() - For error messages
+   *
+   * Calls:
+   *   - this.homey.__() - For localization (if available)
+   */
   _formatMessage(keyOrMessage, data) {
     let message = keyOrMessage; // Start with the original key/message
 
@@ -197,26 +324,74 @@ class Logger {
     return messageStr;
   }
 
+  /**
+   * Internal method that outputs a log message at the specified level.
+   *
+   * Formats the message with level prefix, symbol, category, and content,
+   * then outputs via Homey's app.log() with fallback to console.log().
+   *
+   * @private
+   * @param {string} level - Log level (DEBUG, INFO, WARN, ERROR)
+   * @param {string} symbol - Emoji symbol for this message type
+   * @param {string} keyOrMessage - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Logger.debug() - DEBUG level messages
+   *   - Logger.info() - INFO level messages
+   *   - Logger.warn() - WARN level messages
+   *   - Logger.formula() - Formula-related debug messages
+   *   - Logger.input() - Input-related debug messages
+   *   - Logger.output() - Output-related debug messages
+   *   - Logger.device() - Device-related debug messages
+   *   - Logger.api() - API-related debug messages
+   *   - Logger.flow() - Flow-related debug messages
+   *   - Logger.timeStart/timeEnd() - Timer messages
+   *   - Logger.dump() - Object dump messages
+   *   - Logger.separator() - Separator lines
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - Logger._getPrefix() - Build prefix
+   *   - Logger._formatMessage() - Format message content
+   *   - this.homey.app.log() - Homey logging API
+   */
   _log(level, symbol, keyOrMessage, data) {
     if (!this._shouldLog(level)) {
       return;
     }
 
-    // --- FIKS: Log-nivå lagt til ---
     const levelString = `[${level.padEnd(5)}]`;
     const prefix = this._getPrefix(symbol);
     const formattedMessage = this._formatMessage(keyOrMessage, data);
 
     try {
-      // Bruk ALLTID this.homey.app.log
-      // --- FIKS: Flyttet levelString FØRST ---
       this.homey.app.log(levelString, prefix, formattedMessage);
     } catch (error) {
       console.error("Logger internal error:", error);
-      console.log(levelString, prefix, formattedMessage); // Fallback til console.log
+      console.log(levelString, prefix, formattedMessage);
     }
   }
 
+  /**
+   * Internal method for logging error messages with optional Error objects.
+   *
+   * Handles both string messages with data substitution and actual Error objects
+   * (logging stack traces). Uses Homey's app.error() for output.
+   *
+   * @private
+   * @param {string} keyOrMessage - Error message or locale key
+   * @param {Error|Object} [error] - Error object (logs stack) or data object
+   *
+   * Called by:
+   *   - Logger.error() - Public error logging method
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - Logger._getPrefix() - Build prefix
+   *   - Logger._formatMessage() - Format message content
+   *   - this.homey.app.error() - Homey error logging API
+   */
   _logError(keyOrMessage, error) {
     if (!this._shouldLog("ERROR")) {
       return;
@@ -248,49 +423,184 @@ class Logger {
     }
   }
 
+  /**
+   * Logs a DEBUG level message with the debug symbol (🔍).
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Throughout codebase for detailed debugging information
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   debug(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.DEBUG, message, data);
   }
 
-  // --- FIKS: info() logger nå som INFO ---
+  /**
+   * Logs an INFO level message with the info symbol (✅).
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Throughout codebase for important status information
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   info(message, data) {
     this._log("INFO", Logger.SYMBOLS.INFO, message, data);
   }
 
+  /**
+   * Logs a WARN level message with the warning symbol (⚠️).
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Throughout codebase for warning conditions
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   warn(message, data) {
     this._log("WARN", Logger.SYMBOLS.WARN, message, data);
   }
 
+  /**
+   * Logs an ERROR level message with the error symbol (❌).
+   *
+   * @param {string} message - Message or locale key
+   * @param {Error|Object} [error] - Error object or data for substitution
+   *
+   * Called by:
+   *   - Throughout codebase for error conditions
+   *
+   * Calls:
+   *   - Logger._logError() - Internal error logging method
+   */
   error(message, error) {
     this._logError(message, error);
   }
 
+  /**
+   * Logs a DEBUG level message with the formula symbol (📐).
+   * Used for formula evaluation related messages.
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - BaseLogicUnit.evaluateFormula() - Formula evaluation logging
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   formula(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.FORMULA, message, data);
   }
 
+  /**
+   * Logs a DEBUG level message with the input symbol (📥).
+   * Used for input-related messages.
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - BaseLogicUnit - When inputs are set or changed
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   input(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.INPUT, message, data);
   }
 
+  /**
+   * Logs a DEBUG level message with the output symbol (📤).
+   * Used for output-related messages.
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - BaseLogicUnit - When formula results change
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   output(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.OUTPUT, message, data);
   }
 
-  // --- FIKS: device() logger nå som DEBUG ---
+  /**
+   * Logs a DEBUG level message with the device symbol (🔌).
+   * Used for device-related messages.
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Device classes - For device lifecycle events
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   device(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.DEVICE, message, data);
   }
 
+  /**
+   * Logs a DEBUG level message with the API symbol (🌐).
+   * Used for API-related messages.
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - app.js - For API endpoint logging
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   api(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.API, message, data);
   }
 
-  // --- FIKS: flow() logger nå som DEBUG ---
+  /**
+   * Logs a DEBUG level message with the flow symbol (🔄).
+   * Used for flow card related messages.
+   *
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Flow card handlers in app.js and drivers
+   *
+   * Calls:
+   *   - Logger._log() - Internal logging method
+   */
   flow(message, data) {
     this._log("DEBUG", Logger.SYMBOLS.FLOW, message, data);
   }
 
+  /**
+   * Starts a named timer for performance measurement.
+   *
+   * @param {string} label - Unique label for this timer
+   *
+   * Called by:
+   *   - Performance measurement code
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - Logger._log() - Output start message
+   */
   timeStart(label) {
     this.timers.set(label, Date.now());
     if (this._shouldLog("DEBUG")) {
@@ -298,6 +608,20 @@ class Logger {
     }
   }
 
+  /**
+   * Ends a named timer and logs the elapsed time.
+   *
+   * @param {string} label - Label of the timer to end
+   * @returns {number} Elapsed time in milliseconds, or 0 if timer not found
+   *
+   * Called by:
+   *   - Performance measurement code
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - Logger._log() - Output duration message
+   *   - Logger.warn() - If timer wasn't started
+   */
   timeEnd(label) {
     const startTime = this.timers.get(label);
     if (!startTime) {
@@ -319,6 +643,19 @@ class Logger {
     return duration;
   }
 
+  /**
+   * Dumps an object as formatted JSON for debugging.
+   *
+   * @param {string} label - Label describing the object
+   * @param {Object} object - Object to dump
+   *
+   * Called by:
+   *   - Debug code for inspecting complex objects
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - Logger._log() - Output the dump
+   */
   dump(label, object) {
     if (!this._shouldLog("DEBUG")) {
       return;
@@ -332,6 +669,22 @@ class Logger {
     }
   }
 
+  /**
+   * Logs a message only once per key (per Logger instance lifetime).
+   *
+   * Useful for warnings that shouldn't spam the log on repeated occurrences.
+   *
+   * @param {string} key - Unique key to identify this message
+   * @param {string} level - Log level (debug, info, warn, error)
+   * @param {string} message - Message or locale key
+   * @param {Object} [data] - Data for variable substitution
+   *
+   * Called by:
+   *   - Code that needs to warn once about a condition
+   *
+   * Calls:
+   *   - Logger[level]() - Appropriate log method based on level
+   */
   once(key, level, message, data) {
     if (!this._onceKeys) {
       this._onceKeys = new Set();
@@ -352,6 +705,20 @@ class Logger {
     }
   }
 
+  /**
+   * Creates a child logger with a sub-category appended to the current category.
+   *
+   * Example: If parent is "App", child("Flow") creates "App:Flow"
+   *
+   * @param {string} subCategory - Sub-category name to append
+   * @returns {Logger} New Logger instance with combined category
+   *
+   * Called by:
+   *   - Code that needs more specific category filtering
+   *
+   * Calls:
+   *   - Logger.constructor() - Creates new Logger instance
+   */
   child(subCategory) {
     return new Logger(
       this.context,
@@ -360,12 +727,37 @@ class Logger {
     );
   }
 
+  /**
+   * Logs a visual separator line for log organization.
+   *
+   * Called by:
+   *   - Code that wants to visually separate log sections
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - Logger._log() - Output the separator
+   */
   separator() {
     if (this._shouldLog("DEBUG")) {
       this._log("DEBUG", "", "─".repeat(50));
     }
   }
 
+  /**
+   * Logs a prominent banner message with decorative borders.
+   *
+   * Used for startup messages and major state changes.
+   * Also logs configuration source on first call.
+   *
+   * @param {string} message - Banner message text
+   *
+   * Called by:
+   *   - app.js onInit() - Application startup banner
+   *
+   * Calls:
+   *   - Logger._shouldLog() - Check if should output
+   *   - this.homey.app.log() - Direct Homey logging
+   */
   banner(message) {
     if (this._shouldLog("INFO")) {
       const line = "═".repeat(message.length + 4);

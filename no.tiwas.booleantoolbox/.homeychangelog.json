@@ -34,5 +34,8 @@
   },
   "1.8.1": {
     "en": "Bug fix + better hints"
+  },
+  "1.8.2": {
+    "en": "Fixed some errors with IDs in waiter gates."
   }
 }

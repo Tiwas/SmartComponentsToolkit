@@ -43,7 +43,7 @@
   },
   "args": [
     {
-      "type": "text",
+      "type": "autocomplete",
       "name": "waiter_id",
       "title": {
         "en": "Waiter ID",
@@ -60,18 +60,18 @@
         "ru": "ID Waiter"
       },
       "placeholder": {
-        "en": "my-waiter",
-        "no": "min-waiter",
-        "da": "min-waiter",
-        "de": "mein-waiter",
-        "es": "mi-waiter",
-        "fr": "mon-waiter",
-        "it": "mio-waiter",
-        "nl": "mijn-waiter",
-        "sv": "min-waiter",
-        "pl": "moj-waiter",
-        "fi": "oma-waiter",
-        "ru": "мой-waiter"
+        "en": "Select waiter ID",
+        "no": "Velg waiter ID",
+        "da": "Vælg waiter ID",
+        "de": "Waiter ID auswählen",
+        "es": "Seleccionar ID del Waiter",
+        "fr": "Sélectionner ID du Waiter",
+        "it": "Seleziona ID Waiter",
+        "nl": "Selecteer Waiter ID",
+        "sv": "Välj Waiter ID",
+        "pl": "Wybierz ID Waiter",
+        "fi": "Valitse Waiter ID",
+        "ru": "Выбрать ID Waiter"
       }
     },
     {

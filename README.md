@@ -6,7 +6,7 @@
 
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/Tiwas/SmartComponentsToolkit)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/Tiwas/SmartComponentsToolkit)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
 ---

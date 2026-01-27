@@ -736,6 +736,129 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             this.logger.error(` -> FAILED: Registering CONDITION 'wait_until_becomes_true'`, e);
         }
 
+        // --- Virtual Gates ---
+
+        // Condition: Conditional Gate
+        try {
+            const gateCard = this.homey.flow.getConditionCard("conditional_gate_start");
+
+            // Autocomplete gate_name (with suggestion)
+            const gateAutocomplete = async (query, args) => {
+                const results = [];
+                
+                // Suggestion
+                if (!query) {
+                    const generated = `Gate_${Date.now().toString(36).substr(-4).toUpperCase()}`;
+                    results.push({ name: generated, description: 'Suggested Name', id: generated });
+                }
+
+                const definedGates = await this.getAllDefinedGateNames();
+                for (const gate of definedGates) {
+                    if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
+                        results.push({ name: gate, id: gate });
+                    }
+                }
+                if (query && !results.some(r => r.name === query)) results.push({ name: query, id: query });
+                return results;
+            };
+
+            gateCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
+
+            gateCard.registerRunListener(async (args, state) => {
+                const gateName = args.gate_name?.name || args.gate_name; // This is the ID/Name
+                const defaultState = args.default_state?.id || args.default_state || 'NO_GO';
+                const timeoutValue = Number(args.timeout_value) || 0;
+                const timeoutUnit = args.timeout_unit || 's';
+                
+                // Check if gateName is provided
+                if (!gateName) throw new Error('Gate Name is required');
+
+                const currentState = this.waiterManager.getGateState(gateName, defaultState);
+                
+                // Implicit Target = GO
+                if (currentState === 'GO') {
+                    this.logger.info(`✅ Gate "${gateName}" is GO - continuing`);
+                    return true;
+                }
+
+                // If NO match (NO_GO)
+                if (timeoutValue === 0) {
+                     return false; // Instant fail
+                }
+                
+                return new Promise((resolve, reject) => {
+                    (async () => {
+                        try {
+                            // Generate unique internal ID for this waiter instance
+                            const uniqueWaiterId = `gate_${gateName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            
+                            const config = { timeoutValue, timeoutUnit };
+                            const virtualGateConfig = { gateName, targetState: 'GO' }; 
+
+                            const actualId = await this.waiterManager.createWaiter(
+                                uniqueWaiterId,
+                                config,
+                                { flowId: state?.flowId, flowToken: state?.flowToken },
+                                null,
+                                virtualGateConfig
+                            );
+                            
+                            const waiterData = this.waiterManager.waiters.get(actualId);
+                            if (waiterData) waiterData.resolver = resolve;
+                        } catch (err) {
+                            reject(err);
+                        }
+                    })();
+                });
+            });
+            this.logger.debug(` -> OK: CONDITION registered: 'conditional_gate_start'`);
+        } catch (e) { this.logger.error(` -> FAILED: 'conditional_gate_start'`, e); }
+
+        // Action: Modify Conditional Gate
+        try {
+            const modifyCard = this.homey.flow.getActionCard("conditional_gate_modify");
+            
+            // Autocomplete gate_name (Use same helper)
+             const gateAutocomplete = async (query, args) => {
+                const results = [];
+                const definedGates = await this.getAllDefinedGateNames();
+                for (const gate of definedGates) {
+                    if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
+                        results.push({ name: gate, id: gate });
+                    }
+                }
+                if (query && !results.some(r => r.name === query)) results.push({ name: query, id: query });
+                return results;
+            };
+            
+            modifyCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
+
+            modifyCard.registerRunListener(async (args, state) => {
+                const gateName = args.gate_name?.name || args.gate_name;
+                
+                if (!gateName) throw new Error('Gate Name is required');
+                
+                // 1. Update Timeout if provided (Update ALL waiters for this gate)
+                // -1 is the default for "No Change"
+                const val = Number(args.new_timeout_value);
+                if (!isNaN(val) && val >= 0) {
+                    const unit = args.new_timeout_unit || 's';
+                    const timeoutMs = this.waiterManager.convertToMs(val, unit);
+                    
+                    const count = this.waiterManager.updateGateWaiters(gateName, { timeoutMs });
+                    this.logger.info(`Updated timeout for ${count} waiters on gate "${gateName}"`);
+                }
+
+                // 2. Update State if provided
+                const newState = args.new_state;
+                if (newState && newState !== 'NO_CHANGE') {
+                    this.waiterManager.setGateState(gateName, newState);
+                }
+                return true;
+            });
+             this.logger.debug(` -> OK: ACTION registered: 'conditional_gate_modify'`);
+        } catch (e) { this.logger.error(` -> FAILED: 'conditional_gate_modify'`, e); }
+
         // Action: Control waiter
         try {
             const controlWaiterCard = this.homey.flow.getActionCard("control_waiter");
@@ -996,5 +1119,56 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         }
 
         return devicesWithErrors;
+    }
+
+    /**
+     * Get all gate names defined in flows
+     */
+    async getAllDefinedGateNames() {
+        try {
+            if (!this.api) {
+                const { HomeyAPI } = require("athom-api");
+                this.api = await HomeyAPI.forCurrentHomey(this.homey);
+            }
+
+            const gateNames = new Set();
+            
+            // Add currently active gates from memory
+            const activeGates = this.waiterManager.getDefinedGates();
+            activeGates.forEach(g => gateNames.add(g));
+
+            // Helper to extract gate name
+            const extractName = (arg) => arg?.name || arg;
+
+            const flows = await this.api.flow.getFlows();
+            let advancedFlows = {};
+            try {
+                if (this.api.flowAdv) advancedFlows = await this.api.flowAdv.getFlows();
+                else if (this.api.flow?.getAdvancedFlows) advancedFlows = await this.api.flow.getAdvancedFlows();
+            } catch (e) {}
+
+            const processCard = (card) => {
+                if (card.id === 'conditional_gate_start' || card.id === 'conditional_gate_modify') {
+                    const name = extractName(card.args?.gate_name);
+                    if (name) gateNames.add(name);
+                }
+            };
+
+            // Regular flows
+            for (const flow of Object.values(flows)) {
+                if (flow.conditions) flow.conditions.forEach(processCard);
+                if (flow.actions) flow.actions.forEach(processCard);
+            }
+
+            // Advanced flows
+            for (const flow of Object.values(advancedFlows)) {
+                if (flow.cards) Object.values(flow.cards).forEach(processCard);
+            }
+
+            return Array.from(gateNames).sort();
+        } catch (error) {
+            this.logger.error('Failed to get defined gate names:', error);
+            return [];
+        }
     }
 };

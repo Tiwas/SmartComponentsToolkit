@@ -1,0 +1,82 @@
+{
+  "title": {
+    "en": "Conditional Gate",
+    "no": "Betinget Port",
+    "nl": "Voorwaardelijke Poort",
+    "de": "Bedingtes Tor"
+  },
+  "titleFormatted": {
+    "en": "Conditional Gate: Wait for GO (default: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Name/ID: [[gate_name]])",
+    "no": "Betinget Port: Vent på GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Navn/ID: [[gate_name]])",
+    "nl": "Voorwaardelijke Poort: Wacht op GO (standaard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Naam/ID: [[gate_name]])",
+    "de": "Bedingtes Tor: Warte auf GO (Standard: [[default_state]], Timeout: [[timeout_value]] [[timeout_unit]], Name/ID: [[gate_name]])"
+  },
+  "hint": {
+    "en": "Pauses flow until the specified Gate is GO. Use 'Modify Conditional Gate' to control it by Name/ID.",
+    "no": "Pauser flyten til angitt Port er GO. Bruk 'Endre Betinget Port' for å styre den med Navn/ID.",
+    "nl": "Pauzeert flow totdat de opgegeven Poort GO is. Gebruik 'Wijzig Voorwaardelijke Poort' om te bedienen via Naam/ID.",
+    "de": "Pausiert Flow bis das angegebene Tor GO ist. Verwenden Sie 'Bedingtes Tor ändern' zur Steuerung über Name/ID."
+  },
+  "args": [
+    {
+      "type": "dropdown",
+      "name": "default_state",
+      "title": {
+        "en": "Default State (if new)",
+        "no": "Standardstatus (hvis ny)",
+        "nl": "Standaardstatus (indien nieuw)",
+        "de": "Standardstatus (wenn neu)"
+      },
+      "values": [
+        { "id": "NO_GO", "title": { "en": "NO GO (Closed)", "no": "NO GO (Stengt)", "nl": "NO GO (Gesloten)", "de": "NO GO (Geschlossen)" } },
+        { "id": "GO", "title": { "en": "GO (Open)", "no": "GO (Åpen)", "nl": "GO (Open)", "de": "GO (Offen)" } }
+      ],
+      "defaultValue": "NO_GO"
+    },
+    {
+      "type": "number",
+      "name": "timeout_value",
+      "title": {
+        "en": "Timeout duration",
+        "no": "Timeout varighet",
+        "nl": "Timeout duur",
+        "de": "Timeout Dauer"
+      },
+      "min": 0,
+      "step": 1,
+      "defaultValue": 60
+    },
+    {
+      "type": "dropdown",
+      "name": "timeout_unit",
+      "title": {
+        "en": "Timeout unit",
+        "no": "Timeout enhet",
+        "nl": "Timeout eenheid",
+        "de": "Timeout Einheit"
+      },
+      "values": [
+        { "id": "s", "title": { "en": "Seconds", "no": "Sekunder", "nl": "Seconden", "de": "Sekunden" } },
+        { "id": "m", "title": { "en": "Minutes", "no": "Minutter", "nl": "Minuten", "de": "Minuten" } },
+        { "id": "h", "title": { "en": "Hours", "no": "Timer", "nl": "Uren", "de": "Stunden" } }
+      ],
+      "defaultValue": "s"
+    },
+    {
+      "type": "autocomplete",
+      "name": "gate_name",
+      "title": {
+        "en": "Gate Name / ID",
+        "no": "Port Navn / ID",
+        "nl": "Poort Naam / ID",
+        "de": "Tor Name / ID"
+      },
+      "placeholder": {
+        "en": "e.g. KitchenCheck",
+        "no": "f.eks. KjøkkenSjekk",
+        "nl": "bijv. KeukenCheck",
+        "de": "z.B. KüchenCheck"
+      }
+    }
+  ]
+}

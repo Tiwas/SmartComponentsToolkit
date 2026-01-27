@@ -37,5 +37,8 @@
   },
   "1.8.2": {
     "en": "Fixed some errors with IDs in waiter gates."
+  },
+  "1.9.0": {
+    "en": "Added conditional gates for better flow control without variables"
   }
 }

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conditional Gates - Smart (Components) Toolkit for Homey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1a202c;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-size: 0.9em;
+            color: #1e293b;
+        }
+        pre {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            color: #1e293b;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex justify-between items-center">
+                <a href="../README.md" class="text-xl font-bold text-purple-600 hover:text-purple-800">Smart (Components) Toolkit</a>
+                <div class="space-x-4 text-sm">
+                    <a href="getting-started.html" class="text-gray-600 hover:text-purple-600">Getting Started</a>
+                    <a href="devices.html" class="text-gray-600 hover:text-purple-600">Devices</a>
+                    <a href="conditional-gates.html" class="text-gray-900 font-semibold">Conditional Gates</a>
+                    <a href="waiter-gates.html" class="text-gray-600 hover:text-purple-600">Waiter Gates</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl flex-grow">
+        <div class="mb-6">
+            <h1 class="text-4xl font-bold mb-2 text-gray-900">Conditional Gates</h1>
+            <p class="text-gray-600">Virtual "circuit breakers" for your flows that act as advanced latches.</p>
+        </div>
+
+        <!-- Introduction -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-purple-600">What are Conditional Gates?</h2>
+            <p class="mb-4 text-gray-700">Conditional Gates are virtual logic gates (Go / No Go circuits) that exist purely in memory. They allow you to pause flows until a specific "Gate" is opened (set to GO).</p>
+            <p class="mb-4 text-gray-700">Think of them as a traffic light for your flows:</p>
+            <ul class="list-disc ml-6 space-y-2 text-gray-700">
+                <li><strong>GO (Open):</strong> Flows continue immediately.</li>
+                <li><strong>NO GO (Closed):</strong> Flows wait (pause) until the gate opens or the timeout expires.</li>
+            </ul>
+        </section>
+
+        <!-- Flow Cards -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-purple-600">Flow Cards</h2>
+
+            <div class="space-y-6">
+                <!-- Start Card -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-green-600">Conditional Gate (Wait for GO)</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">CONDITION</span></p>
+                    <p class="mb-4 text-gray-700">Pauses the flow until the specified gate becomes <strong>GO</strong>.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Default State:</strong> The initial state if this gate hasn't been used before (usually NO GO).</li>
+                        <li><strong>Timeout:</strong> How long to wait for the gate to open. (Set to 0 for instant check without waiting).</li>
+                        <li><strong>Gate Name / ID:</strong> The unique name of your circuit (e.g., "KitchenMode", "NightLatch").</li>
+                    </ul>
+
+                    <div class="bg-blue-50 p-4 rounded text-sm text-blue-800">
+                        <strong>Note:</strong> Gates persist in memory! If you set "Default: GO", the gate will remain GO until you explicitly close it using the Modify card. The "Default" setting only applies the very first time the gate is created.
+                    </div>
+                </div>
+
+                <!-- Modify Card -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-blue-600">Modify Conditional Gate</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">ACTION</span></p>
+                    <p class="mb-4 text-gray-700">Changes the state of a gate (Open/Close) or updates the timeout of active waiters.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Gate Name / ID:</strong> Select the gate to modify.</li>
+                        <li><strong>New State:</strong> Set to GO (releases waiting flows), NO GO (stops future flows), or Toggle.</li>
+                        <li><strong>New Timeout:</strong> Update the timeout for currently waiting flows. Set to -1 to leave unchanged.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Examples -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-purple-600">Examples</h2>
+
+            <!-- Example 1 -->
+            <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm mb-6">
+                <h3 class="text-lg font-semibold mb-3 text-purple-600">1. Manual Approval (The "Ask Permission" Flow)</h3>
+                <p class="mb-3 text-gray-700">Trigger a flow, but wait for manual confirmation (e.g., via a button or app) before proceeding.</p>
+                
+                <div class="mb-4">
+                    <h4 class="font-semibold text-gray-900 mb-2">Flow 1: The Request</h4>
+                    <pre class="text-sm"><code>WHEN: Washing Machine finished
+AND: Conditional Gate "EmptyWasher" (Default: NO GO, Timeout: 1 hour)
+THEN: Send push notification "Washer emptied!"</code></pre>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold text-gray-900 mb-2">Flow 2: The Approval</h4>
+                    <pre class="text-sm"><code>WHEN: Virtual Button "Washer Emptied" pressed
+THEN: Modify Conditional Gate "EmptyWasher" -> Set to GO
+THEN: Modify Conditional Gate "EmptyWasher" -> Set to NO GO (Reset for next time)</code></pre>
+                </div>
+            </div>
+
+            <!-- Example 2 -->
+            <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                <h3 class="text-lg font-semibold mb-3 text-purple-600">2. "Latch" Logic</h3>
+                <p class="mb-3 text-gray-700">Prevent a flow from running until a specific condition (Latch) is set, and queue up requests.</p>
+                <pre class="text-sm"><code>WHEN: Motion Detected
+AND: Conditional Gate "NightModeLatch" (Default: NO GO, Timeout: 0)
+THEN: Turn on hallway lights dimly</code></pre>
+                <p class="text-sm text-gray-600 mt-2">Here, Timeout 0 acts as a filter. If "NightModeLatch" is NO GO, the flow stops immediately. If it is GO, lights turn on.</p>
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="bg-white border-t border-gray-200 mt-12 py-6 text-center text-gray-600">
+        <p>Smart (Components) Toolkit for Homey | <a href="https://github.com/Tiwas/SmartComponentsToolkit" class="text-purple-600 hover:text-purple-300">GitHub</a></p>
+    </footer>
+</body>
+</html>

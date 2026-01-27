@@ -1,0 +1,84 @@
+{
+  "title": {
+    "en": "Modify Conditional Gate",
+    "no": "Endre Betinget Port",
+    "nl": "Wijzig Voorwaardelijke Poort",
+    "de": "Bedingtes Tor Ändern"
+  },
+  "titleFormatted": {
+    "en": "Modify gate [[gate_name]] (Set state: [[new_state]], Set timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "no": "Endre port [[gate_name]] (Sett status: [[new_state]], Sett timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "nl": "Wijzig poort [[gate_name]] (Zet status: [[new_state]], Zet timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "de": "Tor [[gate_name]] ändern (Status setzen: [[new_state]], Timeout setzen: [[new_timeout_value]] [[new_timeout_unit]])"
+  },
+  "hint": {
+    "en": "Modifies a Conditional Gate. Set Timeout to -1 for no change.",
+    "no": "Endrer en Betinget Port. Sett Timeout til -1 for ingen endring.",
+    "nl": "Wijzigt een Voorwaardelijke Poort. Zet Timeout op -1 voor geen wijziging.",
+    "de": "Ändert ein Bedingtes Tor. Setze Timeout auf -1 für keine Änderung."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "gate_name",
+      "title": {
+        "en": "Gate Name / ID",
+        "no": "Port Navn / ID",
+        "nl": "Poort Naam / ID",
+        "de": "Tor Name / ID"
+      },
+      "placeholder": {
+        "en": "Select Gate Name",
+        "no": "Velg Port Navn",
+        "nl": "Selecteer Poort Naam",
+        "de": "Wähle Tor Name"
+      }
+    },
+    {
+      "type": "dropdown",
+      "name": "new_state",
+      "title": {
+        "en": "New State",
+        "no": "Ny Status",
+        "nl": "Nieuwe Status",
+        "de": "Neuer Status"
+      },
+      "values": [
+        { "id": "NO_CHANGE", "title": { "en": "Don't change", "no": "Ikke endre", "nl": "Niet wijzigen", "de": "Nicht ändern" } },
+        { "id": "GO", "title": { "en": "Set to GO", "no": "Sett til GO", "nl": "Zet op GO", "de": "Setze auf GO" } },
+        { "id": "NO_GO", "title": { "en": "Set to NO GO", "no": "Sett til NO GO", "nl": "Zet op NO GO", "de": "Setze auf NO GO" } },
+        { "id": "TOGGLE", "title": { "en": "Toggle", "no": "Veksle", "nl": "Omschakelen", "de": "Umschalten" } }
+      ],
+      "defaultValue": "NO_CHANGE"
+    },
+    {
+      "type": "number",
+      "name": "new_timeout_value",
+      "title": {
+        "en": "New Timeout (-1 = no change)",
+        "no": "Ny Timeout (-1 = ingen endring)",
+        "nl": "Nieuwe Timeout (-1 = geen wijziging)",
+        "de": "Neuer Timeout (-1 = keine Änderung)"
+      },
+      "min": -1,
+      "step": 1,
+      "defaultValue": -1
+    },
+    {
+      "type": "dropdown",
+      "name": "new_timeout_unit",
+      "title": {
+        "en": "Timeout unit",
+        "no": "Timeout enhet",
+        "nl": "Timeout eenheid",
+        "de": "Timeout Einheit"
+      },
+      "values": [
+        { "id": "s", "title": { "en": "Seconds", "no": "Sekunder", "nl": "Seconden", "de": "Sekunden" } },
+        { "id": "m", "title": { "en": "Minutes", "no": "Minutter", "nl": "Minuten", "de": "Minuten" } },
+        { "id": "h", "title": { "en": "Hours", "no": "Timer", "nl": "Uren", "de": "Stunden" } }
+      ],
+      "defaultValue": "s"
+    }
+  ]
+}

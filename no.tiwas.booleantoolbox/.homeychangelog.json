@@ -40,5 +40,8 @@
   },
   "1.9.0": {
     "en": "Added conditional gates for better flow control without variables"
+  },
+  "1.9.1": {
+    "en": "Minor fixes"
   }
 }

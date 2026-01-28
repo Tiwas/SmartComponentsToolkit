@@ -191,7 +191,11 @@ class WaiterManager {
             if (waiter && waiter.enabled && waiter.resolver) {
                 const targetState = waiter.virtualGateConfig?.targetState || 'GO';
                 if (targetState === actualNewState) {
-                    try { waiter.resolver(true); triggered++; } catch (e) { this.logger.error(e); }
+                    try {
+                        // Return tokens for condition cards
+                        waiter.resolver({ gate_state: actualNewState === 'GO', gate_state_text: actualNewState });
+                        triggered++;
+                    } catch (e) { this.logger.error(e); }
                     this.removeWaiter(waiterId);
                 }
             }

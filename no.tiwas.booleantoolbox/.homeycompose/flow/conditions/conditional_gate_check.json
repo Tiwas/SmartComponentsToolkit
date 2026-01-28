@@ -1,0 +1,133 @@
+{
+  "title": {
+    "en": "Check Gate State",
+    "no": "Sjekk Portstatus",
+    "da": "Tjek Portstatus",
+    "nl": "Controleer Poortstatus",
+    "de": "Torstatus prüfen",
+    "es": "Comprobar Estado de Puerta",
+    "fr": "Vérifier État de Porte",
+    "it": "Controlla Stato Porta",
+    "sv": "Kontrollera Portstatus",
+    "pl": "Sprawdź Stan Bramy",
+    "fi": "Tarkista Portin Tila",
+    "ru": "Проверить Состояние Шлюза"
+  },
+  "titleFormatted": {
+    "en": "Gate [[gate_name]] is [[state]]",
+    "no": "Port [[gate_name]] er [[state]]",
+    "da": "Port [[gate_name]] er [[state]]",
+    "nl": "Poort [[gate_name]] is [[state]]",
+    "de": "Tor [[gate_name]] ist [[state]]",
+    "es": "Puerta [[gate_name]] es [[state]]",
+    "fr": "Porte [[gate_name]] est [[state]]",
+    "it": "Porta [[gate_name]] è [[state]]",
+    "sv": "Port [[gate_name]] är [[state]]",
+    "pl": "Brama [[gate_name]] jest [[state]]",
+    "fi": "Portti [[gate_name]] on [[state]]",
+    "ru": "Шлюз [[gate_name]] [[state]]"
+  },
+  "hint": {
+    "en": "Checks if a gate is currently GO or NO GO immediately.",
+    "no": "Sjekker om en port er GO eller NO GO umiddelbart.",
+    "da": "Tjekker om en port er GO eller NO GO øjeblikkeligt.",
+    "nl": "Controleert direct of een poort GO of NO GO is.",
+    "de": "Prüft sofort, ob ein Tor GO oder NO GO ist.",
+    "es": "Comprueba inmediatamente si una puerta está en GO o NO GO.",
+    "fr": "Vérifie immédiatement si une porte est GO ou NO GO.",
+    "it": "Controlla immediatamente se una porta è GO o NO GO.",
+    "sv": "Kontrollerar omedelbart om en port är GO eller NO GO.",
+    "pl": "Natychmiast sprawdza, czy brama jest GO czy NO GO.",
+    "fi": "Tarkistaa välittömästi, onko portti GO vai NO GO.",
+    "ru": "Немедленно проверяет, является ли шлюз GO или NO GO."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "gate_name",
+      "title": {
+        "en": "Gate Name / ID",
+        "no": "Port Navn / ID",
+        "da": "Port Navn / ID",
+        "nl": "Poort Naam / ID",
+        "de": "Tor Name / ID",
+        "es": "Nombre / ID de Puerta",
+        "fr": "Nom / ID de Porte",
+        "it": "Nome / ID Porta",
+        "sv": "Port Namn / ID",
+        "pl": "Nazwa / ID Bramy",
+        "fi": "Portin Nimi / ID",
+        "ru": "Имя / ID Шлюза"
+      },
+      "placeholder": {
+        "en": "Select Gate Name",
+        "no": "Velg Port Navn",
+        "da": "Vælg Port Navn",
+        "nl": "Selecteer Poort Naam",
+        "de": "Wähle Tor Name",
+        "es": "Seleccionar Nombre de Puerta",
+        "fr": "Sélectionner Nom de Porte",
+        "it": "Seleziona Nome Porta",
+        "sv": "Välj Port Namn",
+        "pl": "Wybierz Nazwę Bramy",
+        "fi": "Valitse Portin Nimi",
+        "ru": "Выберите Имя Шлюза"
+      }
+    },
+    {
+      "type": "dropdown",
+      "name": "state",
+      "title": {
+        "en": "State",
+        "no": "Status",
+        "da": "Status",
+        "nl": "Status",
+        "de": "Status",
+        "es": "Estado",
+        "fr": "État",
+        "it": "Stato",
+        "sv": "Status",
+        "pl": "Stan",
+        "fi": "Tila",
+        "ru": "Состояние"
+      },
+      "values": [
+        {
+          "id": "GO",
+          "title": {
+            "en": "GO",
+            "no": "GO",
+            "da": "GO",
+            "nl": "GO",
+            "de": "GO",
+            "es": "GO",
+            "fr": "GO",
+            "it": "GO",
+            "sv": "GO",
+            "pl": "GO",
+            "fi": "GO",
+            "ru": "GO"
+          }
+        },
+        {
+          "id": "NO_GO",
+          "title": {
+            "en": "NO GO",
+            "no": "NO GO",
+            "da": "NO GO",
+            "nl": "NO GO",
+            "de": "NO GO",
+            "es": "NO GO",
+            "fr": "NO GO",
+            "it": "NO GO",
+            "sv": "NO GO",
+            "pl": "NO GO",
+            "fi": "NO GO",
+            "ru": "NO GO"
+          }
+        }
+      ],
+      "defaultValue": "GO"
+    }
+  ]
+}

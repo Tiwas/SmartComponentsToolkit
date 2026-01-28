@@ -741,23 +741,24 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         // Condition: Conditional Gate
         try {
             const gateCard = this.homey.flow.getConditionCard("conditional_gate_start");
+            const self = this;
 
             // Autocomplete gate_name (with suggestion)
             const gateAutocomplete = async (query, args) => {
                 const results = [];
-                
-                // Suggestion
                 if (!query) {
                     const generated = `Gate_${Date.now().toString(36).substr(-4).toUpperCase()}`;
                     results.push({ name: generated, description: 'Suggested Name', id: generated });
                 }
-
-                const definedGates = await this.getAllDefinedGateNames();
-                for (const gate of definedGates) {
-                    if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
-                        results.push({ name: gate, id: gate });
+                try {
+                    const definedGates = await self.getAllDefinedGateNames();
+                    for (const gate of definedGates) {
+                        if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
+                            results.push({ name: gate, id: gate });
+                        }
                     }
-                }
+                } catch (e) { self.logger.error(e); }
+                
                 if (query && !results.some(r => r.name === query)) results.push({ name: query, id: query });
                 return results;
             };
@@ -765,33 +766,26 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             gateCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
 
             gateCard.registerRunListener(async (args, state) => {
-                const gateName = args.gate_name?.name || args.gate_name; // This is the ID/Name
+                const gateName = args.gate_name?.name || args.gate_name;
                 const defaultState = args.default_state?.id || args.default_state || 'NO_GO';
                 const timeoutValue = Number(args.timeout_value) || 0;
                 const timeoutUnit = args.timeout_unit || 's';
                 
-                // Check if gateName is provided
                 if (!gateName) throw new Error('Gate Name is required');
 
                 const currentState = this.waiterManager.getGateState(gateName, defaultState);
                 
-                // Implicit Target = GO
                 if (currentState === 'GO') {
                     this.logger.info(`✅ Gate "${gateName}" is GO - continuing`);
-                    return true;
+                    return { gate_state: true, gate_state_text: 'GO' };
                 }
 
-                // If NO match (NO_GO)
-                if (timeoutValue === 0) {
-                     return false; // Instant fail
-                }
+                if (timeoutValue === 0) return false;
                 
                 return new Promise((resolve, reject) => {
                     (async () => {
                         try {
-                            // Generate unique internal ID for this waiter instance
                             const uniqueWaiterId = `gate_${gateName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                            
                             const config = { timeoutValue, timeoutUnit };
                             const virtualGateConfig = { gateName, targetState: 'GO' }; 
 
@@ -805,28 +799,64 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                             
                             const waiterData = this.waiterManager.waiters.get(actualId);
                             if (waiterData) waiterData.resolver = resolve;
-                        } catch (err) {
-                            reject(err);
-                        }
+                        } catch (err) { reject(err); }
                     })();
                 });
             });
             this.logger.debug(` -> OK: CONDITION registered: 'conditional_gate_start'`);
         } catch (e) { this.logger.error(` -> FAILED: 'conditional_gate_start'`, e); }
 
+        // Condition: Check Gate State
+        try {
+            const checkCard = this.homey.flow.getConditionCard("conditional_gate_check");
+            const self = this;
+            
+            // Re-use autocomplete helper
+            const gateAutocomplete = async (query, args) => {
+                const results = [];
+                try {
+                    const definedGates = await self.getAllDefinedGateNames();
+                    for (const gate of definedGates) {
+                        if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
+                            results.push({ name: gate, id: gate });
+                        }
+                    }
+                } catch (e) { self.logger.error(e); }
+                if (query && !results.some(r => r.name === query)) results.push({ name: query, id: query });
+                return results;
+            };
+            
+            checkCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
+            
+            checkCard.registerRunListener(async (args, state) => {
+                const gateName = args.gate_name?.name || args.gate_name;
+                const expectedState = args.state || 'GO';
+                
+                if (!gateName) throw new Error('Gate Name is required');
+                
+                const currentState = this.waiterManager.getGateState(gateName); // Default NO_GO if not exists
+                
+                return currentState === expectedState;
+            });
+            this.logger.debug(` -> OK: CONDITION registered: 'conditional_gate_check'`);
+        } catch (e) { this.logger.error(` -> FAILED: 'conditional_gate_check'`, e); }
+
         // Action: Modify Conditional Gate
         try {
             const modifyCard = this.homey.flow.getActionCard("conditional_gate_modify");
+            const self = this;
             
             // Autocomplete gate_name (Use same helper)
              const gateAutocomplete = async (query, args) => {
                 const results = [];
-                const definedGates = await this.getAllDefinedGateNames();
-                for (const gate of definedGates) {
-                    if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
-                        results.push({ name: gate, id: gate });
+                try {
+                    const definedGates = await self.getAllDefinedGateNames();
+                    for (const gate of definedGates) {
+                        if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
+                            results.push({ name: gate, id: gate });
+                        }
                     }
-                }
+                } catch (e) { self.logger.error(e); }
                 if (query && !results.some(r => r.name === query)) results.push({ name: query, id: query });
                 return results;
             };
@@ -854,7 +884,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 if (newState && newState !== 'NO_CHANGE') {
                     this.waiterManager.setGateState(gateName, newState);
                 }
-                return true;
+                
+                // Return Tokens
+                const finalState = this.waiterManager.getGateState(gateName);
+                return {
+                    gate_state: finalState === 'GO'
+                };
             });
              this.logger.debug(` -> OK: ACTION registered: 'conditional_gate_modify'`);
         } catch (e) { this.logger.error(` -> FAILED: 'conditional_gate_modify'`, e); }
@@ -1147,8 +1182,21 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 else if (this.api.flow?.getAdvancedFlows) advancedFlows = await this.api.flow.getAdvancedFlows();
             } catch (e) {}
 
+            const isGateCard = (cardId) => {
+                if (!cardId) return false;
+                return cardId === 'conditional_gate_start' ||
+                       cardId === 'conditional_gate_modify' ||
+                       cardId === 'conditional_gate_check' ||
+                       cardId.endsWith(':conditional_gate_start') ||
+                       cardId.endsWith(':conditional_gate_modify') ||
+                       cardId.endsWith(':conditional_gate_check') ||
+                       cardId.includes('conditional_gate_start') ||
+                       cardId.includes('conditional_gate_modify') ||
+                       cardId.includes('conditional_gate_check');
+            };
+
             const processCard = (card) => {
-                if (card.id === 'conditional_gate_start' || card.id === 'conditional_gate_modify') {
+                if (isGateCard(card.id) || isGateCard(card.uri)) {
                     const name = extractName(card.args?.gate_name);
                     if (name) gateNames.add(name);
                 }
@@ -1158,6 +1206,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             for (const flow of Object.values(flows)) {
                 if (flow.conditions) flow.conditions.forEach(processCard);
                 if (flow.actions) flow.actions.forEach(processCard);
+                if (flow.cards) flow.cards.forEach(processCard); // Legacy format
             }
 
             // Advanced flows

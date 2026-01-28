@@ -84,6 +84,23 @@
                     </div>
                 </div>
 
+                <!-- Check Card -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-yellow-600">Check Gate State</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">CONDITION</span></p>
+                    <p class="mb-4 text-gray-700">Instantly checks if a gate is currently <strong>GO</strong> or <strong>NO GO</strong> without waiting.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Gate Name / ID:</strong> Select the gate to check.</li>
+                        <li><strong>State:</strong> The state to check for (GO or NO GO).</li>
+                    </ul>
+
+                    <div class="bg-green-50 p-4 rounded text-sm text-green-800">
+                        <strong>Use case:</strong> Use this card when you need to branch your flow based on current gate state without waiting. Perfect for "if gate is open, do X, otherwise do Y" scenarios.
+                    </div>
+                </div>
+
                 <!-- Modify Card -->
                 <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                     <h3 class="text-xl font-semibold mb-2 text-blue-600">Modify Conditional Gate</h3>
@@ -93,9 +110,18 @@
                     <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
                     <ul class="space-y-2 text-sm text-gray-600 mb-4">
                         <li><strong>Gate Name / ID:</strong> Select the gate to modify.</li>
-                        <li><strong>New State:</strong> Set to GO (releases waiting flows), NO GO (stops future flows), or Toggle.</li>
+                        <li><strong>New State:</strong> Set to GO (releases waiting flows), NO GO (stops future flows), Toggle, or Don't change.</li>
                         <li><strong>New Timeout:</strong> Update the timeout for currently waiting flows. Set to -1 to leave unchanged.</li>
                     </ul>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Output Tag:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Gate State (GO):</strong> Boolean - <code>true</code> if the gate is GO after the action, <code>false</code> if NO GO.</li>
+                    </ul>
+
+                    <div class="bg-purple-50 p-4 rounded text-sm text-purple-800">
+                        <strong>Tip:</strong> To read the current gate state without changing it, use "Don't change" for New State and -1 for New Timeout. The output tag will give you the current state.
+                    </div>
                 </div>
             </div>
         </section>

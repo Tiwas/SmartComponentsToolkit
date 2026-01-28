@@ -2,20 +2,44 @@
   "title": {
     "en": "Conditional Gate",
     "no": "Betinget Port",
+    "da": "Betinget Port",
     "nl": "Voorwaardelijke Poort",
-    "de": "Bedingtes Tor"
+    "de": "Bedingtes Tor",
+    "es": "Puerta Condicional",
+    "fr": "Porte Conditionnelle",
+    "it": "Porta Condizionale",
+    "sv": "Villkorlig Port",
+    "pl": "Brama Warunkowa",
+    "fi": "Ehdollinen Portti",
+    "ru": "Условный Шлюз"
   },
   "titleFormatted": {
     "en": "Conditional Gate: Wait for GO (default: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Name/ID: [[gate_name]])",
     "no": "Betinget Port: Vent på GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Navn/ID: [[gate_name]])",
+    "da": "Betinget Port: Vent på GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Navn/ID: [[gate_name]])",
     "nl": "Voorwaardelijke Poort: Wacht op GO (standaard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Naam/ID: [[gate_name]])",
-    "de": "Bedingtes Tor: Warte auf GO (Standard: [[default_state]], Timeout: [[timeout_value]] [[timeout_unit]], Name/ID: [[gate_name]])"
+    "de": "Bedingtes Tor: Warte auf GO (Standard: [[default_state]], Timeout: [[timeout_value]] [[timeout_unit]], Name/ID: [[gate_name]])",
+    "es": "Puerta Condicional: Esperar GO (predeterminado: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Nombre/ID: [[gate_name]])",
+    "fr": "Porte Conditionnelle: Attendre GO (défaut: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Nom/ID: [[gate_name]])",
+    "it": "Porta Condizionale: Attendi GO (predefinito: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Nome/ID: [[gate_name]])",
+    "sv": "Villkorlig Port: Vänta på GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Namn/ID: [[gate_name]])",
+    "pl": "Brama Warunkowa: Czekaj na GO (domyślnie: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Nazwa/ID: [[gate_name]])",
+    "fi": "Ehdollinen Portti: Odota GO (oletus: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Nimi/ID: [[gate_name]])",
+    "ru": "Условный Шлюз: Ждать GO (по умолчанию: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Имя/ID: [[gate_name]])"
   },
   "hint": {
     "en": "Pauses flow until the specified Gate is GO. Use 'Modify Conditional Gate' to control it by Name/ID.",
     "no": "Pauser flyten til angitt Port er GO. Bruk 'Endre Betinget Port' for å styre den med Navn/ID.",
+    "da": "Pauser flow indtil den angivne Port er GO. Brug 'Ændr Betinget Port' til at styre den med Navn/ID.",
     "nl": "Pauzeert flow totdat de opgegeven Poort GO is. Gebruik 'Wijzig Voorwaardelijke Poort' om te bedienen via Naam/ID.",
-    "de": "Pausiert Flow bis das angegebene Tor GO ist. Verwenden Sie 'Bedingtes Tor ändern' zur Steuerung über Name/ID."
+    "de": "Pausiert Flow bis das angegebene Tor GO ist. Verwenden Sie 'Bedingtes Tor ändern' zur Steuerung über Name/ID.",
+    "es": "Pausa el flujo hasta que la Puerta especificada sea GO. Use 'Modificar Puerta Condicional' para controlarla por Nombre/ID.",
+    "fr": "Met le flux en pause jusqu'à ce que la Porte spécifiée soit GO. Utilisez 'Modifier Porte Conditionnelle' pour la contrôler par Nom/ID.",
+    "it": "Mette in pausa il flusso fino a quando la Porta specificata è GO. Usa 'Modifica Porta Condizionale' per controllarla tramite Nome/ID.",
+    "sv": "Pausar flödet tills den angivna Porten är GO. Använd 'Ändra Villkorlig Port' för att styra den med Namn/ID.",
+    "pl": "Wstrzymuje przepływ do momentu, gdy określona Brama będzie GO. Użyj 'Modyfikuj Bramę Warunkową' aby sterować nią przez Nazwę/ID.",
+    "fi": "Keskeyttää kulun kunnes määritetty Portti on GO. Käytä 'Muokkaa Ehdollista Porttia' hallitaksesi sitä Nimellä/ID:llä.",
+    "ru": "Приостанавливает поток до тех пор, пока указанный Шлюз не станет GO. Используйте 'Изменить Условный Шлюз' для управления по Имени/ID."
   },
   "args": [
     {
@@ -24,12 +48,52 @@
       "title": {
         "en": "Default State (if new)",
         "no": "Standardstatus (hvis ny)",
+        "da": "Standardstatus (hvis ny)",
         "nl": "Standaardstatus (indien nieuw)",
-        "de": "Standardstatus (wenn neu)"
+        "de": "Standardstatus (wenn neu)",
+        "es": "Estado predeterminado (si es nuevo)",
+        "fr": "État par défaut (si nouveau)",
+        "it": "Stato predefinito (se nuovo)",
+        "sv": "Standardstatus (om ny)",
+        "pl": "Domyślny stan (jeśli nowy)",
+        "fi": "Oletustila (jos uusi)",
+        "ru": "Состояние по умолчанию (если новый)"
       },
       "values": [
-        { "id": "NO_GO", "title": { "en": "NO GO (Closed)", "no": "NO GO (Stengt)", "nl": "NO GO (Gesloten)", "de": "NO GO (Geschlossen)" } },
-        { "id": "GO", "title": { "en": "GO (Open)", "no": "GO (Åpen)", "nl": "GO (Open)", "de": "GO (Offen)" } }
+        {
+          "id": "NO_GO",
+          "title": {
+            "en": "NO GO (Closed)",
+            "no": "NO GO (Stengt)",
+            "da": "NO GO (Lukket)",
+            "nl": "NO GO (Gesloten)",
+            "de": "NO GO (Geschlossen)",
+            "es": "NO GO (Cerrado)",
+            "fr": "NO GO (Fermé)",
+            "it": "NO GO (Chiuso)",
+            "sv": "NO GO (Stängd)",
+            "pl": "NO GO (Zamknięty)",
+            "fi": "NO GO (Suljettu)",
+            "ru": "NO GO (Закрыт)"
+          }
+        },
+        {
+          "id": "GO",
+          "title": {
+            "en": "GO (Open)",
+            "no": "GO (Åpen)",
+            "da": "GO (Åben)",
+            "nl": "GO (Open)",
+            "de": "GO (Offen)",
+            "es": "GO (Abierto)",
+            "fr": "GO (Ouvert)",
+            "it": "GO (Aperto)",
+            "sv": "GO (Öppen)",
+            "pl": "GO (Otwarty)",
+            "fi": "GO (Auki)",
+            "ru": "GO (Открыт)"
+          }
+        }
       ],
       "defaultValue": "NO_GO"
     },
@@ -39,8 +103,16 @@
       "title": {
         "en": "Timeout duration",
         "no": "Timeout varighet",
+        "da": "Timeout varighed",
         "nl": "Timeout duur",
-        "de": "Timeout Dauer"
+        "de": "Timeout Dauer",
+        "es": "Duración del timeout",
+        "fr": "Durée du timeout",
+        "it": "Durata timeout",
+        "sv": "Timeout varaktighet",
+        "pl": "Czas trwania timeout",
+        "fi": "Timeout kesto",
+        "ru": "Продолжительность timeout"
       },
       "min": 0,
       "step": 1,
@@ -52,13 +124,69 @@
       "title": {
         "en": "Timeout unit",
         "no": "Timeout enhet",
+        "da": "Timeout enhed",
         "nl": "Timeout eenheid",
-        "de": "Timeout Einheit"
+        "de": "Timeout Einheit",
+        "es": "Unidad de timeout",
+        "fr": "Unité de timeout",
+        "it": "Unità timeout",
+        "sv": "Timeout enhet",
+        "pl": "Jednostka timeout",
+        "fi": "Timeout yksikkö",
+        "ru": "Единица timeout"
       },
       "values": [
-        { "id": "s", "title": { "en": "Seconds", "no": "Sekunder", "nl": "Seconden", "de": "Sekunden" } },
-        { "id": "m", "title": { "en": "Minutes", "no": "Minutter", "nl": "Minuten", "de": "Minuten" } },
-        { "id": "h", "title": { "en": "Hours", "no": "Timer", "nl": "Uren", "de": "Stunden" } }
+        {
+          "id": "s",
+          "title": {
+            "en": "Seconds",
+            "no": "Sekunder",
+            "da": "Sekunder",
+            "nl": "Seconden",
+            "de": "Sekunden",
+            "es": "Segundos",
+            "fr": "Secondes",
+            "it": "Secondi",
+            "sv": "Sekunder",
+            "pl": "Sekundy",
+            "fi": "Sekuntia",
+            "ru": "Секунды"
+          }
+        },
+        {
+          "id": "m",
+          "title": {
+            "en": "Minutes",
+            "no": "Minutter",
+            "da": "Minutter",
+            "nl": "Minuten",
+            "de": "Minuten",
+            "es": "Minutos",
+            "fr": "Minutes",
+            "it": "Minuti",
+            "sv": "Minuter",
+            "pl": "Minuty",
+            "fi": "Minuuttia",
+            "ru": "Минуты"
+          }
+        },
+        {
+          "id": "h",
+          "title": {
+            "en": "Hours",
+            "no": "Timer",
+            "da": "Timer",
+            "nl": "Uren",
+            "de": "Stunden",
+            "es": "Horas",
+            "fr": "Heures",
+            "it": "Ore",
+            "sv": "Timmar",
+            "pl": "Godziny",
+            "fi": "Tuntia",
+            "ru": "Часы"
+          }
+        }
       ],
       "defaultValue": "s"
     },
@@ -68,14 +196,30 @@
       "title": {
         "en": "Gate Name / ID",
         "no": "Port Navn / ID",
+        "da": "Port Navn / ID",
         "nl": "Poort Naam / ID",
-        "de": "Tor Name / ID"
+        "de": "Tor Name / ID",
+        "es": "Nombre / ID de Puerta",
+        "fr": "Nom / ID de Porte",
+        "it": "Nome / ID Porta",
+        "sv": "Port Namn / ID",
+        "pl": "Nazwa / ID Bramy",
+        "fi": "Portin Nimi / ID",
+        "ru": "Имя / ID Шлюза"
       },
       "placeholder": {
         "en": "e.g. KitchenCheck",
-        "no": "f.eks. KjøkkenSjekk",
+        "no": "f.eks. KjsøkkenSjekk",
+        "da": "f.eks. KøkkenCheck",
         "nl": "bijv. KeukenCheck",
-        "de": "z.B. KüchenCheck"
+        "de": "z.B. KüchenCheck",
+        "es": "p.ej. VerificarCocina",
+        "fr": "p.ex. VérifierCuisine",
+        "it": "es. ControllareCucina",
+        "sv": "t.ex. KökKontroll",
+        "pl": "np. SprawdźKuchnię",
+        "fi": "esim. KeittiöTarkistus",
+        "ru": "напр. ПроверкаКухни"
       }
     }
   ]

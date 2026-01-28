@@ -2,21 +2,65 @@
   "title": {
     "en": "Modify Conditional Gate",
     "no": "Endre Betinget Port",
+    "da": "Ændr Betinget Port",
     "nl": "Wijzig Voorwaardelijke Poort",
-    "de": "Bedingtes Tor Ändern"
+    "de": "Bedingtes Tor Ändern",
+    "es": "Modificar Puerta Condicional",
+    "fr": "Modifier Porte Conditionnelle",
+    "it": "Modifica Porta Condizionale",
+    "sv": "Ändra Villkorlig Port",
+    "pl": "Modyfikuj Bramę Warunkową",
+    "fi": "Muokkaa Ehdollista Porttia",
+    "ru": "Изменить Условный Шлюз"
   },
   "titleFormatted": {
     "en": "Modify gate [[gate_name]] (Set state: [[new_state]], Set timeout: [[new_timeout_value]] [[new_timeout_unit]])",
     "no": "Endre port [[gate_name]] (Sett status: [[new_state]], Sett timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "da": "Ændr port [[gate_name]] (Sæt status: [[new_state]], Sæt timeout: [[new_timeout_value]] [[new_timeout_unit]])",
     "nl": "Wijzig poort [[gate_name]] (Zet status: [[new_state]], Zet timeout: [[new_timeout_value]] [[new_timeout_unit]])",
-    "de": "Tor [[gate_name]] ändern (Status setzen: [[new_state]], Timeout setzen: [[new_timeout_value]] [[new_timeout_unit]])"
+    "de": "Tor [[gate_name]] ändern (Status setzen: [[new_state]], Timeout setzen: [[new_timeout_value]] [[new_timeout_unit]])",
+    "es": "Modificar puerta [[gate_name]] (Establecer estado: [[new_state]], Establecer timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "fr": "Modifier porte [[gate_name]] (Définir état: [[new_state]], Définir timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "it": "Modifica porta [[gate_name]] (Imposta stato: [[new_state]], Imposta timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "sv": "Ändra port [[gate_name]] (Ställ in status: [[new_state]], Ställ in timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "pl": "Modyfikuj bramę [[gate_name]] (Ustaw stan: [[new_state]], Ustaw timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "fi": "Muokkaa porttia [[gate_name]] (Aseta tila: [[new_state]], Aseta timeout: [[new_timeout_value]] [[new_timeout_unit]])",
+    "ru": "Изменить шлюз [[gate_name]] (Установить состояние: [[new_state]], Установить timeout: [[new_timeout_value]] [[new_timeout_unit]])"
   },
   "hint": {
     "en": "Modifies a Conditional Gate. Set Timeout to -1 for no change.",
     "no": "Endrer en Betinget Port. Sett Timeout til -1 for ingen endring.",
+    "da": "Ændrer en Betinget Port. Sæt Timeout til -1 for ingen ændring.",
     "nl": "Wijzigt een Voorwaardelijke Poort. Zet Timeout op -1 voor geen wijziging.",
-    "de": "Ändert ein Bedingtes Tor. Setze Timeout auf -1 für keine Änderung."
+    "de": "Ändert ein Bedingtes Tor. Setze Timeout auf -1 für keine Änderung.",
+    "es": "Modifica una Puerta Condicional. Establezca Timeout en -1 para no cambiar.",
+    "fr": "Modifie une Porte Conditionnelle. Définissez Timeout sur -1 pour ne pas changer.",
+    "it": "Modifica una Porta Condizionale. Imposta Timeout su -1 per nessuna modifica.",
+    "sv": "Ändrar en Villkorlig Port. Sätt Timeout till -1 för ingen ändring.",
+    "pl": "Modyfikuje Bramę Warunkową. Ustaw Timeout na -1 aby nie zmieniać.",
+    "fi": "Muokkaa Ehdollista Porttia. Aseta Timeout arvoon -1 jos ei muutosta.",
+    "ru": "Изменяет Условный Шлюз. Установите Timeout на -1 для без изменений."
   },
+  "tokens": [
+    {
+      "name": "gate_state",
+      "type": "boolean",
+      "title": {
+        "en": "New Gate State (GO)",
+        "no": "Ny Portstatus (GO)",
+        "da": "Ny Portstatus (GO)",
+        "nl": "Nieuwe Poortstatus (GO)",
+        "de": "Neuer Torstatus (GO)",
+        "es": "Nuevo Estado de Puerta (GO)",
+        "fr": "Nouvel État de Porte (GO)",
+        "it": "Nuovo Stato Porta (GO)",
+        "sv": "Ny Portstatus (GO)",
+        "pl": "Nowy Stan Bramy (GO)",
+        "fi": "Uusi Portin Tila (GO)",
+        "ru": "Новое Состояние Шлюза (GO)"
+      }
+    }
+  ],
   "args": [
     {
       "type": "autocomplete",
@@ -24,14 +68,30 @@
       "title": {
         "en": "Gate Name / ID",
         "no": "Port Navn / ID",
+        "da": "Port Navn / ID",
         "nl": "Poort Naam / ID",
-        "de": "Tor Name / ID"
+        "de": "Tor Name / ID",
+        "es": "Nombre / ID de Puerta",
+        "fr": "Nom / ID de Porte",
+        "it": "Nome / ID Porta",
+        "sv": "Port Namn / ID",
+        "pl": "Nazwa / ID Bramy",
+        "fi": "Portin Nimi / ID",
+        "ru": "Имя / ID Шлюза"
       },
       "placeholder": {
         "en": "Select Gate Name",
         "no": "Velg Port Navn",
+        "da": "Vælg Port Navn",
         "nl": "Selecteer Poort Naam",
-        "de": "Wähle Tor Name"
+        "de": "Wähle Tor Name",
+        "es": "Seleccionar Nombre de Puerta",
+        "fr": "Sélectionner Nom de Porte",
+        "it": "Seleziona Nome Porta",
+        "sv": "Välj Port Namn",
+        "pl": "Wybierz Nazwę Bramy",
+        "fi": "Valitse Portin Nimi",
+        "ru": "Выберите Имя Шлюза"
       }
     },
     {
@@ -40,14 +100,86 @@
       "title": {
         "en": "New State",
         "no": "Ny Status",
+        "da": "Ny Status",
         "nl": "Nieuwe Status",
-        "de": "Neuer Status"
+        "de": "Neuer Status",
+        "es": "Nuevo Estado",
+        "fr": "Nouvel État",
+        "it": "Nuovo Stato",
+        "sv": "Ny Status",
+        "pl": "Nowy Stan",
+        "fi": "Uusi Tila",
+        "ru": "Новое Состояние"
       },
       "values": [
-        { "id": "NO_CHANGE", "title": { "en": "Don't change", "no": "Ikke endre", "nl": "Niet wijzigen", "de": "Nicht ändern" } },
-        { "id": "GO", "title": { "en": "Set to GO", "no": "Sett til GO", "nl": "Zet op GO", "de": "Setze auf GO" } },
-        { "id": "NO_GO", "title": { "en": "Set to NO GO", "no": "Sett til NO GO", "nl": "Zet op NO GO", "de": "Setze auf NO GO" } },
-        { "id": "TOGGLE", "title": { "en": "Toggle", "no": "Veksle", "nl": "Omschakelen", "de": "Umschalten" } }
+        {
+          "id": "NO_CHANGE",
+          "title": {
+            "en": "Don't change",
+            "no": "Ikke endre",
+            "da": "Ændr ikke",
+            "nl": "Niet wijzigen",
+            "de": "Nicht ändern",
+            "es": "No cambiar",
+            "fr": "Ne pas changer",
+            "it": "Non modificare",
+            "sv": "Ändra inte",
+            "pl": "Nie zmieniaj",
+            "fi": "Älä muuta",
+            "ru": "Не менять"
+          }
+        },
+        {
+          "id": "GO",
+          "title": {
+            "en": "Set to GO",
+            "no": "Sett til GO",
+            "da": "Sæt til GO",
+            "nl": "Zet op GO",
+            "de": "Setze auf GO",
+            "es": "Establecer en GO",
+            "fr": "Définir sur GO",
+            "it": "Imposta su GO",
+            "sv": "Ställ in på GO",
+            "pl": "Ustaw na GO",
+            "fi": "Aseta GO",
+            "ru": "Установить GO"
+          }
+        },
+        {
+          "id": "NO_GO",
+          "title": {
+            "en": "Set to NO GO",
+            "no": "Sett til NO GO",
+            "da": "Sæt til NO GO",
+            "nl": "Zet op NO GO",
+            "de": "Setze auf NO GO",
+            "es": "Establecer en NO GO",
+            "fr": "Définir sur NO GO",
+            "it": "Imposta su NO GO",
+            "sv": "Ställ in på NO GO",
+            "pl": "Ustaw na NO GO",
+            "fi": "Aseta NO GO",
+            "ru": "Установить NO GO"
+          }
+        },
+        {
+          "id": "TOGGLE",
+          "title": {
+            "en": "Toggle",
+            "no": "Veksle",
+            "da": "Skift",
+            "nl": "Omschakelen",
+            "de": "Umschalten",
+            "es": "Alternar",
+            "fr": "Basculer",
+            "it": "Commuta",
+            "sv": "Växla",
+            "pl": "Przełącz",
+            "fi": "Vaihda",
+            "ru": "Переключить"
+          }
+        }
       ],
       "defaultValue": "NO_CHANGE"
     },
@@ -57,8 +189,16 @@
       "title": {
         "en": "New Timeout (-1 = no change)",
         "no": "Ny Timeout (-1 = ingen endring)",
+        "da": "Ny Timeout (-1 = ingen ændring)",
         "nl": "Nieuwe Timeout (-1 = geen wijziging)",
-        "de": "Neuer Timeout (-1 = keine Änderung)"
+        "de": "Neuer Timeout (-1 = keine Änderung)",
+        "es": "Nuevo Timeout (-1 = sin cambio)",
+        "fr": "Nouveau Timeout (-1 = pas de changement)",
+        "it": "Nuovo Timeout (-1 = nessuna modifica)",
+        "sv": "Ny Timeout (-1 = ingen ändring)",
+        "pl": "Nowy Timeout (-1 = bez zmian)",
+        "fi": "Uusi Timeout (-1 = ei muutosta)",
+        "ru": "Новый Timeout (-1 = без изменений)"
       },
       "min": -1,
       "step": 1,
@@ -70,13 +210,69 @@
       "title": {
         "en": "Timeout unit",
         "no": "Timeout enhet",
+        "da": "Timeout enhed",
         "nl": "Timeout eenheid",
-        "de": "Timeout Einheit"
+        "de": "Timeout Einheit",
+        "es": "Unidad de timeout",
+        "fr": "Unité de timeout",
+        "it": "Unità timeout",
+        "sv": "Timeout enhet",
+        "pl": "Jednostka timeout",
+        "fi": "Timeout yksikkö",
+        "ru": "Единица timeout"
       },
       "values": [
-        { "id": "s", "title": { "en": "Seconds", "no": "Sekunder", "nl": "Seconden", "de": "Sekunden" } },
-        { "id": "m", "title": { "en": "Minutes", "no": "Minutter", "nl": "Minuten", "de": "Minuten" } },
-        { "id": "h", "title": { "en": "Hours", "no": "Timer", "nl": "Uren", "de": "Stunden" } }
+        {
+          "id": "s",
+          "title": {
+            "en": "Seconds",
+            "no": "Sekunder",
+            "da": "Sekunder",
+            "nl": "Seconden",
+            "de": "Sekunden",
+            "es": "Segundos",
+            "fr": "Secondes",
+            "it": "Secondi",
+            "sv": "Sekunder",
+            "pl": "Sekundy",
+            "fi": "Sekuntia",
+            "ru": "Секунды"
+          }
+        },
+        {
+          "id": "m",
+          "title": {
+            "en": "Minutes",
+            "no": "Minutter",
+            "da": "Minutter",
+            "nl": "Minuten",
+            "de": "Minuten",
+            "es": "Minutos",
+            "fr": "Minutes",
+            "it": "Minuti",
+            "sv": "Minuter",
+            "pl": "Minuty",
+            "fi": "Minuuttia",
+            "ru": "Минуты"
+          }
+        },
+        {
+          "id": "h",
+          "title": {
+            "en": "Hours",
+            "no": "Timer",
+            "da": "Timer",
+            "nl": "Uren",
+            "de": "Stunden",
+            "es": "Horas",
+            "fr": "Heures",
+            "it": "Ore",
+            "sv": "Timmar",
+            "pl": "Godziny",
+            "fi": "Tuntia",
+            "ru": "Часы"
+          }
+        }
       ],
       "defaultValue": "s"
     }

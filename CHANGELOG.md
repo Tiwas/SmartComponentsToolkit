@@ -6,17 +6,60 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
-## [1.8.0] - December 2025 (Current)
+## [1.9.2] - February 2026 (Current)
+
+### 🐛 Bug Fixes
+- Fixed conditional gate condition cards to correctly return boolean values
+- Fixed dropdown argument extraction for gate state and modify cards
+- Improved gate state handling in WaiterManager
+
+---
+
+## [1.9.1] - January 2026
+
+### 🐛 Bug Fixes
+- Minor fixes
+
+---
+
+## [1.9.0] - January 2026
+
+### ✨ New Features
+- **Conditional Gates** - Simple GO/NO GO flow control without needing variables or devices
+  - Gate is GO/NO GO condition card - instant state check
+  - Conditional Gate: Wait for GO - pause flow until gate opens (with timeout)
+  - Modify Conditional Gate action - set GO, NO GO, or Toggle
+  - Gates persist in memory until explicitly changed
+  - Named gates for easy management across flows
+
+---
+
+## [1.8.2] - December 2025
+
+### 🐛 Bug Fixes
+- Fixed some errors with IDs in waiter gates
+
+---
+
+## [1.8.1] - December 2025
+
+### 🐛 Bug Fixes
+- Bug fix + better hints
+
+---
+
+## [1.8.0] - December 2025
+
+### 📦 Name Change & Scene Functionality
+- Name change from "Boolean Toolbox" to "Smart (Components) Toolkit"
+- Scene functionality live
 
 ### 📦 Device Types Overview
-
-This release includes improved documentation with clear descriptions of all device types:
-
-- **Logic Device** - Boolean logic with visual pairing wizard. Combine multiple device states (motion sensors, door contacts, etc.) into a single TRUE/FALSE output using formulas like `A AND B`.
-- **Logic Unit** - Advanced boolean logic with multiple formulas per device. For power users who need JSON configuration.
-- **State Device** - Scene management. Capture device states during setup and apply them later with a single action.
-- **State Capture Device** - Dynamic state capture at runtime. Push/pop stack for temporary state changes.
-- **Waiter Gates** (BETA) - Flow control that pauses and waits for device states to change.
+- **Logic Device** - Boolean logic with visual pairing wizard
+- **Logic Unit** - Advanced boolean logic with multiple formulas per device
+- **State Device** - Scene management with predefined states
+- **State Capture Device** - Dynamic state capture at runtime
+- **Waiter Gates** - Flow control that pauses and waits for device states to change
 
 ### 🔗 Documentation
 - Full documentation available at: https://tiwas.github.io/SmartComponentsToolkit/
@@ -175,8 +218,7 @@ This release includes improved documentation with clear descriptions of all devi
 
 ## Roadmap (Future Considerations)
 
-- Waiter Gates improvements based on user feedback
-- Additional flow card types
+- Improvements based on user feedback
 - Enhanced error reporting
 - Performance optimizations
 - More interactive documentation

@@ -1,6 +1,6 @@
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit v1.8.0
+# Smart (Components) Toolkit v1.9.2
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -18,7 +18,14 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 | **Logic Unit** | Advanced boolean logic with multiple formulas per device. JSON configuration. |
 | **State Device** | Scene management. Capture states at setup, apply with one action. "Virtual device". |
 | **State Capture Device** | Dynamic state capture at runtime. Push/pop stack for temporary changes. |
-| **Waiter Gates** | Flow control that pauses and waits for device states to change. |
+
+## Flow Cards (no device needed)
+
+| Flow Card | Purpose |
+|-----------|---------|
+| **Conditional Gates** | Simple GO/NO GO flow control without needing variables or devices. |
+| **Waiter Gates** | Pause flow until a device capability reaches a specific value. |
+| **Evaluate Expression** | Range checking and value mapping with AND/OR logic. |
 
 ---
 
@@ -45,6 +52,80 @@ THEN: Pop state (restore previous)
 
 ---
 
+## Conditional Gates (NEW in v1.9.0) — Flow Cards
+
+A lightweight alternative to variables and virtual switches for flow control. **No device needed** - just use the flow cards directly. Gates have two states: **GO** or **NO GO**.
+
+**Why use Conditional Gates?**
+- No need to create devices or variables just to control flow execution
+- Named gates give you overview of all your flow controls in one place
+- Simple GO/NO GO logic is perfect for many automation scenarios
+
+**Flow Cards:**
+
+| Card Type | Card | Description |
+|-----------|------|-------------|
+| **Condition** | Gate is GO/NO GO | Check if a gate is currently GO or NO GO |
+| **Then** | Conditional Gate: Wait for GO | Pauses flow until the gate becomes GO (with timeout) |
+| **Then** | Modify Conditional Gate | Set a gate to GO or NO GO by name |
+
+**Example use case:**
+```
+Flow 1 - Motion detected:
+WHEN: Motion sensor triggered
+THEN: Modify Conditional Gate "allow_lights" → GO
+
+Flow 2 - Turn on lights:
+WHEN: Door opened
+AND: Gate "allow_lights" is GO
+THEN: Turn on lights
+
+Flow 3 - Disable at night:
+WHEN: Time is 23:00
+THEN: Modify Conditional Gate "allow_lights" → NO GO
+```
+
+---
+
+## Waiter Gates — Flow Cards
+
+Flow cards that pause execution until a device capability reaches a target value. **No device needed** - just use the flow cards directly.
+
+**Flow Cards:**
+
+| Card Type | Card | Description |
+|-----------|------|-------------|
+| **Then** | Wait until device capability becomes X | Pauses flow until capability matches target (YES) or timeout (NO) |
+| **Then** | Control Waiter Gate | Enable, disable or stop a waiter gate by ID |
+
+**Example use case:**
+```
+WHEN: Button pressed
+THEN: Turn on coffee machine
+THEN: Wait until coffee machine temperature ≥ 90°C (timeout: 5 min)
+  → YES: Send notification "Coffee ready!"
+  → NO: Send notification "Coffee machine timeout"
+```
+
+---
+
+## Evaluate Expression — Flow Card
+
+A powerful flow card for range checking and value mapping. **No device needed** - use directly in your flows.
+
+**Flow Card:** `Evaluate [[input]] [[op1]] min [[logical_op]] [[op2]] max with rules [[rules]]`
+
+- Check if a value is within a range (e.g., temperature between 18-22°C)
+- Use AND/OR logic for complex conditions
+- Returns output value and error message tokens
+
+**Example:** Check if temperature is comfortable (18-24°C):
+- Input: temperature token
+- Rules: `18,24` (min, max)
+- Operators: `≥` AND `≤`
+
+---
+
 ## Device Types
 
 **Logic Device** - Recommended for beginners
@@ -68,11 +149,6 @@ THEN: Pop state (restore previous)
 - Push/pop stack for temporary interruptions
 - Backup/restore via JSON export/import
 
-**Waiter Gates** *(BETA)* - Flow control
-- Pause flows until a device state changes
-- Wait for specific conditions to become true
-- Control flow execution with pause/resume gates
-
 **Logic Unit X** - Deprecated
 - Fixed input counts (2, 3, 4...10)
 - Still functional but not recommended for new setups
@@ -88,6 +164,7 @@ THEN: Pop state (restore previous)
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/state-device.html" target="_blank">**State Device**</a> - Pre-defined scene management
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/state-capture-device.html" target="_blank">**State Capture Device**</a> - Dynamic state capture and restore
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html" target="_blank">**Waiter Gates**</a> - Flow control with wait conditions
+- <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html" target="_blank">**Conditional Gates**</a> - Simple GO/NO GO flow control
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html" target="_blank">**Flow Cards Reference**</a> - Complete guide to all available cards
 
 

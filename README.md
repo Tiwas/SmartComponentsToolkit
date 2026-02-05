@@ -6,7 +6,7 @@
 
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
-[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/Tiwas/SmartComponentsToolkit)
+[![Version](https://img.shields.io/badge/version-1.9.2-blue.svg)](https://github.com/Tiwas/SmartComponentsToolkit)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
 ---
@@ -107,9 +107,48 @@ THEN: Pop state (restore previous)
 
 ---
 
-### Waiter Gates (BETA)
+---
 
-**⚠️ Experimental feature** - Feedback welcome!
+## 🎛️ Flow Cards (No Device Needed)
+
+These flow cards work independently - no device setup required.
+
+### Conditional Gates
+
+Simple GO/NO GO flow control without needing variables or devices. Gates persist in memory until changed.
+
+| Feature | Description |
+|---------|-------------|
+| **States** | GO (open) or NO GO (closed) |
+| **Wait condition** | Pause flow until gate becomes GO (with timeout) |
+| **Control** | Open/close gates from any flow |
+
+**Flow Cards:**
+- **Gate is GO/NO GO** *(condition)* - Check gate state instantly
+- **Conditional Gate: Wait for GO** *(condition)* - Pause until gate opens or timeout
+- **Modify Conditional Gate** *(action)* - Set gate to GO, NO GO, or Toggle
+
+**Example:**
+```
+Flow 1 - Motion detected:
+WHEN: Motion sensor triggered
+THEN: Modify Conditional Gate "allow_lights" → GO
+
+Flow 2 - Turn on lights:
+WHEN: Door opened
+AND: Gate "allow_lights" is GO
+THEN: Turn on lights
+
+Flow 3 - Disable at night:
+WHEN: Time is 23:00
+THEN: Modify Conditional Gate "allow_lights" → NO GO
+```
+
+[📚 Read Conditional Gates guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html)
+
+---
+
+### Waiter Gates
 
 Waiter Gates let your flows pause and wait for device states to change, with YES/NO outputs:
 
@@ -125,6 +164,23 @@ Waiter Gates let your flows pause and wait for device states to change, with YES
 - **Wait** *(action)* - Simple delay (basic pause without device monitoring)
 
 [📚 Read Waiter Gates guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html)
+
+---
+
+### Evaluate Expression
+
+Range checking and value mapping with AND/OR logic.
+
+- Check if a value is within a range (e.g., temperature between 18-22°C)
+- Use AND/OR logic for complex conditions
+- Returns output value and error message tokens
+
+**Example:** Check if temperature is comfortable (18-24°C):
+- Input: temperature token
+- Rules: `18,24` (min, max)
+- Operators: `≥` AND `≤`
+
+[📚 Read Flow Cards reference →](https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html)
 
 ---
 
@@ -178,17 +234,21 @@ THEN: Turn on lights
 ### Conditions (AND)
 - Formula result is...
 - Formula has timed out
+- Gate is GO / NO GO *(Conditional Gates)*
+- Conditional Gate: Wait for GO *(Conditional Gates)*
 - Captured state exists *(State Capture Device)*
 - Stack is empty / Stack depth is... *(State Capture Device)*
-- **Wait until device capability becomes value** *(Waiter Gates - BETA)*
+- Wait until device capability becomes value *(Waiter Gates)*
 
 ### Actions (THEN)
 - Set input value for formula
 - Evaluate formula / Re-evaluate all
+- Evaluate expression *(Range checking)*
 - Apply state *(State Device)*
 - Capture/Apply/Delete state, Push/Pop/Peek/Clear stack *(State Capture Device)*
-- **Control waiter gate** *(Waiter Gates - BETA)*
-- **Wait** *(Simple delay)*
+- Modify Conditional Gate *(Conditional Gates)*
+- Control waiter gate *(Waiter Gates)*
+- Wait *(Simple delay)*
 
 [📚 See all flow cards →](https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html)
 
@@ -229,9 +289,9 @@ Paste ugly JSON, get beautiful formatting on save. Works in all settings fields.
 - [Device Types Guide](https://tiwas.github.io/SmartComponentsToolkit/docs/devices.html)
 - [State Device](https://tiwas.github.io/SmartComponentsToolkit/docs/state-device.html)
 - [State Capture Device](https://tiwas.github.io/SmartComponentsToolkit/docs/state-capture-device.html)
-- [Waiter Gates (BETA)](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html)
+- [Conditional Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html)
+- [Waiter Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html)
 - [Flow Cards Reference](https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html)
-- [Changelog](https://tiwas.github.io/SmartComponentsToolkit/docs/changelog.html)
 
 ---
 

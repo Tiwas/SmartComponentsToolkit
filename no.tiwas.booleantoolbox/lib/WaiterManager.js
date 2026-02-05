@@ -166,24 +166,42 @@ class WaiterManager {
     // --- Virtual Gates Logic ---
 
     getGateState(gateName, defaultState = 'NO_GO') {
+        this.logger.debug(`🔍 getGateState called: gateName="${gateName}" (type: ${typeof gateName}), defaultState="${defaultState}"`);
+        this.logger.debug(`🔍 Current gates in memory: [${Array.from(this.virtualGates.keys()).map(k => `"${k}"`).join(', ')}]`);
+
         if (!this.virtualGates.has(gateName)) {
+            this.logger.debug(`🔍 Gate "${gateName}" not found, creating with state="${defaultState}"`);
             this.virtualGates.set(gateName, { state: defaultState, waiters: new Set() });
         }
-        return this.virtualGates.get(gateName).state;
+
+        const state = this.virtualGates.get(gateName).state;
+        this.logger.debug(`🔍 getGateState returning: "${state}"`);
+        return state;
     }
 
     setGateState(gateName, newState) {
-        const gate = this.virtualGates.get(gateName) || { state: 'NO_GO', waiters: new Set() };
+        this.logger.debug(`🔧 setGateState called: gateName="${gateName}" (type: ${typeof gateName}), newState="${newState}"`);
+        this.logger.debug(`🔧 Current gates in memory: [${Array.from(this.virtualGates.keys()).map(k => `"${k}"`).join(', ')}]`);
+
+        // Ensure gate exists before getting it
+        if (!this.virtualGates.has(gateName)) {
+            this.logger.debug(`🔧 Gate "${gateName}" not found, creating new gate`);
+            this.virtualGates.set(gateName, { state: 'NO_GO', waiters: new Set() });
+        }
+
+        const gate = this.virtualGates.get(gateName);
+        this.logger.debug(`🔧 Gate object: state="${gate.state}", waiters=[${Array.from(gate.waiters).join(', ')}]`);
+
         let actualNewState = newState;
         if (newState === 'TOGGLE') actualNewState = gate.state === 'GO' ? 'NO_GO' : 'GO';
-        
-        // Update state
-        if (!this.virtualGates.has(gateName)) this.virtualGates.set(gateName, { state: actualNewState, waiters: new Set() });
-        else this.virtualGates.get(gateName).state = actualNewState;
-        
-        this.logger.info(`🚪 Gate "${gateName}" set to ${actualNewState}`);
 
-        // Trigger matching waiters
+        // Update state
+        gate.state = actualNewState;
+
+        this.logger.info(`🚪 Gate "${gateName}" set to ${actualNewState}`);
+        this.logger.debug(`🔧 Gates after update: [${Array.from(this.virtualGates.keys()).map(k => `"${k}": ${this.virtualGates.get(k).state}`).join(', ')}]`);
+
+        // Trigger matching waiters (now using the actual gate object, not a fallback)
         const waitersToTrigger = Array.from(gate.waiters);
         let triggered = 0;
         for (const waiterId of waitersToTrigger) {

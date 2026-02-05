@@ -43,5 +43,8 @@
   },
   "1.9.1": {
     "en": "Minor fixes"
+  },
+  "1.9.2": {
+    "en": "Bugfix for conditional gate"
   }
 }

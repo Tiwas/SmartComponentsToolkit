@@ -51,12 +51,13 @@
     <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div class="container mx-auto px-4 py-3">
             <div class="flex justify-between items-center">
-                <a href="../README.md" class="text-xl font-bold text-purple-600 hover:text-purple-800">Smart (Components) Toolkit</a>
+                <a href="../index.html" class="text-xl font-bold text-purple-600 hover:text-purple-800">Smart (Components) Toolkit</a>
                 <div class="space-x-4 text-sm">
                     <a href="getting-started.html" class="text-gray-600 hover:text-purple-600">Getting Started</a>
                     <a href="devices.html" class="text-gray-600 hover:text-purple-600">Devices</a>
                     <a href="state-device.html" class="text-gray-600 hover:text-purple-600">State Device</a>
                     <a href="state-capture-device.html" class="text-gray-600 hover:text-purple-600">State Capture Device</a>
+                    <a href="conditional-gates.html" class="text-gray-600 hover:text-purple-600">Conditional Gates</a>
                     <a href="waiter-gates.html" class="text-gray-600 hover:text-purple-600">Waiter Gates</a>
                 </div>
             </div>
@@ -85,7 +86,9 @@
                         <li><a href="#condition-formula-result" class="hover:text-purple-600">→ Formula result is...</a></li>
                         <li><a href="#condition-device-turned" class="hover:text-purple-600">→ Device is turned...</a></li>
                         <li><a href="#condition-has-error" class="hover:text-purple-600">→ Has error</a></li>
-                        <li><a href="#condition-wait-until" class="hover:text-purple-600">→ Wait until becomes (BETA)</a></li>
+                        <li><a href="#condition-gate-check" class="hover:text-purple-600">→ Gate is GO/NO GO</a></li>
+                        <li><a href="#condition-gate-wait" class="hover:text-purple-600">→ Conditional Gate (Wait for GO)</a></li>
+                        <li><a href="#condition-wait-until" class="hover:text-purple-600">→ Wait until becomes</a></li>
                     </ul>
                 </div>
                 <div>
@@ -93,6 +96,8 @@
                     <ul class="text-sm space-y-1 text-gray-700">
                         <li><a href="#action-set-input" class="hover:text-purple-600">→ Set input</a></li>
                         <li><a href="#action-evaluate" class="hover:text-purple-600">→ Evaluate formula</a></li>
+                        <li><a href="#action-evaluate-expression" class="hover:text-purple-600">→ Evaluate expression</a></li>
+                        <li><a href="#action-modify-gate" class="hover:text-purple-600">→ Modify Conditional Gate</a></li>
                         <li><a href="#action-wait" class="hover:text-purple-600">→ Wait</a></li>
                         <li><a href="#action-control-waiter" class="hover:text-purple-600">→ Control Waiter Gate</a></li>
                     </ul>
@@ -252,6 +257,58 @@
                 </div>
             </div>
 
+            <!-- Conditional Gate: Check State -->
+            <div id="condition-gate-check" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Gate [gate_name] is [GO/NO GO]</h3>
+                <p class="text-gray-700 mb-4">Instantly checks if a Conditional Gate is currently GO or NO GO without waiting. No device needed.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">gate_name</span> - Name of the gate to check (autocomplete)</li>
+                        <li><span class="code-inline">state</span> - GO or NO GO (dropdown)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Door opened</p>
+                    <p class="text-gray-700"><strong>AND</strong> Gate "allow_lights" is GO</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Turn on lights</p>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">See <a href="conditional-gates.html" class="text-blue-800 underline">Conditional Gates documentation</a> for complete details.</p>
+                </div>
+            </div>
+
+            <!-- Conditional Gate: Wait for GO -->
+            <div id="condition-gate-wait" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Conditional Gate [gate_name] (Wait for GO)</h3>
+                <p class="text-gray-700 mb-4">Pauses the flow until the specified gate becomes GO, or until timeout expires. No device needed.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">gate_name</span> - Name of the gate to wait for (autocomplete)</li>
+                        <li><span class="code-inline">default_state</span> - Initial state if gate doesn't exist yet (GO or NO GO)</li>
+                        <li><span class="code-inline">timeout_value</span> - Maximum wait time (number, 0 = instant check)</li>
+                        <li><span class="code-inline">timeout_unit</span> - s/m/h (dropdown)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Washing machine finished</p>
+                    <p class="text-gray-700"><strong>AND</strong> Conditional Gate "EmptyWasher" (Default: NO GO, Timeout: 1 hour)</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Send notification "Washer emptied!"</p>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">Timeout 0 acts as an instant filter: if gate is NO GO, flow stops immediately. See <a href="conditional-gates.html" class="text-blue-800 underline">Conditional Gates documentation</a>.</p>
+                </div>
+            </div>
+
             <!-- Wait Until Becomes (BETA) -->
             <div id="condition-wait-until" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200 border-l-4 border-l-yellow-500">
                 <div class="flex items-center gap-2 mb-3">
@@ -348,6 +405,63 @@
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
                     <p class="text-blue-800 text-sm">💡 Useful after setting multiple inputs, or to force re-evaluation</p>
+                </div>
+            </div>
+
+            <!-- Evaluate Expression -->
+            <div id="action-evaluate-expression" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Evaluate [[input]] [[op1]] min [[logical_op]] [[op2]] max with rules [[rules]]</h3>
+                <p class="text-gray-700 mb-4">Range checking and value mapping with AND/OR logic. No device needed - use directly in flows.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">input</span> - The value to evaluate (number)</li>
+                        <li><span class="code-inline">op1</span> - First comparison operator (e.g., &ge;)</li>
+                        <li><span class="code-inline">logical_op</span> - AND or OR</li>
+                        <li><span class="code-inline">op2</span> - Second comparison operator (e.g., &le;)</li>
+                        <li><span class="code-inline">rules</span> - Min,max values (e.g., "18,24")</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">output</span> - Result value</li>
+                        <li><span class="code-inline">error_message</span> - Error message if evaluation fails</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example: Check comfortable temperature (18-24&deg;C):</p>
+                    <p class="text-gray-700">Input: temperature token, Rules: <code>18,24</code>, Operators: <code>&ge;</code> AND <code>&le;</code></p>
+                </div>
+            </div>
+
+            <!-- Modify Conditional Gate -->
+            <div id="action-modify-gate" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Modify Conditional Gate [gate_name] &rarr; [new_state]</h3>
+                <p class="text-gray-700 mb-4">Changes the state of a Conditional Gate (Open/Close) or updates the timeout of active waiters. No device needed.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">gate_name</span> - Name of the gate to modify (autocomplete)</li>
+                        <li><span class="code-inline">new_state</span> - GO, NO GO, Toggle, or Don't change (dropdown)</li>
+                        <li><span class="code-inline">new_timeout_value</span> - Update timeout for waiting flows (-1 = no change)</li>
+                        <li><span class="code-inline">new_timeout_unit</span> - s/m/h (dropdown)</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">gate_state</span> - Boolean: true if gate is GO after action</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Time is 23:00</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Modify Conditional Gate "allow_lights" &rarr; NO GO</p>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">To read state without changing: use "Don't change" + timeout -1. See <a href="conditional-gates.html" class="text-blue-800 underline">Conditional Gates documentation</a>.</p>
                 </div>
             </div>
 
@@ -502,8 +616,18 @@
                     </div>
                 </div>
 
+                <div class="bg-gray-900 rounded-lg p-4">
+                    <h3 class="font-semibold text-purple-300 mb-2">Pattern 5: Conditional Gate Flow Control</h3>
+                    <div class="space-y-1 text-gray-300 text-sm">
+                        <p><strong class="text-green-400">WHEN</strong> Door opened</p>
+                        <p><strong class="text-yellow-400">AND</strong> Gate "allow_lights" is GO</p>
+                        <p><strong class="text-blue-400">THEN</strong> Turn on lights</p>
+                        <p><em class="text-gray-500">→ Gate acts as simple GO/NO GO filter - no device needed</em></p>
+                    </div>
+                </div>
+
                 <div class="bg-gray-900 rounded-lg p-4 border-l-4 border-yellow-500">
-                    <h3 class="font-semibold text-purple-300 mb-2">Pattern 5: Reactive Wait (BETA)</h3>
+                    <h3 class="font-semibold text-purple-300 mb-2">Pattern 6: Reactive Wait (BETA)</h3>
                     <div class="space-y-1 text-gray-300 text-sm">
                         <p><strong class="text-green-400">WHEN</strong> Button pressed</p>
                         <p><strong class="text-yellow-400">AND</strong> Wait until [Device].capability becomes [value]</p>

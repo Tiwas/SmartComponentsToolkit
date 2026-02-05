@@ -766,28 +766,39 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             gateCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
 
             gateCard.registerRunListener(async (args, state) => {
+                this.logger.debug(`🎯 conditional_gate_start: raw args.gate_name = ${JSON.stringify(args.gate_name)}`);
+                this.logger.debug(`🎯 conditional_gate_start: raw args.default_state = ${JSON.stringify(args.default_state)}`);
+
                 const gateName = args.gate_name?.name || args.gate_name;
                 const defaultState = args.default_state?.id || args.default_state || 'NO_GO';
                 const timeoutValue = Number(args.timeout_value) || 0;
                 const timeoutUnit = args.timeout_unit || 's';
-                
+
+                this.logger.debug(`🎯 conditional_gate_start: extracted gateName="${gateName}", defaultState="${defaultState}", timeout=${timeoutValue}${timeoutUnit}`);
+
                 if (!gateName) throw new Error('Gate Name is required');
 
                 const currentState = this.waiterManager.getGateState(gateName, defaultState);
-                
+
+                this.logger.debug(`🎯 conditional_gate_start: getGateState returned "${currentState}"`);
+
                 if (currentState === 'GO') {
                     this.logger.info(`✅ Gate "${gateName}" is GO - continuing`);
-                    return { gate_state: true, gate_state_text: 'GO' };
+                    return true;  // Condition cards MUST return true/false, not objects
                 }
 
-                if (timeoutValue === 0) return false;
-                
+                if (timeoutValue === 0) {
+                    this.logger.debug(`🎯 conditional_gate_start: timeout=0 and gate is NO_GO, returning false`);
+                    return false;
+                }
+
+                // Wait for gate to become GO
                 return new Promise((resolve, reject) => {
                     (async () => {
                         try {
                             const uniqueWaiterId = `gate_${gateName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                             const config = { timeoutValue, timeoutUnit };
-                            const virtualGateConfig = { gateName, targetState: 'GO' }; 
+                            const virtualGateConfig = { gateName, targetState: 'GO' };
 
                             const actualId = await this.waiterManager.createWaiter(
                                 uniqueWaiterId,
@@ -796,9 +807,18 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                 null,
                                 virtualGateConfig
                             );
-                            
+
                             const waiterData = this.waiterManager.waiters.get(actualId);
-                            if (waiterData) waiterData.resolver = resolve;
+                            if (waiterData) {
+                                // Wrap resolver to convert object responses to boolean
+                                waiterData.resolver = (result) => {
+                                    // If result is an object (from setGateState), convert to true
+                                    // If result is false (timeout), keep as false
+                                    const boolResult = result === false ? false : true;
+                                    this.logger.debug(`🎯 conditional_gate_start: waiter resolved with ${JSON.stringify(result)} -> ${boolResult}`);
+                                    resolve(boolResult);
+                                };
+                            }
                         } catch (err) { reject(err); }
                     })();
                 });
@@ -830,12 +850,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             
             checkCard.registerRunListener(async (args, state) => {
                 const gateName = args.gate_name?.name || args.gate_name;
-                const expectedState = args.state || 'GO';
-                
+                // Extract id from dropdown object if needed
+                const expectedState = args.state?.id || args.state || 'GO';
+
+                this.logger.debug(`🔍 conditional_gate_check: gateName="${gateName}", expectedState="${expectedState}"`);
+
                 if (!gateName) throw new Error('Gate Name is required');
-                
+
                 const currentState = this.waiterManager.getGateState(gateName); // Default NO_GO if not exists
-                
+
+                this.logger.debug(`🔍 conditional_gate_check: currentState="${currentState}", match=${currentState === expectedState}`);
+
                 return currentState === expectedState;
             });
             this.logger.debug(` -> OK: CONDITION registered: 'conditional_gate_check'`);
@@ -864,29 +889,42 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             modifyCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
 
             modifyCard.registerRunListener(async (args, state) => {
+                this.logger.debug(`🔧 conditional_gate_modify: raw args.gate_name = ${JSON.stringify(args.gate_name)}`);
+                this.logger.debug(`🔧 conditional_gate_modify: raw args.new_state = ${JSON.stringify(args.new_state)}`);
+
                 const gateName = args.gate_name?.name || args.gate_name;
-                
+
+                this.logger.debug(`🔧 conditional_gate_modify: extracted gateName="${gateName}"`);
+
                 if (!gateName) throw new Error('Gate Name is required');
-                
+
                 // 1. Update Timeout if provided (Update ALL waiters for this gate)
                 // -1 is the default for "No Change"
                 const val = Number(args.new_timeout_value);
                 if (!isNaN(val) && val >= 0) {
                     const unit = args.new_timeout_unit || 's';
                     const timeoutMs = this.waiterManager.convertToMs(val, unit);
-                    
+
                     const count = this.waiterManager.updateGateWaiters(gateName, { timeoutMs });
                     this.logger.info(`Updated timeout for ${count} waiters on gate "${gateName}"`);
                 }
 
                 // 2. Update State if provided
-                const newState = args.new_state;
+                // Extract id from dropdown object if needed (dropdown may return object or string)
+                const newState = args.new_state?.id || args.new_state;
+                this.logger.debug(`🔧 conditional_gate_modify: newState="${newState}" (raw was: ${JSON.stringify(args.new_state)})`);
+
                 if (newState && newState !== 'NO_CHANGE') {
+                    this.logger.debug(`🔧 conditional_gate_modify: calling setGateState("${gateName}", "${newState}")`);
                     this.waiterManager.setGateState(gateName, newState);
+                } else {
+                    this.logger.debug(`🔧 conditional_gate_modify: NOT calling setGateState (newState="${newState}")`);
                 }
-                
+
                 // Return Tokens
                 const finalState = this.waiterManager.getGateState(gateName);
+                this.logger.debug(`🔧 conditional_gate_modify: finalState="${finalState}", returning gate_state=${finalState === 'GO'}`);
+
                 return {
                     gate_state: finalState === 'GO'
                 };

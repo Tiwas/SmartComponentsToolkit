@@ -2,11 +2,29 @@
   "id": "clg_pause",
   "title": {
     "en": "Pause circadian light group",
-    "no": "Pause dognrytme-lysgruppe"
+    "no": "Pause døgnrytme-lysgruppe",
+    "de": "Zirkadiane Lichtgruppe pausieren",
+    "nl": "Circadiane lichtgroep pauzeren",
+    "fr": "Mettre en pause le groupe de lumière circadien",
+    "da": "Pause døgnrytme-lysgruppe",
+    "fi": "Keskeytä vuorokausirytmi-valoryhmä",
+    "sv": "Pausa cirkadisk ljusgrupp",
+    "pl": "Wstrzymaj grupę światła rytmu okołodobowego",
+    "it": "Metti in pausa il gruppo luce circadiano",
+    "es": "Pausar grupo de luz circadiana"
   },
   "hint": {
     "en": "Pauses automatic adjustments. Use amount 0 to pause until resumed manually.",
-    "no": "Pauser automatiske justeringer. Bruk 0 for pause til manuell gjenopptakelse."
+    "no": "Pauser automatiske justeringer. Bruk 0 for pause til manuell gjenopptakelse.",
+    "de": "Pausiert automatische Anpassungen. Verwenden Sie Menge 0, um bis zur manuellen Fortsetzung zu pausieren.",
+    "nl": "Pauzeert automatische aanpassingen. Gebruik hoeveelheid 0 om te pauzeren tot handmatig hervat.",
+    "fr": "Met en pause les ajustements automatiques. Utilisez la quantité 0 pour mettre en pause jusqu'à la reprise manuelle.",
+    "da": "Pauser automatiske justeringer. Brug 0 for pause indtil manuel genoptagelse.",
+    "fi": "Keskeyttää automaattiset säädöt. Käytä määrää 0 keskeyttääksesi, kunnes jatketaan manuaalisesti.",
+    "sv": "Pausar automatiska justeringar. Använd mängd 0 för att pausa tills manuellt återupptaget.",
+    "pl": "Wstrzymuje automatyczne dostosowania. Użyj ilości 0, aby wstrzymać do ręcznego wznowienia.",
+    "it": "Mette in pausa le regolazioni automatiche. Usa quantità 0 per mettere in pausa fino alla ripresa manuale.",
+    "es": "Pausa los ajustes automáticos. Use cantidad 0 para pausar hasta la reanudación manual."
   },
   "args": [
     {
@@ -17,22 +35,60 @@
     {
       "type": "number",
       "name": "amount",
-      "title": { "en": "Amount", "no": "Mengde" },
-      "placeholder": { "en": "10", "no": "10" }
+      "title": {
+        "en": "Amount", "no": "Mengde", "de": "Menge", "nl": "Hoeveelheid",
+        "fr": "Quantité", "da": "Mængde", "fi": "Määrä", "sv": "Mängd",
+        "pl": "Ilość", "it": "Quantità", "es": "Cantidad"
+      },
+      "placeholder": { "en": "10", "no": "10", "de": "10", "nl": "10", "fr": "10", "da": "10", "fi": "10", "sv": "10", "pl": "10", "it": "10", "es": "10" }
     },
     {
       "type": "dropdown",
       "name": "unit",
-      "title": { "en": "Unit", "no": "Enhet" },
+      "title": {
+        "en": "Unit", "no": "Enhet", "de": "Einheit", "nl": "Eenheid",
+        "fr": "Unité", "da": "Enhed", "fi": "Yksikkö", "sv": "Enhet",
+        "pl": "Jednostka", "it": "Unità", "es": "Unidad"
+      },
       "values": [
-        { "id": "seconds", "label": { "en": "Seconds", "no": "Sekunder" } },
-        { "id": "minutes", "label": { "en": "Minutes", "no": "Minutter" } },
-        { "id": "hours", "label": { "en": "Hours", "no": "Timer" } }
+        {
+          "id": "seconds",
+          "label": {
+            "en": "Seconds", "no": "Sekunder", "de": "Sekunden", "nl": "Seconden",
+            "fr": "Secondes", "da": "Sekunder", "fi": "Sekuntia", "sv": "Sekunder",
+            "pl": "Sekundy", "it": "Secondi", "es": "Segundos"
+          }
+        },
+        {
+          "id": "minutes",
+          "label": {
+            "en": "Minutes", "no": "Minutter", "de": "Minuten", "nl": "Minuten",
+            "fr": "Minutes", "da": "Minutter", "fi": "Minuuttia", "sv": "Minuter",
+            "pl": "Minuty", "it": "Minuti", "es": "Minutos"
+          }
+        },
+        {
+          "id": "hours",
+          "label": {
+            "en": "Hours", "no": "Timer", "de": "Stunden", "nl": "Uren",
+            "fr": "Heures", "da": "Timer", "fi": "Tuntia", "sv": "Timmar",
+            "pl": "Godziny", "it": "Ore", "es": "Horas"
+          }
+        }
       ]
     }
   ],
   "titleFormatted": {
     "en": "Pause for [[amount]] [[unit]]",
-    "no": "Pause i [[amount]] [[unit]]"
+    "no": "Pause i [[amount]] [[unit]]",
+    "de": "Für [[amount]] [[unit]] pausieren",
+    "nl": "Pauzeer voor [[amount]] [[unit]]",
+    "fr": "Mettre en pause pendant [[amount]] [[unit]]",
+    "da": "Pause i [[amount]] [[unit]]",
+    "fi": "Keskeytä [[amount]] [[unit]]",
+    "sv": "Pausa i [[amount]] [[unit]]",
+    "pl": "Wstrzymaj na [[amount]] [[unit]]",
+    "it": "Metti in pausa per [[amount]] [[unit]]",
+    "es": "Pausar durante [[amount]] [[unit]]"
   }
 }

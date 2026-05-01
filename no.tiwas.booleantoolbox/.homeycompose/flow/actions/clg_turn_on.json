@@ -2,7 +2,16 @@
   "id": "clg_turn_on",
   "title": {
     "en": "Turn on",
-    "no": "Slå på"
+    "no": "Slå på",
+    "de": "Einschalten",
+    "nl": "Inschakelen",
+    "fr": "Activer",
+    "da": "Tænd",
+    "fi": "Käynnistä",
+    "sv": "Slå på",
+    "pl": "Włącz",
+    "it": "Accendi",
+    "es": "Encender"
   },
   "args": [
     {

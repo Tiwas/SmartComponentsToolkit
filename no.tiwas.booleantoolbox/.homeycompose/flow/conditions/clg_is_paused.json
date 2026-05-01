@@ -2,7 +2,16 @@
   "id": "clg_is_paused",
   "title": {
     "en": "Is !{{paused|not paused}}",
-    "no": "Er !{{satt på pause|ikke på pause}}"
+    "no": "Er !{{satt på pause|ikke på pause}}",
+    "de": "Ist !{{pausiert|nicht pausiert}}",
+    "nl": "Is !{{gepauzeerd|niet gepauzeerd}}",
+    "fr": "Est !{{en pause|pas en pause}}",
+    "da": "Er !{{sat på pause|ikke på pause}}",
+    "fi": "On !{{keskeytetty|ei keskeytetty}}",
+    "sv": "Är !{{pausad|inte pausad}}",
+    "pl": "Jest !{{wstrzymane|nie wstrzymane}}",
+    "it": "È !{{in pausa|non in pausa}}",
+    "es": "Está !{{en pausa|no en pausa}}"
   },
   "args": [
     {

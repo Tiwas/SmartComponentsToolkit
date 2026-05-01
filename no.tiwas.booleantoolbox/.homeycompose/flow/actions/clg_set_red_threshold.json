@@ -2,11 +2,29 @@
   "id": "clg_set_red_threshold",
   "title": {
     "en": "Set red mode threshold",
-    "no": "Sett terskel for rødmodus"
+    "no": "Sett terskel for rødmodus",
+    "de": "Schwellenwert für Rotmodus festlegen",
+    "nl": "Drempel voor rode modus instellen",
+    "fr": "Définir le seuil du mode rouge",
+    "da": "Indstil tærskel for rød tilstand",
+    "fi": "Aseta punaisen tilan kynnys",
+    "sv": "Ställ in tröskelvärde för röd läge",
+    "pl": "Ustaw próg trybu czerwonego",
+    "it": "Imposta soglia modalità rossa",
+    "es": "Establecer umbral de modo rojo"
   },
   "hint": {
     "en": "Permanently sets the red mode threshold (0–1). When calculated temperature drops below this, lights with color support shift to red.",
-    "no": "Setter terskelen for rødmodus permanent (0–1). Når beregnet temperatur synker under denne, blir farge-støttende lys røde."
+    "no": "Setter terskelen for rødmodus permanent (0–1). Når beregnet temperatur synker under denne, blir farge-støttende lys røde.",
+    "de": "Legt den Rotmodus-Schwellenwert dauerhaft fest (0–1). Wenn die berechnete Temperatur darunter fällt, wechseln Lichter mit Farbunterstützung zu Rot.",
+    "nl": "Stelt de rode modus drempel permanent in (0–1). Wanneer berekende temperatuur hieronder daalt, verschuiven kleurondersteunende lampen naar rood.",
+    "fr": "Définit définitivement le seuil du mode rouge (0–1). Lorsque la température calculée descend en dessous, les lumières avec prise en charge des couleurs passent au rouge.",
+    "da": "Indstiller permanent tærsklen for rød tilstand (0–1). Når beregnet temperatur falder under denne, skifter lys med farveunderstøttelse til rød.",
+    "fi": "Asettaa punaisen tilan kynnyksen pysyvästi (0–1). Kun laskettu lämpötila laskee tämän alle, värituetut valot vaihtuvat punaisiksi.",
+    "sv": "Ställer in tröskelvärdet för röd läge permanent (0–1). När beräknad temperatur faller under detta växlar lampor med färgstöd till rött.",
+    "pl": "Trwale ustawia próg trybu czerwonego (0–1). Gdy obliczona temperatura spadnie poniżej tego, lampy z obsługą kolorów przełączają się na czerwone.",
+    "it": "Imposta permanentemente la soglia della modalità rossa (0–1). Quando la temperatura calcolata scende sotto questa, le luci con supporto colore passano al rosso.",
+    "es": "Establece permanentemente el umbral del modo rojo (0–1). Cuando la temperatura calculada cae por debajo, las luces con soporte de color cambian a rojo."
   },
   "args": [
     {
@@ -17,15 +35,29 @@
     {
       "type": "number",
       "name": "threshold",
-      "title": { "en": "Threshold (0–1)", "no": "Terskel (0–1)" },
+      "title": {
+        "en": "Threshold (0–1)", "no": "Terskel (0–1)", "de": "Schwellenwert (0–1)",
+        "nl": "Drempel (0–1)", "fr": "Seuil (0–1)", "da": "Tærskel (0–1)",
+        "fi": "Kynnys (0–1)", "sv": "Tröskelvärde (0–1)", "pl": "Próg (0–1)",
+        "it": "Soglia (0–1)", "es": "Umbral (0–1)"
+      },
       "min": 0,
       "max": 1,
       "step": 0.01,
-      "placeholder": { "en": "0.2", "no": "0.2" }
+      "placeholder": { "en": "0.2", "no": "0.2", "de": "0.2", "nl": "0.2", "fr": "0.2", "da": "0.2", "fi": "0.2", "sv": "0.2", "pl": "0.2", "it": "0.2", "es": "0.2" }
     }
   ],
   "titleFormatted": {
     "en": "Set red threshold to [[threshold]]",
-    "no": "Sett rødterskel til [[threshold]]"
+    "no": "Sett rødterskel til [[threshold]]",
+    "de": "Rotschwellenwert auf [[threshold]] setzen",
+    "nl": "Rode drempel instellen op [[threshold]]",
+    "fr": "Définir le seuil rouge à [[threshold]]",
+    "da": "Sæt rødtærskel til [[threshold]]",
+    "fi": "Aseta punainen kynnys arvoon [[threshold]]",
+    "sv": "Ställ in röd tröskelvärde till [[threshold]]",
+    "pl": "Ustaw czerwony próg na [[threshold]]",
+    "it": "Imposta soglia rossa a [[threshold]]",
+    "es": "Establecer umbral rojo a [[threshold]]"
   }
 }

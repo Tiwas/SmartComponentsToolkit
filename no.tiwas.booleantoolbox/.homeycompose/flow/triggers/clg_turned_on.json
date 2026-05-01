@@ -2,7 +2,16 @@
   "id": "clg_turned_on",
   "title": {
     "en": "Turned on",
-    "no": "Slått på"
+    "no": "Slått på",
+    "de": "Eingeschaltet",
+    "nl": "Ingeschakeld",
+    "fr": "Activé",
+    "da": "Tændt",
+    "fi": "Käynnistetty",
+    "sv": "Påslagen",
+    "pl": "Włączony",
+    "it": "Acceso",
+    "es": "Encendido"
   },
   "args": [
     {

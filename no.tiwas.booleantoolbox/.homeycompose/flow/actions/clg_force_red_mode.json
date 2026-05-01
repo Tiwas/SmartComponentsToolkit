@@ -2,11 +2,29 @@
   "id": "clg_force_red_mode",
   "title": {
     "en": "Force red mode",
-    "no": "Tving rødmodus"
+    "no": "Tving rødmodus",
+    "de": "Rotmodus erzwingen",
+    "nl": "Rode modus forceren",
+    "fr": "Forcer le mode rouge",
+    "da": "Tving rød tilstand",
+    "fi": "Pakota punainen tila",
+    "sv": "Tvinga röd läge",
+    "pl": "Wymuś tryb czerwony",
+    "it": "Forza modalità rossa",
+    "es": "Forzar modo rojo"
   },
   "hint": {
     "en": "Forces red mode on or off, optionally for a duration. Set duration to 0 to keep until manually changed.",
-    "no": "Tvinger rødmodus på eller av, eventuelt for en varighet. Sett varighet til 0 for å beholde til manuell endring."
+    "no": "Tvinger rødmodus på eller av, eventuelt for en varighet. Sett varighet til 0 for å beholde til manuell endring.",
+    "de": "Erzwingt Rotmodus ein oder aus, optional für eine Dauer. Setzen Sie die Dauer auf 0, um bis zur manuellen Änderung beizubehalten.",
+    "nl": "Forceert rode modus aan of uit, optioneel voor een duur. Stel duur in op 0 om te behouden tot handmatig gewijzigd.",
+    "fr": "Force le mode rouge activé ou désactivé, éventuellement pour une durée. Définissez la durée à 0 pour conserver jusqu'à modification manuelle.",
+    "da": "Tvinger rød tilstand til eller fra, eventuelt for en varighed. Sæt varighed til 0 for at beholde til manuel ændring.",
+    "fi": "Pakottaa punaisen tilan päälle tai pois, valinnaisesti tietyksi ajaksi. Aseta kesto arvoon 0 säilyttääksesi manuaaliseen muutokseen asti.",
+    "sv": "Tvingar röd läge på eller av, valfritt för en varaktighet. Sätt varaktighet till 0 för att behålla till manuell ändring.",
+    "pl": "Wymusza tryb czerwony włączony lub wyłączony, opcjonalnie na czas trwania. Ustaw czas trwania na 0, aby zachować do ręcznej zmiany.",
+    "it": "Forza la modalità rossa attiva o disattivata, opzionalmente per una durata. Imposta durata a 0 per mantenere fino a modifica manuale.",
+    "es": "Fuerza el modo rojo activado o desactivado, opcionalmente durante una duración. Establezca la duración en 0 para mantener hasta el cambio manual."
   },
   "args": [
     {
@@ -17,25 +35,70 @@
     {
       "type": "dropdown",
       "name": "state",
-      "title": { "en": "State", "no": "Tilstand" },
+      "title": {
+        "en": "State", "no": "Tilstand", "de": "Zustand", "nl": "Staat",
+        "fr": "État", "da": "Tilstand", "fi": "Tila", "sv": "Tillstånd",
+        "pl": "Stan", "it": "Stato", "es": "Estado"
+      },
       "values": [
-        { "id": "on", "label": { "en": "On", "no": "På" } },
-        { "id": "off", "label": { "en": "Off", "no": "Av" } },
-        { "id": "clear", "label": { "en": "Clear override", "no": "Fjern overstyring" } }
+        {
+          "id": "on",
+          "label": {
+            "en": "On", "no": "På", "de": "Ein", "nl": "Aan", "fr": "Activé",
+            "da": "Til", "fi": "Päällä", "sv": "På", "pl": "Włącz", "it": "Acceso", "es": "Encendido"
+          }
+        },
+        {
+          "id": "off",
+          "label": {
+            "en": "Off", "no": "Av", "de": "Aus", "nl": "Uit", "fr": "Désactivé",
+            "da": "Fra", "fi": "Pois", "sv": "Av", "pl": "Wyłącz", "it": "Spento", "es": "Apagado"
+          }
+        },
+        {
+          "id": "clear",
+          "label": {
+            "en": "Clear override", "no": "Fjern overstyring", "de": "Überschreibung löschen",
+            "nl": "Overschrijving wissen", "fr": "Effacer la dérogation", "da": "Fjern tilsidesættelse",
+            "fi": "Poista ohitus", "sv": "Rensa överstyrning", "pl": "Wyczyść nadpisanie",
+            "it": "Annulla override", "es": "Borrar anulación"
+          }
+        }
       ]
     },
     {
       "type": "number",
       "name": "duration_minutes",
-      "title": { "en": "Duration (minutes, 0 = until cleared)", "no": "Varighet (minutter, 0 = til fjernet)" },
+      "title": {
+        "en": "Duration (minutes, 0 = until cleared)",
+        "no": "Varighet (minutter, 0 = til fjernet)",
+        "de": "Dauer (Minuten, 0 = bis gelöscht)",
+        "nl": "Duur (minuten, 0 = tot gewist)",
+        "fr": "Durée (minutes, 0 = jusqu'à effacé)",
+        "da": "Varighed (minutter, 0 = indtil fjernet)",
+        "fi": "Kesto (minuutteja, 0 = kunnes poistettu)",
+        "sv": "Varaktighet (minuter, 0 = tills rensat)",
+        "pl": "Czas trwania (minuty, 0 = do wyczyszczenia)",
+        "it": "Durata (minuti, 0 = fino a cancellazione)",
+        "es": "Duración (minutos, 0 = hasta borrar)"
+      },
       "min": 0,
       "max": 1440,
       "step": 1,
-      "placeholder": { "en": "0", "no": "0" }
+      "placeholder": { "en": "0", "no": "0", "de": "0", "nl": "0", "fr": "0", "da": "0", "fi": "0", "sv": "0", "pl": "0", "it": "0", "es": "0" }
     }
   ],
   "titleFormatted": {
     "en": "Force red mode [[state]] for [[duration_minutes]] min",
-    "no": "Tving rødmodus [[state]] i [[duration_minutes]] min"
+    "no": "Tving rødmodus [[state]] i [[duration_minutes]] min",
+    "de": "Rotmodus [[state]] für [[duration_minutes]] Min erzwingen",
+    "nl": "Rode modus [[state]] forceren voor [[duration_minutes]] min",
+    "fr": "Forcer le mode rouge [[state]] pendant [[duration_minutes]] min",
+    "da": "Tving rød tilstand [[state]] i [[duration_minutes]] min",
+    "fi": "Pakota punainen tila [[state]] [[duration_minutes]] min ajaksi",
+    "sv": "Tvinga röd läge [[state]] i [[duration_minutes]] min",
+    "pl": "Wymuś tryb czerwony [[state]] na [[duration_minutes]] min",
+    "it": "Forza modalità rossa [[state]] per [[duration_minutes]] min",
+    "es": "Forzar modo rojo [[state]] durante [[duration_minutes]] min"
   }
 }

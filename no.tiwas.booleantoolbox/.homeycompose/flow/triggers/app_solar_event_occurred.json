@@ -2,39 +2,66 @@
   "id": "app_solar_event_occurred",
   "title": {
     "en": "Solar event occurred",
-    "no": "Sol-hendelse inntraff"
+    "no": "Sol-hendelse inntraff",
+    "de": "Sonnenereignis eingetreten",
+    "nl": "Zonnegebeurtenis vond plaats",
+    "fr": "Événement solaire survenu",
+    "da": "Sol-hændelse indtraf",
+    "fi": "Aurinkotapahtuma tapahtui",
+    "sv": "Solhändelse inträffade",
+    "pl": "Wystąpiło zdarzenie słoneczne",
+    "it": "Evento solare verificato",
+    "es": "Ocurrió un evento solar"
   },
   "hint": {
     "en": "Fires daily when the selected solar event occurs at this Homey's location.",
-    "no": "Fyrer daglig når den valgte sol-hendelsen inntreffer på denne Homey-en sin lokasjon."
+    "no": "Fyrer daglig når den valgte sol-hendelsen inntreffer på denne Homey-en sin lokasjon.",
+    "de": "Wird täglich ausgelöst, wenn das ausgewählte Sonnenereignis am Standort dieses Homey eintritt.",
+    "nl": "Wordt dagelijks geactiveerd wanneer de geselecteerde zonnegebeurtenis op de locatie van deze Homey plaatsvindt.",
+    "fr": "Se déclenche quotidiennement lorsque l'événement solaire sélectionné se produit à l'emplacement de ce Homey.",
+    "da": "Udløses dagligt, når den valgte sol-hændelse indtræffer på denne Homeys placering.",
+    "fi": "Laukeaa päivittäin, kun valittu aurinkotapahtuma tapahtuu tämän Homeyn sijainnissa.",
+    "sv": "Utlöses dagligen när den valda solhändelsen inträffar vid denna Homeys plats.",
+    "pl": "Wyzwalane codziennie, gdy wybrane zdarzenie słoneczne wystąpi w lokalizacji tego Homey.",
+    "it": "Si attiva giornalmente quando l'evento solare selezionato si verifica nella posizione di questo Homey.",
+    "es": "Se activa diariamente cuando ocurre el evento solar seleccionado en la ubicación de este Homey."
   },
   "args": [
     {
       "type": "dropdown",
       "name": "event",
-      "title": { "en": "Event", "no": "Hendelse" },
+      "title": {
+        "en": "Event", "no": "Hendelse", "de": "Ereignis", "nl": "Gebeurtenis",
+        "fr": "Événement", "da": "Hændelse", "fi": "Tapahtuma", "sv": "Händelse",
+        "pl": "Zdarzenie", "it": "Evento", "es": "Evento"
+      },
       "values": [
-        { "id": "sunrise", "label": { "en": "Sunrise", "no": "Soloppgang" } },
-        { "id": "sunset", "label": { "en": "Sunset", "no": "Solnedgang" } },
-        { "id": "civil_dawn", "label": { "en": "Civil dawn", "no": "Sivil daggry" } },
-        { "id": "civil_dusk", "label": { "en": "Civil dusk", "no": "Sivil skumring" } },
-        { "id": "nautical_dawn", "label": { "en": "Nautical dawn", "no": "Nautisk daggry" } },
-        { "id": "nautical_dusk", "label": { "en": "Nautical dusk", "no": "Nautisk skumring" } },
-        { "id": "astronomical_dawn", "label": { "en": "Astronomical dawn", "no": "Astronomisk daggry" } },
-        { "id": "astronomical_dusk", "label": { "en": "Astronomical dusk", "no": "Astronomisk skumring" } },
-        { "id": "golden_hour_morning", "label": { "en": "Golden hour (morning end)", "no": "Gylden time (morgen)" } },
-        { "id": "golden_hour_evening", "label": { "en": "Golden hour (evening start)", "no": "Gylden time (kveld)" } },
-        { "id": "blue_hour_morning", "label": { "en": "Blue hour (morning)", "no": "Blå time (morgen)" } },
-        { "id": "blue_hour_evening", "label": { "en": "Blue hour (evening)", "no": "Blå time (kveld)" } },
-        { "id": "solar_noon", "label": { "en": "Solar noon", "no": "Soltid middag" } },
-        { "id": "solar_midnight", "label": { "en": "Solar midnight", "no": "Soltid midnatt" } }
+        { "id": "sunrise", "label": { "en": "Sunrise", "no": "Soloppgang", "de": "Sonnenaufgang", "nl": "Zonsopgang", "fr": "Lever du soleil", "da": "Solopgang", "fi": "Auringonnousu", "sv": "Soluppgång", "pl": "Wschód słońca", "it": "Alba", "es": "Amanecer" } },
+        { "id": "sunset", "label": { "en": "Sunset", "no": "Solnedgang", "de": "Sonnenuntergang", "nl": "Zonsondergang", "fr": "Coucher du soleil", "da": "Solnedgang", "fi": "Auringonlasku", "sv": "Solnedgång", "pl": "Zachód słońca", "it": "Tramonto", "es": "Atardecer" } },
+        { "id": "civil_dawn", "label": { "en": "Civil dawn", "no": "Sivil daggry", "de": "Bürgerliche Dämmerung (Morgen)", "nl": "Burgerschemering (ochtend)", "fr": "Aube civile", "da": "Civil daggry", "fi": "Siviilihämärä (aamu)", "sv": "Civil gryning", "pl": "Świt cywilny", "it": "Alba civile", "es": "Aurora civil" } },
+        { "id": "civil_dusk", "label": { "en": "Civil dusk", "no": "Sivil skumring", "de": "Bürgerliche Dämmerung (Abend)", "nl": "Burgerschemering (avond)", "fr": "Crépuscule civil", "da": "Civil skumring", "fi": "Siviilihämärä (ilta)", "sv": "Civil skymning", "pl": "Zmierzch cywilny", "it": "Crepuscolo civile", "es": "Crepúsculo civil" } },
+        { "id": "nautical_dawn", "label": { "en": "Nautical dawn", "no": "Nautisk daggry", "de": "Nautische Dämmerung (Morgen)", "nl": "Nautische schemering (ochtend)", "fr": "Aube nautique", "da": "Nautisk daggry", "fi": "Nauttinen hämärä (aamu)", "sv": "Nautisk gryning", "pl": "Świt żeglarski", "it": "Alba nautica", "es": "Aurora náutica" } },
+        { "id": "nautical_dusk", "label": { "en": "Nautical dusk", "no": "Nautisk skumring", "de": "Nautische Dämmerung (Abend)", "nl": "Nautische schemering (avond)", "fr": "Crépuscule nautique", "da": "Nautisk skumring", "fi": "Nauttinen hämärä (ilta)", "sv": "Nautisk skymning", "pl": "Zmierzch żeglarski", "it": "Crepuscolo nautico", "es": "Crepúsculo náutico" } },
+        { "id": "astronomical_dawn", "label": { "en": "Astronomical dawn", "no": "Astronomisk daggry", "de": "Astronomische Dämmerung (Morgen)", "nl": "Astronomische schemering (ochtend)", "fr": "Aube astronomique", "da": "Astronomisk daggry", "fi": "Astronominen hämärä (aamu)", "sv": "Astronomisk gryning", "pl": "Świt astronomiczny", "it": "Alba astronomica", "es": "Aurora astronómica" } },
+        { "id": "astronomical_dusk", "label": { "en": "Astronomical dusk", "no": "Astronomisk skumring", "de": "Astronomische Dämmerung (Abend)", "nl": "Astronomische schemering (avond)", "fr": "Crépuscule astronomique", "da": "Astronomisk skumring", "fi": "Astronominen hämärä (ilta)", "sv": "Astronomisk skymning", "pl": "Zmierzch astronomiczny", "it": "Crepuscolo astronomico", "es": "Crepúsculo astronómico" } },
+        { "id": "golden_hour_morning", "label": { "en": "Golden hour (morning end)", "no": "Gylden time (morgen)", "de": "Goldene Stunde (Morgen)", "nl": "Gouden uur (ochtend)", "fr": "Heure dorée (matin)", "da": "Gylden time (morgen)", "fi": "Kultainen hetki (aamu)", "sv": "Gyllene timmen (morgon)", "pl": "Złota godzina (poranek)", "it": "Ora d'oro (mattino)", "es": "Hora dorada (mañana)" } },
+        { "id": "golden_hour_evening", "label": { "en": "Golden hour (evening start)", "no": "Gylden time (kveld)", "de": "Goldene Stunde (Abend)", "nl": "Gouden uur (avond)", "fr": "Heure dorée (soir)", "da": "Gylden time (aften)", "fi": "Kultainen hetki (ilta)", "sv": "Gyllene timmen (kväll)", "pl": "Złota godzina (wieczór)", "it": "Ora d'oro (sera)", "es": "Hora dorada (tarde)" } },
+        { "id": "blue_hour_morning", "label": { "en": "Blue hour (morning)", "no": "Blå time (morgen)", "de": "Blaue Stunde (Morgen)", "nl": "Blauwe uur (ochtend)", "fr": "Heure bleue (matin)", "da": "Blå time (morgen)", "fi": "Sininen hetki (aamu)", "sv": "Blå timmen (morgon)", "pl": "Niebieska godzina (poranek)", "it": "Ora blu (mattino)", "es": "Hora azul (mañana)" } },
+        { "id": "blue_hour_evening", "label": { "en": "Blue hour (evening)", "no": "Blå time (kveld)", "de": "Blaue Stunde (Abend)", "nl": "Blauwe uur (avond)", "fr": "Heure bleue (soir)", "da": "Blå time (aften)", "fi": "Sininen hetki (ilta)", "sv": "Blå timmen (kväll)", "pl": "Niebieska godzina (wieczór)", "it": "Ora blu (sera)", "es": "Hora azul (tarde)" } },
+        { "id": "solar_noon", "label": { "en": "Solar noon", "no": "Soltid middag", "de": "Sonnenmittag", "nl": "Zonnemiddag", "fr": "Midi solaire", "da": "Soltid middag", "fi": "Auringon keskipäivä", "sv": "Soltids middag", "pl": "Południe słoneczne", "it": "Mezzogiorno solare", "es": "Mediodía solar" } },
+        { "id": "solar_midnight", "label": { "en": "Solar midnight", "no": "Soltid midnatt", "de": "Sonnenmitternacht", "nl": "Zonnemiddernacht", "fr": "Minuit solaire", "da": "Soltid midnat", "fi": "Auringon keskiyö", "sv": "Soltids midnatt", "pl": "Północ słoneczna", "it": "Mezzanotte solare", "es": "Medianoche solar" } }
       ]
     },
     {
       "type": "number",
       "name": "offset_minutes",
-      "title": { "en": "Offset (minutes)", "no": "Forskyvning (minutter)" },
-      "placeholder": { "en": "0", "no": "0" },
+      "title": {
+        "en": "Offset (minutes)", "no": "Forskyvning (minutter)", "de": "Versatz (Minuten)",
+        "nl": "Verschuiving (minuten)", "fr": "Décalage (minutes)", "da": "Forskydning (minutter)",
+        "fi": "Siirtymä (minuuttia)", "sv": "Förskjutning (minuter)", "pl": "Przesunięcie (minuty)",
+        "it": "Sfasamento (minuti)", "es": "Desplazamiento (minutos)"
+      },
+      "placeholder": { "en": "0", "no": "0", "de": "0", "nl": "0", "fr": "0", "da": "0", "fi": "0", "sv": "0", "pl": "0", "it": "0", "es": "0" },
       "min": -180,
       "max": 180,
       "step": 1
@@ -42,6 +69,15 @@
   ],
   "titleFormatted": {
     "en": "Solar event [[event]] occurs (offset [[offset_minutes]] min)",
-    "no": "Sol-hendelse [[event]] inntreffer (forskyv [[offset_minutes]] min)"
+    "no": "Sol-hendelse [[event]] inntreffer (forskyv [[offset_minutes]] min)",
+    "de": "Sonnenereignis [[event]] tritt ein (Versatz [[offset_minutes]] Min)",
+    "nl": "Zonnegebeurtenis [[event]] vindt plaats (verschuiving [[offset_minutes]] min)",
+    "fr": "L'événement solaire [[event]] se produit (décalage [[offset_minutes]] min)",
+    "da": "Sol-hændelse [[event]] indtræffer (forskydning [[offset_minutes]] min)",
+    "fi": "Aurinkotapahtuma [[event]] tapahtuu (siirtymä [[offset_minutes]] min)",
+    "sv": "Solhändelse [[event]] inträffar (förskjutning [[offset_minutes]] min)",
+    "pl": "Zdarzenie słoneczne [[event]] występuje (przesunięcie [[offset_minutes]] min)",
+    "it": "L'evento solare [[event]] si verifica (sfasamento [[offset_minutes]] min)",
+    "es": "Ocurre el evento solar [[event]] (desplazamiento [[offset_minutes]] min)"
   }
 }

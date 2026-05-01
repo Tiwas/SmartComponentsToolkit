@@ -2,7 +2,16 @@
   "id": "clg_paused",
   "title": {
     "en": "Paused",
-    "no": "Satt på pause"
+    "no": "Satt på pause",
+    "de": "Pausiert",
+    "nl": "Gepauzeerd",
+    "fr": "En pause",
+    "da": "Sat på pause",
+    "fi": "Keskeytetty",
+    "sv": "Pausad",
+    "pl": "Wstrzymane",
+    "it": "In pausa",
+    "es": "En pausa"
   },
   "args": [
     {

@@ -2,11 +2,29 @@
   "id": "clg_apply_state",
   "title": {
     "en": "Apply temporary state",
-    "no": "Påfør midlertidig tilstand"
+    "no": "Påfør midlertidig tilstand",
+    "de": "Temporären Zustand anwenden",
+    "nl": "Tijdelijke staat toepassen",
+    "fr": "Appliquer un état temporaire",
+    "da": "Anvend midlertidig tilstand",
+    "fi": "Käytä väliaikaista tilaa",
+    "sv": "Tillämpa tillfälligt tillstånd",
+    "pl": "Zastosuj stan tymczasowy",
+    "it": "Applica stato temporaneo",
+    "es": "Aplicar estado temporal"
   },
   "hint": {
     "en": "Pushes the given values to all managed lights right now. Empty fields are skipped. Values are temporary — the next scheduler tick (~2 min) restores calculated values.",
-    "no": "Sender de angitte verdiene til alle styrte lys umiddelbart. Tomme felt hoppes over. Verdiene er midlertidige — neste scheduler-tick (~2 min) gjenoppretter beregnede verdier."
+    "no": "Sender de angitte verdiene til alle styrte lys umiddelbart. Tomme felt hoppes over. Verdiene er midlertidige — neste scheduler-tick (~2 min) gjenoppretter beregnede verdier.",
+    "de": "Sendet die angegebenen Werte sofort an alle verwalteten Lichter. Leere Felder werden übersprungen. Werte sind temporär — der nächste Scheduler-Tick (~2 Min) stellt berechnete Werte wieder her.",
+    "nl": "Stuurt de opgegeven waarden onmiddellijk naar alle beheerde lampen. Lege velden worden overgeslagen. Waarden zijn tijdelijk — de volgende scheduler-tick (~2 min) herstelt berekende waarden.",
+    "fr": "Envoie immédiatement les valeurs données à toutes les lumières gérées. Les champs vides sont ignorés. Les valeurs sont temporaires — le prochain tick du planificateur (~2 min) restaure les valeurs calculées.",
+    "da": "Sender de angivne værdier til alle styrede lys med det samme. Tomme felter springes over. Værdierne er midlertidige — næste scheduler-tick (~2 min) gendanner beregnede værdier.",
+    "fi": "Lähettää annetut arvot kaikille hallituille valoille heti. Tyhjät kentät ohitetaan. Arvot ovat väliaikaisia — seuraava ajastimen tikki (~2 min) palauttaa lasketut arvot.",
+    "sv": "Skickar de angivna värdena till alla hanterade lampor omedelbart. Tomma fält hoppas över. Värdena är tillfälliga — nästa schemaläggar-tick (~2 min) återställer beräknade värden.",
+    "pl": "Wysyła podane wartości do wszystkich zarządzanych lamp natychmiast. Puste pola są pomijane. Wartości są tymczasowe — następny tick harmonogramu (~2 min) przywraca obliczone wartości.",
+    "it": "Invia immediatamente i valori indicati a tutte le luci gestite. I campi vuoti vengono saltati. I valori sono temporanei — il prossimo tick dello scheduler (~2 min) ripristina i valori calcolati.",
+    "es": "Envía los valores dados a todas las luces gestionadas inmediatamente. Los campos vacíos se omiten. Los valores son temporales — el próximo tick del planificador (~2 min) restaura los valores calculados."
   },
   "args": [
     {
@@ -17,7 +35,14 @@
     {
       "type": "number",
       "name": "dim",
-      "title": { "en": "Dim (0–1, blank = skip)", "no": "Dim (0–1, tom = hopp over)" },
+      "title": {
+        "en": "Dim (0–1, blank = skip)", "no": "Dim (0–1, tom = hopp over)",
+        "de": "Dimmen (0–1, leer = überspringen)", "nl": "Dimmen (0–1, leeg = overslaan)",
+        "fr": "Dim (0–1, vide = ignorer)", "da": "Dæmp (0–1, tom = spring over)",
+        "fi": "Himmennys (0–1, tyhjä = ohita)", "sv": "Dimning (0–1, tom = hoppa över)",
+        "pl": "Ściemnianie (0–1, puste = pomiń)", "it": "Dim (0–1, vuoto = salta)",
+        "es": "Atenuación (0–1, vacío = omitir)"
+      },
       "min": 0,
       "max": 1,
       "step": 0.01,
@@ -26,7 +51,14 @@
     {
       "type": "number",
       "name": "temperature",
-      "title": { "en": "Temperature (0–1, blank = skip)", "no": "Temperatur (0–1, tom = hopp over)" },
+      "title": {
+        "en": "Temperature (0–1, blank = skip)", "no": "Temperatur (0–1, tom = hopp over)",
+        "de": "Temperatur (0–1, leer = überspringen)", "nl": "Temperatuur (0–1, leeg = overslaan)",
+        "fr": "Température (0–1, vide = ignorer)", "da": "Temperatur (0–1, tom = spring over)",
+        "fi": "Lämpötila (0–1, tyhjä = ohita)", "sv": "Temperatur (0–1, tom = hoppa över)",
+        "pl": "Temperatura (0–1, puste = pomiń)", "it": "Temperatura (0–1, vuoto = salta)",
+        "es": "Temperatura (0–1, vacío = omitir)"
+      },
       "min": 0,
       "max": 1,
       "step": 0.01,
@@ -35,7 +67,14 @@
     {
       "type": "number",
       "name": "saturation",
-      "title": { "en": "Saturation (0–1, blank = skip)", "no": "Metning (0–1, tom = hopp over)" },
+      "title": {
+        "en": "Saturation (0–1, blank = skip)", "no": "Metning (0–1, tom = hopp over)",
+        "de": "Sättigung (0–1, leer = überspringen)", "nl": "Verzadiging (0–1, leeg = overslaan)",
+        "fr": "Saturation (0–1, vide = ignorer)", "da": "Mætning (0–1, tom = spring over)",
+        "fi": "Saturaatio (0–1, tyhjä = ohita)", "sv": "Mättnad (0–1, tom = hoppa över)",
+        "pl": "Nasycenie (0–1, puste = pomiń)", "it": "Saturazione (0–1, vuoto = salta)",
+        "es": "Saturación (0–1, vacío = omitir)"
+      },
       "min": 0,
       "max": 1,
       "step": 0.01,
@@ -44,11 +83,25 @@
     {
       "type": "checkbox",
       "name": "force_red",
-      "title": { "en": "Force red color", "no": "Tving rød farge" }
+      "title": {
+        "en": "Force red color", "no": "Tving rød farge", "de": "Rote Farbe erzwingen",
+        "nl": "Forceer rode kleur", "fr": "Forcer la couleur rouge", "da": "Tving rød farve",
+        "fi": "Pakota punainen väri", "sv": "Tvinga röd färg", "pl": "Wymuś czerwony kolor",
+        "it": "Forza colore rosso", "es": "Forzar color rojo"
+      }
     }
   ],
   "titleFormatted": {
     "en": "Apply state — dim [[dim]], temp [[temperature]], sat [[saturation]], red [[force_red]]",
-    "no": "Påfør tilstand — dim [[dim]], temp [[temperature]], met [[saturation]], rød [[force_red]]"
+    "no": "Påfør tilstand — dim [[dim]], temp [[temperature]], met [[saturation]], rød [[force_red]]",
+    "de": "Zustand anwenden — Dim [[dim]], Temp [[temperature]], Sätt [[saturation]], Rot [[force_red]]",
+    "nl": "Staat toepassen — dim [[dim]], temp [[temperature]], verz [[saturation]], rood [[force_red]]",
+    "fr": "Appliquer état — dim [[dim]], temp [[temperature]], sat [[saturation]], rouge [[force_red]]",
+    "da": "Anvend tilstand — dæmp [[dim]], temp [[temperature]], mætning [[saturation]], rød [[force_red]]",
+    "fi": "Käytä tila — himm [[dim]], lämpö [[temperature]], sat [[saturation]], punainen [[force_red]]",
+    "sv": "Tillämpa tillstånd — dim [[dim]], temp [[temperature]], mätt [[saturation]], röd [[force_red]]",
+    "pl": "Zastosuj stan — ścim [[dim]], temp [[temperature]], nas [[saturation]], czerw [[force_red]]",
+    "it": "Applica stato — dim [[dim]], temp [[temperature]], sat [[saturation]], rosso [[force_red]]",
+    "es": "Aplicar estado — atenuación [[dim]], temp [[temperature]], sat [[saturation]], rojo [[force_red]]"
   }
 }

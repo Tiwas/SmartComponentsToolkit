@@ -2,7 +2,16 @@
   "id": "clg_red_mode_active",
   "title": {
     "en": "Red mode is !{{active|not active}}",
-    "no": "Rødmodus er !{{aktiv|ikke aktiv}}"
+    "no": "Rødmodus er !{{aktiv|ikke aktiv}}",
+    "de": "Rotmodus ist !{{aktiv|nicht aktiv}}",
+    "nl": "Rode modus is !{{actief|niet actief}}",
+    "fr": "Le mode rouge est !{{actif|pas actif}}",
+    "da": "Rød tilstand er !{{aktiv|ikke aktiv}}",
+    "fi": "Punainen tila on !{{aktiivinen|ei aktiivinen}}",
+    "sv": "Röd läge är !{{aktivt|inte aktivt}}",
+    "pl": "Tryb czerwony jest !{{aktywny|nieaktywny}}",
+    "it": "La modalità rossa è !{{attiva|non attiva}}",
+    "es": "El modo rojo está !{{activo|no activo}}"
   },
   "args": [
     {

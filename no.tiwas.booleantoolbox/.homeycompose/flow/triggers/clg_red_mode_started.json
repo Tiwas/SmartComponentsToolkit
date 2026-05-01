@@ -2,7 +2,16 @@
   "id": "clg_red_mode_started",
   "title": {
     "en": "Red mode started",
-    "no": "Rødmodus startet"
+    "no": "Rødmodus startet",
+    "de": "Rotmodus gestartet",
+    "nl": "Rode modus gestart",
+    "fr": "Mode rouge démarré",
+    "da": "Rød tilstand startet",
+    "fi": "Punainen tila käynnistyi",
+    "sv": "Röd läge startat",
+    "pl": "Tryb czerwony rozpoczęty",
+    "it": "Modalità rossa avviata",
+    "es": "Modo rojo iniciado"
   },
   "args": [
     {

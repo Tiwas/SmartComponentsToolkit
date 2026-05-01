@@ -2,7 +2,16 @@
   "id": "clg_turn_off",
   "title": {
     "en": "Turn off",
-    "no": "Slå av"
+    "no": "Slå av",
+    "de": "Ausschalten",
+    "nl": "Uitschakelen",
+    "fr": "Désactiver",
+    "da": "Sluk",
+    "fi": "Sammuta",
+    "sv": "Stäng av",
+    "pl": "Wyłącz",
+    "it": "Spegni",
+    "es": "Apagar"
   },
   "args": [
     {

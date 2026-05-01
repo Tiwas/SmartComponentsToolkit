@@ -2,7 +2,16 @@
   "id": "clg_turned_off",
   "title": {
     "en": "Turned off",
-    "no": "Slått av"
+    "no": "Slått av",
+    "de": "Ausgeschaltet",
+    "nl": "Uitgeschakeld",
+    "fr": "Désactivé",
+    "da": "Slukket",
+    "fi": "Sammutettu",
+    "sv": "Avstängd",
+    "pl": "Wyłączony",
+    "it": "Spento",
+    "es": "Apagado"
   },
   "args": [
     {

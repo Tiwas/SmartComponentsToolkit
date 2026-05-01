@@ -2,7 +2,16 @@
   "id": "clg_resumed",
   "title": {
     "en": "Resumed",
-    "no": "Gjenopptatt"
+    "no": "Gjenopptatt",
+    "de": "Fortgesetzt",
+    "nl": "Hervat",
+    "fr": "Repris",
+    "da": "Genoptaget",
+    "fi": "Jatkettu",
+    "sv": "Återupptaget",
+    "pl": "Wznowiono",
+    "it": "Ripreso",
+    "es": "Reanudado"
   },
   "args": [
     {

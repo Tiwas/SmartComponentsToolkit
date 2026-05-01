@@ -2,7 +2,16 @@
   "id": "clg_is_in_phase",
   "title": {
     "en": "Is !{{in|not in}} phase",
-    "no": "Er !{{i|ikke i}} fase"
+    "no": "Er !{{i|ikke i}} fase",
+    "de": "Ist !{{in|nicht in}} Phase",
+    "nl": "Is !{{in|niet in}} fase",
+    "fr": "Est !{{en|pas en}} phase",
+    "da": "Er !{{i|ikke i}} fase",
+    "fi": "On !{{vaiheessa|ei vaiheessa}}",
+    "sv": "Är !{{i|inte i}} fas",
+    "pl": "Jest !{{w fazie|nie w fazie}}",
+    "it": "È !{{in|non in}} fase",
+    "es": "Está !{{en|no en}} fase"
   },
   "args": [
     {
@@ -13,16 +22,46 @@
     {
       "type": "dropdown",
       "name": "phase",
-      "title": { "en": "Phase", "no": "Fase" },
+      "title": {
+        "en": "Phase", "no": "Fase", "de": "Phase", "nl": "Fase", "fr": "Phase",
+        "da": "Fase", "fi": "Vaihe", "sv": "Fas", "pl": "Faza", "it": "Fase", "es": "Fase"
+      },
       "values": [
-        { "id": "day", "label": { "en": "Day", "no": "Dag" } },
-        { "id": "evening", "label": { "en": "Evening", "no": "Kveld" } },
-        { "id": "night", "label": { "en": "Night", "no": "Natt" } }
+        {
+          "id": "day",
+          "label": {
+            "en": "Day", "no": "Dag", "de": "Tag", "nl": "Dag", "fr": "Jour",
+            "da": "Dag", "fi": "Päivä", "sv": "Dag", "pl": "Dzień", "it": "Giorno", "es": "Día"
+          }
+        },
+        {
+          "id": "evening",
+          "label": {
+            "en": "Evening", "no": "Kveld", "de": "Abend", "nl": "Avond", "fr": "Soir",
+            "da": "Aften", "fi": "Ilta", "sv": "Kväll", "pl": "Wieczór", "it": "Sera", "es": "Noche"
+          }
+        },
+        {
+          "id": "night",
+          "label": {
+            "en": "Night", "no": "Natt", "de": "Nacht", "nl": "Nacht", "fr": "Nuit",
+            "da": "Nat", "fi": "Yö", "sv": "Natt", "pl": "Noc", "it": "Notte", "es": "Madrugada"
+          }
+        }
       ]
     }
   ],
   "titleFormatted": {
     "en": "Is !{{in|not in}} phase [[phase]]",
-    "no": "Er !{{i|ikke i}} fase [[phase]]"
+    "no": "Er !{{i|ikke i}} fase [[phase]]",
+    "de": "Ist !{{in|nicht in}} Phase [[phase]]",
+    "nl": "Is !{{in|niet in}} fase [[phase]]",
+    "fr": "Est !{{en|pas en}} phase [[phase]]",
+    "da": "Er !{{i|ikke i}} fase [[phase]]",
+    "fi": "On !{{vaiheessa|ei vaiheessa}} [[phase]]",
+    "sv": "Är !{{i|inte i}} fas [[phase]]",
+    "pl": "Jest !{{w fazie|nie w fazie}} [[phase]]",
+    "it": "È !{{in|non in}} fase [[phase]]",
+    "es": "Está !{{en|no en}} fase [[phase]]"
   }
 }

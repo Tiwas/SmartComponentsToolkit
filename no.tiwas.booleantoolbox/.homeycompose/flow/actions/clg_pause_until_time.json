@@ -2,7 +2,16 @@
   "id": "clg_pause_until_time",
   "title": {
     "en": "Pause until time",
-    "no": "Pause til klokkeslett"
+    "no": "Pause til klokkeslett",
+    "de": "Pausieren bis Uhrzeit",
+    "nl": "Pauzeer tot tijd",
+    "fr": "Mettre en pause jusqu'à l'heure",
+    "da": "Pause indtil klokkeslæt",
+    "fi": "Keskeytä kellonaikaan asti",
+    "sv": "Pausa till tidpunkt",
+    "pl": "Wstrzymaj do godziny",
+    "it": "Metti in pausa fino all'orario",
+    "es": "Pausar hasta la hora"
   },
   "args": [
     {
@@ -13,11 +22,24 @@
     {
       "type": "time",
       "name": "until_time",
-      "title": { "en": "Until", "no": "Til" }
+      "title": {
+        "en": "Until", "no": "Til", "de": "Bis", "nl": "Tot",
+        "fr": "Jusqu'à", "da": "Indtil", "fi": "Asti", "sv": "Till",
+        "pl": "Do", "it": "Fino a", "es": "Hasta"
+      }
     }
   ],
   "titleFormatted": {
     "en": "Pause until [[until_time]]",
-    "no": "Pause til [[until_time]]"
+    "no": "Pause til [[until_time]]",
+    "de": "Pause bis [[until_time]]",
+    "nl": "Pauzeer tot [[until_time]]",
+    "fr": "Pause jusqu'à [[until_time]]",
+    "da": "Pause indtil [[until_time]]",
+    "fi": "Keskeytä klo [[until_time]] asti",
+    "sv": "Pausa till [[until_time]]",
+    "pl": "Wstrzymaj do [[until_time]]",
+    "it": "Pausa fino a [[until_time]]",
+    "es": "Pausar hasta [[until_time]]"
   }
 }

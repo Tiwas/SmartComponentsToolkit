@@ -2,7 +2,16 @@
   "id": "clg_is_on",
   "title": {
     "en": "Is !{{on|off}}",
-    "no": "Er !{{på|av}}"
+    "no": "Er !{{på|av}}",
+    "de": "Ist !{{ein|aus}}",
+    "nl": "Is !{{aan|uit}}",
+    "fr": "Est !{{activé|désactivé}}",
+    "da": "Er !{{tændt|slukket}}",
+    "fi": "On !{{päällä|pois päältä}}",
+    "sv": "Är !{{på|av}}",
+    "pl": "Jest !{{włączony|wyłączony}}",
+    "it": "È !{{acceso|spento}}",
+    "es": "Está !{{encendido|apagado}}"
   },
   "args": [
     {

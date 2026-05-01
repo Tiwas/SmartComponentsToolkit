@@ -2,7 +2,16 @@
   "id": "clg_toggle",
   "title": {
     "en": "Toggle",
-    "no": "Veksle"
+    "no": "Veksle",
+    "de": "Umschalten",
+    "nl": "Schakelen",
+    "fr": "Basculer",
+    "da": "Skift",
+    "fi": "Vaihda",
+    "sv": "Växla",
+    "pl": "Przełącz",
+    "it": "Commuta",
+    "es": "Alternar"
   },
   "args": [
     {

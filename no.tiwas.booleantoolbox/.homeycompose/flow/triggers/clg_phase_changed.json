@@ -2,7 +2,29 @@
   "id": "clg_phase_changed",
   "title": {
     "en": "Phase changed",
-    "no": "Fase endret"
+    "no": "Fase endret",
+    "de": "Phase geändert",
+    "nl": "Fase gewijzigd",
+    "fr": "Phase modifiée",
+    "da": "Fase ændret",
+    "fi": "Vaihe muuttui",
+    "sv": "Fas ändrad",
+    "pl": "Faza zmieniona",
+    "it": "Fase cambiata",
+    "es": "Fase cambiada"
+  },
+  "hint": {
+    "en": "Fires when the device transitions between phases (day, evening, night).",
+    "no": "Fyrer når enheten går over mellom faser (dag, kveld, natt).",
+    "de": "Wird ausgelöst, wenn das Gerät zwischen Phasen wechselt (Tag, Abend, Nacht).",
+    "nl": "Wordt geactiveerd wanneer het apparaat tussen fasen overgaat (dag, avond, nacht).",
+    "fr": "Se déclenche lorsque l'appareil passe d'une phase à l'autre (jour, soir, nuit).",
+    "da": "Udløses, når enheden skifter mellem faser (dag, aften, nat).",
+    "fi": "Laukeaa, kun laite siirtyy vaiheiden välillä (päivä, ilta, yö).",
+    "sv": "Utlöses när enheten övergår mellan faser (dag, kväll, natt).",
+    "pl": "Wyzwalane, gdy urządzenie zmienia fazę (dzień, wieczór, noc).",
+    "it": "Si attiva quando il dispositivo passa tra le fasi (giorno, sera, notte).",
+    "es": "Se activa cuando el dispositivo cambia entre fases (día, noche, tarde)."
   },
   "args": [
     {
@@ -15,12 +37,20 @@
     {
       "name": "phase",
       "type": "string",
-      "title": { "en": "Phase", "no": "Fase" }
+      "title": {
+        "en": "Phase", "no": "Fase", "de": "Phase", "nl": "Fase", "fr": "Phase",
+        "da": "Fase", "fi": "Vaihe", "sv": "Fas", "pl": "Faza", "it": "Fase", "es": "Fase"
+      }
     },
     {
       "name": "previous_phase",
       "type": "string",
-      "title": { "en": "Previous phase", "no": "Forrige fase" }
+      "title": {
+        "en": "Previous phase", "no": "Forrige fase", "de": "Vorherige Phase",
+        "nl": "Vorige fase", "fr": "Phase précédente", "da": "Forrige fase",
+        "fi": "Edellinen vaihe", "sv": "Föregående fas", "pl": "Poprzednia faza",
+        "it": "Fase precedente", "es": "Fase anterior"
+      }
     }
   ]
 }

@@ -2,7 +2,16 @@
   "id": "clg_red_mode_ended",
   "title": {
     "en": "Red mode ended",
-    "no": "Rødmodus avsluttet"
+    "no": "Rødmodus avsluttet",
+    "de": "Rotmodus beendet",
+    "nl": "Rode modus beëindigd",
+    "fr": "Mode rouge terminé",
+    "da": "Rød tilstand afsluttet",
+    "fi": "Punainen tila päättyi",
+    "sv": "Röd läge avslutat",
+    "pl": "Tryb czerwony zakończony",
+    "it": "Modalità rossa terminata",
+    "es": "Modo rojo finalizado"
   },
   "args": [
     {

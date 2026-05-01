@@ -40,102 +40,102 @@
 </head>
 <body>
     <header>
-        <h1 class="homey-title">Edit Circadian Light Group</h1>
-        <p class="homey-subtitle">Adjust schedule, light profile, outdoor source and managed lights.</p>
+        <h1 class="homey-title" data-i18n="pair.circadian_light_group.repair_title">Edit Circadian Light Group</h1>
+        <p class="homey-subtitle" data-i18n="pair.circadian_light_group.repair_subtitle">Adjust schedule, light profile, outdoor source and managed lights.</p>
     </header>
 
     <div class="section">
-        <h2>Schedule</h2>
-        <p class="muted">Anchor times define when each phase begins. Solar and lux modes coming soon.</p>
+        <h2 data-i18n="pair.circadian_light_group.section_schedule">Schedule</h2>
+        <p class="muted" data-i18n="pair.circadian_light_group.schedule_hint">Anchor times define when each phase begins. Pick time, solar event or lux sensor per anchor.</p>
         <div id="anchors-container"></div>
     </div>
 
     <div class="section">
-        <h2>Light Profile</h2>
+        <h2 data-i18n="pair.circadian_light_group.section_light_profile">Light Profile</h2>
         <div id="phase-editor" class="phase-grid"></div>
         <div style="margin-top:12px;">
-            <label for="red-threshold">Red mode threshold (<span id="red-threshold-display">0.20</span>)</label>
+            <label for="red-threshold"><span data-i18n="pair.circadian_light_group.red_threshold_label">Red mode threshold</span> (<span id="red-threshold-display">0.20</span>)</label>
             <input id="red-threshold" type="range" min="0" max="1" step="0.01">
-            <p class="muted">When the calculated temperature drops below this value, color-capable lights shift to red. The deeper below, the more saturated. Set to 0 to disable red mode.</p>
+            <p class="muted" data-i18n="pair.circadian_light_group.red_threshold_hint">When the calculated temperature drops below this value, color-capable lights shift to red. The deeper below, the more saturated. Set to 0 to disable red mode.</p>
         </div>
     </div>
 
     <div class="section">
-        <h2>Outdoor Light Source</h2>
+        <h2 data-i18n="pair.circadian_light_group.section_outdoor_source">Outdoor Light Source</h2>
         <div class="grid">
             <div>
-                <label for="provider">Provider</label>
+                <label for="provider" data-i18n="pair.circadian_light_group.provider">Provider</label>
                 <select id="provider">
-                    <option value="astronomical">Astronomical fallback</option>
-                    <option value="external_value">External value from Flow</option>
-                    <option value="homey_lux_sensor">Homey lux sensor</option>
-                    <option value="open_meteo">Open-Meteo</option>
-                    <option value="met_no">MET.no</option>
+                    <option value="astronomical" data-i18n="pair.circadian_light_group.provider_astronomical">Astronomical fallback</option>
+                    <option value="external_value" data-i18n="pair.circadian_light_group.provider_external">External value from Flow</option>
+                    <option value="homey_lux_sensor" data-i18n="pair.circadian_light_group.provider_lux_sensor">Homey lux sensor</option>
+                    <option value="open_meteo" data-i18n="pair.circadian_light_group.provider_open_meteo">Open-Meteo</option>
+                    <option value="met_no" data-i18n="pair.circadian_light_group.provider_met_no">MET.no</option>
                 </select>
             </div>
             <div>
-                <label for="fallback-provider">Fallback</label>
+                <label for="fallback-provider" data-i18n="pair.circadian_light_group.fallback">Fallback</label>
                 <select id="fallback-provider">
-                    <option value="astronomical">Astronomical</option>
-                    <option value="open_meteo">Open-Meteo</option>
-                    <option value="met_no">MET.no</option>
+                    <option value="astronomical" data-i18n="pair.circadian_light_group.fallback_astronomical">Astronomical</option>
+                    <option value="open_meteo" data-i18n="pair.circadian_light_group.provider_open_meteo">Open-Meteo</option>
+                    <option value="met_no" data-i18n="pair.circadian_light_group.provider_met_no">MET.no</option>
                 </select>
             </div>
             <div>
-                <label for="cache-minutes">Cache minutes</label>
+                <label for="cache-minutes" data-i18n="pair.circadian_light_group.cache_minutes">Cache minutes</label>
                 <input id="cache-minutes" type="number" min="1" max="240">
             </div>
             <div>
-                <label for="stale-minutes">External stale after minutes</label>
+                <label for="stale-minutes" data-i18n="pair.circadian_light_group.stale_minutes">External stale after minutes</label>
                 <input id="stale-minutes" type="number" min="1" max="240">
             </div>
         </div>
         <div id="lux-sensor-wrap" style="margin-top:10px;">
-            <label for="lux-sensor">Lux sensor</label>
+            <label for="lux-sensor" data-i18n="pair.circadian_light_group.lux_sensor">Lux sensor</label>
             <select id="lux-sensor"></select>
         </div>
-        <p class="muted">For external values, use the Flow action "Set outdoor computed lux".</p>
+        <p class="muted" data-i18n="pair.circadian_light_group.external_flow_hint">For external values, use the Flow action "Set outdoor computed lux".</p>
     </div>
 
     <div class="section">
-        <h2>Outdoor Adjustment</h2>
+        <h2 data-i18n="pair.circadian_light_group.section_outdoor_adjustment">Outdoor Adjustment</h2>
         <div class="row">
             <input id="outdoor-enabled" type="checkbox">
-            <label for="outdoor-enabled">Adjust brightness by outdoor light</label>
+            <label for="outdoor-enabled" data-i18n="pair.circadian_light_group.outdoor_enabled">Adjust brightness by outdoor light</label>
         </div>
         <div class="grid">
-            <div><label for="min-lux">Min lux</label><input id="min-lux" type="number" min="0"></div>
-            <div><label for="max-lux">Max lux</label><input id="max-lux" type="number" min="1"></div>
-            <div><label for="min-factor">Min dim factor</label><input id="min-factor" type="number" min="0" max="2" step="0.01"></div>
-            <div><label for="max-factor">Max dim factor</label><input id="max-factor" type="number" min="0" max="2" step="0.01"></div>
+            <div><label for="min-lux" data-i18n="pair.circadian_light_group.min_lux">Min lux</label><input id="min-lux" type="number" min="0"></div>
+            <div><label for="max-lux" data-i18n="pair.circadian_light_group.max_lux">Max lux</label><input id="max-lux" type="number" min="1"></div>
+            <div><label for="min-factor" data-i18n="pair.circadian_light_group.min_factor">Min dim factor</label><input id="min-factor" type="number" min="0" max="2" step="0.01"></div>
+            <div><label for="max-factor" data-i18n="pair.circadian_light_group.max_factor">Max dim factor</label><input id="max-factor" type="number" min="0" max="2" step="0.01"></div>
         </div>
     </div>
 
     <div class="section">
-        <h2>Advanced</h2>
+        <h2 data-i18n="pair.circadian_light_group.section_advanced">Advanced</h2>
         <div class="grid">
             <div>
-                <label for="update-interval">Update interval (seconds)</label>
+                <label for="update-interval" data-i18n="pair.circadian_light_group.update_interval">Update interval (seconds)</label>
                 <input id="update-interval" type="number" min="30" max="3600">
             </div>
             <div>
-                <label for="transition-seconds">Transition (seconds)</label>
+                <label for="transition-seconds" data-i18n="pair.circadian_light_group.transition_seconds">Transition (seconds)</label>
                 <input id="transition-seconds" type="number" min="0" max="600">
             </div>
         </div>
     </div>
 
     <div class="section">
-        <h2>Managed Lights</h2>
+        <h2 data-i18n="pair.circadian_light_group.section_managed_lights">Managed Lights</h2>
         <div id="devices"></div>
         <div class="two-actions">
             <select id="candidate-select"></select>
-            <button id="add-light" class="secondary">Add</button>
+            <button id="add-light" class="secondary" data-i18n="pair.circadian_light_group.add">Add</button>
         </div>
     </div>
 
     <div class="homey-view-buttons">
-        <button id="save" class="primary">Save Changes</button>
+        <button id="save" class="primary" data-i18n="pair.circadian_light_group.save_changes">Save Changes</button>
     </div>
 
     <script type="text/javascript">
@@ -144,26 +144,43 @@
         let candidates = [];
         let sensors = [];
 
+        function t(key, fallback) {
+            try {
+                if (typeof Homey !== 'undefined' && typeof Homey.__ === 'function') {
+                    const v = Homey.__(key);
+                    if (v && v !== key) return v;
+                }
+            } catch (e) {}
+            return fallback;
+        }
+
+        function applyTranslations() {
+            if (typeof Homey === 'undefined' || typeof Homey.__ !== 'function') return;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.getAttribute('data-i18n'), el.textContent);
+            });
+        }
+
         const SOLAR_EVENTS = [
-            { value: 'sunrise', label: 'Sunrise' },
-            { value: 'sunset', label: 'Sunset' },
-            { value: 'civil_dawn', label: 'Civil dawn' },
-            { value: 'civil_dusk', label: 'Civil dusk' },
-            { value: 'nautical_dawn', label: 'Nautical dawn' },
-            { value: 'nautical_dusk', label: 'Nautical dusk' },
-            { value: 'astronomical_dawn', label: 'Astronomical dawn' },
-            { value: 'astronomical_dusk', label: 'Astronomical dusk' },
-            { value: 'golden_hour_morning', label: 'Golden hour (morning end)' },
-            { value: 'golden_hour_evening', label: 'Golden hour (evening start)' },
-            { value: 'blue_hour_morning', label: 'Blue hour (morning)' },
-            { value: 'blue_hour_evening', label: 'Blue hour (evening)' },
-            { value: 'solar_noon', label: 'Solar noon' },
-            { value: 'solar_midnight', label: 'Solar midnight' }
+            { value: 'sunrise', key: 'pair.circadian_light_group.solar_event_sunrise', fallback: 'Sunrise' },
+            { value: 'sunset', key: 'pair.circadian_light_group.solar_event_sunset', fallback: 'Sunset' },
+            { value: 'civil_dawn', key: 'pair.circadian_light_group.solar_event_civil_dawn', fallback: 'Civil dawn' },
+            { value: 'civil_dusk', key: 'pair.circadian_light_group.solar_event_civil_dusk', fallback: 'Civil dusk' },
+            { value: 'nautical_dawn', key: 'pair.circadian_light_group.solar_event_nautical_dawn', fallback: 'Nautical dawn' },
+            { value: 'nautical_dusk', key: 'pair.circadian_light_group.solar_event_nautical_dusk', fallback: 'Nautical dusk' },
+            { value: 'astronomical_dawn', key: 'pair.circadian_light_group.solar_event_astronomical_dawn', fallback: 'Astronomical dawn' },
+            { value: 'astronomical_dusk', key: 'pair.circadian_light_group.solar_event_astronomical_dusk', fallback: 'Astronomical dusk' },
+            { value: 'golden_hour_morning', key: 'pair.circadian_light_group.solar_event_golden_hour_morning', fallback: 'Golden hour (morning end)' },
+            { value: 'golden_hour_evening', key: 'pair.circadian_light_group.solar_event_golden_hour_evening', fallback: 'Golden hour (evening start)' },
+            { value: 'blue_hour_morning', key: 'pair.circadian_light_group.solar_event_blue_hour_morning', fallback: 'Blue hour (morning)' },
+            { value: 'blue_hour_evening', key: 'pair.circadian_light_group.solar_event_blue_hour_evening', fallback: 'Blue hour (evening)' },
+            { value: 'solar_noon', key: 'pair.circadian_light_group.solar_event_solar_noon', fallback: 'Solar noon' },
+            { value: 'solar_midnight', key: 'pair.circadian_light_group.solar_event_solar_midnight', fallback: 'Solar midnight' }
         ];
 
         function buildSolarOptions(selected) {
             return SOLAR_EVENTS.map(ev =>
-                '<option value="' + ev.value + '"' + (ev.value === selected ? ' selected' : '') + '>' + ev.label + '</option>'
+                '<option value="' + ev.value + '"' + (ev.value === selected ? ' selected' : '') + '>' + t(ev.key, ev.fallback) + '</option>'
             ).join('');
         }
 
@@ -257,37 +274,38 @@
                 const row = document.createElement('div');
                 row.className = 'anchor-row';
                 const fallbackForTimeInput = anchor.mode === 'solar' ? (anchor.fallbackTime || '07:00') : (anchor.time || '07:00');
+                const anchorLabel = t('pair.circadian_light_group.' + key, labelTitle);
                 row.innerHTML =
-                    '<label>' + labelTitle + '</label>' +
+                    '<label>' + anchorLabel + '</label>' +
                     '<select data-anchor="' + key + '" data-key="mode">' +
-                        '<option value="time">Time</option>' +
-                        '<option value="solar">Solar event</option>' +
-                        '<option value="lux">Lux sensor</option>' +
+                        '<option value="time">' + t('pair.circadian_light_group.mode_time', 'Time') + '</option>' +
+                        '<option value="solar">' + t('pair.circadian_light_group.mode_solar', 'Solar event') + '</option>' +
+                        '<option value="lux">' + t('pair.circadian_light_group.mode_lux', 'Lux sensor') + '</option>' +
                     '</select>' +
                     '<input data-anchor="' + key + '" data-key="time" type="time" value="' + fallbackForTimeInput + '">';
                 wrap.appendChild(row);
                 row.querySelector('select').value = anchor.mode || 'time';
 
                 if (anchor.mode === 'lux') {
-                    const sensorOpts = ['<option value="">Select lux sensor...</option>']
+                    const sensorOpts = ['<option value="">' + t('pair.circadian_light_group.select_lux_sensor', 'Select lux sensor...') + '</option>']
                         .concat(sensors.map(s => '<option value="' + s.id + '"' + (s.id === anchor.sensorDeviceId ? ' selected' : '') + '>' + s.name + (s.zoneName ? ' (' + s.zoneName + ')' : '') + '</option>'))
                         .join('');
                     const direction = anchor.direction || ((key === 'morning' || key === 'day') ? 'rising' : 'falling');
                     const detail = document.createElement('div');
                     detail.className = 'anchor-detail';
                     detail.innerHTML =
-                        '<label>Sensor</label>' +
+                        '<label>' + t('pair.circadian_light_group.sensor_label', 'Sensor') + '</label>' +
                         '<select data-anchor="' + key + '" data-key="sensorDeviceId">' + sensorOpts + '</select>' +
                         '<div class="grid" style="margin-top:6px;">' +
-                            '<div><label>Threshold (lux)</label>' +
+                            '<div><label>' + t('pair.circadian_light_group.lux_threshold', 'Threshold (lux)') + '</label>' +
                             '<input data-anchor="' + key + '" data-key="threshold" type="number" min="0" step="1" value="' + (anchor.threshold || 100) + '"></div>' +
-                            '<div><label>Direction</label>' +
+                            '<div><label>' + t('pair.circadian_light_group.direction', 'Direction') + '</label>' +
                             '<select data-anchor="' + key + '" data-key="direction">' +
-                                '<option value="rising"' + (direction === 'rising' ? ' selected' : '') + '>Rising</option>' +
-                                '<option value="falling"' + (direction === 'falling' ? ' selected' : '') + '>Falling</option>' +
+                                '<option value="rising"' + (direction === 'rising' ? ' selected' : '') + '>' + t('pair.circadian_light_group.direction_rising', 'Rising') + '</option>' +
+                                '<option value="falling"' + (direction === 'falling' ? ' selected' : '') + '>' + t('pair.circadian_light_group.direction_falling', 'Falling') + '</option>' +
                             '</select></div>' +
                         '</div>' +
-                        '<div style="margin-top:6px;"><label>Fallback time (used until threshold crossed today)</label>' +
+                        '<div style="margin-top:6px;"><label>' + t('pair.circadian_light_group.lux_fallback_hint', 'Fallback time (used until threshold crossed today)') + '</label>' +
                         '<input data-anchor="' + key + '" data-key="fallbackTime" type="time" value="' + (anchor.fallbackTime || '07:00') + '"></div>';
                     wrap.appendChild(detail);
                     row.querySelector('input[data-key="time"]').style.visibility = 'hidden';
@@ -297,12 +315,12 @@
                     const detail = document.createElement('div');
                     detail.className = 'anchor-detail';
                     detail.innerHTML =
-                        '<label>Event</label>' +
+                        '<label>' + t('pair.circadian_light_group.event_label', 'Event') + '</label>' +
                         '<select data-anchor="' + key + '" data-key="solarEvent">' + buildSolarOptions(anchor.solarEvent || 'sunrise') + '</select>' +
                         '<div class="grid" style="margin-top:6px;">' +
-                            '<div><label>Offset (minutes, can be negative)</label>' +
+                            '<div><label>' + t('pair.circadian_light_group.offset_minutes', 'Offset (minutes, can be negative)') + '</label>' +
                             '<input data-anchor="' + key + '" data-key="offsetMinutes" type="number" min="-180" max="180" step="1" value="' + (anchor.offsetMinutes || 0) + '"></div>' +
-                            '<div><label>Polar fallback time</label>' +
+                            '<div><label>' + t('pair.circadian_light_group.polar_fallback', 'Polar fallback time') + '</label>' +
                             '<input data-anchor="' + key + '" data-key="fallbackTime" type="time" value="' + (anchor.fallbackTime || '07:00') + '"></div>' +
                         '</div>';
                     wrap.appendChild(detail);
@@ -346,12 +364,14 @@
             editor.innerHTML = '';
             ['day', 'evening', 'night'].forEach(phase => {
                 const data = config.profile[phase];
-                const phaseTitle = phase.charAt(0).toUpperCase() + phase.slice(1);
+                const phaseTitle = t('pair.circadian_light_group.' + phase, phase.charAt(0).toUpperCase() + phase.slice(1));
+                const dimLabel = t('pair.circadian_light_group.dim_label', 'Dim (0–1)');
+                const tempLabel = t('pair.circadian_light_group.temperature_label', 'Temperature (0–1, lower = warmer)');
                 const div = document.createElement('div');
                 div.innerHTML =
-                    '<label>' + phaseTitle + ' dim (0–1)</label>' +
+                    '<label>' + phaseTitle + ' — ' + dimLabel + '</label>' +
                     '<input data-phase="' + phase + '" data-key="dim" type="number" min="0" max="1" step="0.01" value="' + data.dim + '">' +
-                    '<label style="margin-top:6px;">' + phaseTitle + ' temperature (0–1, lower = warmer)</label>' +
+                    '<label style="margin-top:6px;">' + phaseTitle + ' — ' + tempLabel + '</label>' +
                     '<input data-phase="' + phase + '" data-key="temperature" type="number" min="0" max="1" step="0.01" value="' + data.temperature + '">';
                 editor.appendChild(div);
             });
@@ -377,7 +397,7 @@
             const sensorWrap = document.getElementById('lux-sensor-wrap');
             sensorWrap.className = config.outdoorLight.provider === 'homey_lux_sensor' ? '' : 'hidden';
             const sensorSelect = document.getElementById('lux-sensor');
-            sensorSelect.innerHTML = '<option value="">Select lux sensor...</option>';
+            sensorSelect.innerHTML = '<option value="">' + t('pair.circadian_light_group.select_lux_sensor', 'Select lux sensor...') + '</option>';
             sensors.forEach(sensor => {
                 const option = document.createElement('option');
                 option.value = sensor.id;
@@ -399,7 +419,7 @@
             const container = document.getElementById('devices');
             container.innerHTML = '';
             if (config.devices.length === 0) {
-                container.innerHTML = '<p class="muted">No lights selected.</p>';
+                container.innerHTML = '<p class="muted">' + t('pair.circadian_light_group.no_lights_selected', 'No lights selected.') + '</p>';
                 return;
             }
             config.devices.forEach((device, index) => {
@@ -409,14 +429,14 @@
                     '<div class="device-title">' + (device.name || device.id) + '</div>' +
                     '<div class="meta">' + (device.zoneName || '') + '</div>' +
                     '<div class="grid">' +
-                    checkboxHtml(index, 'enabled', 'Enabled', device.enabled !== false) +
-                    checkboxHtml(index, 'prewarmBeforeOn', 'Prewarm before on', device.prewarmBeforeOn !== false) +
-                    checkboxHtml(index, 'redModeAllowed', 'Allow red mode', device.redModeAllowed !== false) +
+                    checkboxHtml(index, 'enabled', t('pair.circadian_light_group.enabled', 'Enabled'), device.enabled !== false) +
+                    checkboxHtml(index, 'prewarmBeforeOn', t('pair.circadian_light_group.prewarm_before_on', 'Prewarm before on'), device.prewarmBeforeOn !== false) +
+                    checkboxHtml(index, 'redModeAllowed', t('pair.circadian_light_group.allow_red_mode', 'Allow red mode'), device.redModeAllowed !== false) +
                     '<div></div>' +
-                    numberHtml(index, 'minDim', 'Min dim', device.minDim !== undefined ? device.minDim : 0.05, 0, 1, 0.01) +
-                    numberHtml(index, 'maxDim', 'Max dim', device.maxDim !== undefined ? device.maxDim : 1, 0, 1, 0.01) +
+                    numberHtml(index, 'minDim', t('pair.circadian_light_group.min_dim', 'Min dim'), device.minDim !== undefined ? device.minDim : 0.05, 0, 1, 0.01) +
+                    numberHtml(index, 'maxDim', t('pair.circadian_light_group.max_dim', 'Max dim'), device.maxDim !== undefined ? device.maxDim : 1, 0, 1, 0.01) +
                     '</div>' +
-                    '<div class="device-actions"><button class="danger" data-remove="' + index + '">Remove</button></div>';
+                    '<div class="device-actions"><button class="danger" data-remove="' + index + '">' + t('pair.circadian_light_group.remove', 'Remove') + '</button></div>';
                 container.appendChild(card);
             });
         }
@@ -424,7 +444,7 @@
         function renderCandidates() {
             const select = document.getElementById('candidate-select');
             const existing = new Set(config.devices.map(device => device.id));
-            select.innerHTML = '<option value="">Select light...</option>';
+            select.innerHTML = '<option value="">' + t('pair.circadian_light_group.select_light', 'Select light...') + '</option>';
             candidates.filter(candidate => !existing.has(candidate.id)).forEach(candidate => {
                 const option = document.createElement('option');
                 option.value = candidate.id;
@@ -525,12 +545,12 @@
             collect();
             const button = document.getElementById('save');
             button.disabled = true;
-            button.textContent = 'Saving...';
+            button.textContent = t('pair.circadian_light_group.saving', 'Saving...');
             Homey.emit('save_config', { config }, function(err) {
                 button.disabled = false;
-                button.textContent = 'Save Changes';
+                button.textContent = t('pair.circadian_light_group.save_changes', 'Save Changes');
                 if (err) {
-                    Homey.alert(err.message || 'Could not save configuration');
+                    Homey.alert(err.message || t('pair.circadian_light_group.error_save_config', 'Could not save configuration'));
                     return;
                 }
                 Homey.done();
@@ -543,10 +563,11 @@
                 return;
             }
 
-            Homey.setTitle('Edit Circadian Light Group');
+            Homey.setTitle(t('pair.circadian_light_group.repair_title', 'Edit Circadian Light Group'));
+            applyTranslations();
             Homey.emit('get_config', {}, function(configErr, result) {
                 if (configErr) {
-                    Homey.alert(configErr.message || 'Could not load configuration');
+                    Homey.alert(configErr.message || t('pair.circadian_light_group.error_load_config', 'Could not load configuration'));
                     return;
                 }
                 config = result.config || {};

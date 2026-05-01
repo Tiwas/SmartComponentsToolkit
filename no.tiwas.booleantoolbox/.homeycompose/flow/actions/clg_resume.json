@@ -1,0 +1,18 @@
+{
+  "id": "clg_resume",
+  "title": {
+    "en": "Resume circadian light group",
+    "no": "Gjenoppta dognrytme-lysgruppe"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "titleFormatted": {
+    "en": "Resume circadian light group",
+    "no": "Gjenoppta dognrytme-lysgruppe"
+  }
+}

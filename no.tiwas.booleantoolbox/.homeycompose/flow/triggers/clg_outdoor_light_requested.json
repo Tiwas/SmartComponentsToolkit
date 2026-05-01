@@ -1,0 +1,18 @@
+{
+  "id": "clg_outdoor_light_requested",
+  "title": {
+    "en": "Outdoor light value requested",
+    "no": "Utelysverdi forespurt"
+  },
+  "hint": {
+    "en": "Use this trigger with the 'Set outdoor computed lux' action when outdoorLight.provider is external_value.",
+    "no": "Bruk denne triggeren sammen med handlingen 'Sett beregnet utendors lux' naar outdoorLight.provider er external_value."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

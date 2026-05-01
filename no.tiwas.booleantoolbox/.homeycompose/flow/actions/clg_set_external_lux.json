@@ -1,0 +1,54 @@
+{
+  "id": "clg_set_external_lux",
+  "title": {
+    "en": "Set outdoor computed lux",
+    "no": "Sett beregnet utendors lux"
+  },
+  "hint": {
+    "en": "Pushes an externally computed outdoor light value into the Circadian Light Group.",
+    "no": "Sender en eksternt beregnet utelysverdi til dognrytme-lysgruppen."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "number",
+      "name": "lux",
+      "title": {
+        "en": "Outdoor computed lux",
+        "no": "Beregnet utendors lux"
+      }
+    },
+    {
+      "type": "number",
+      "name": "valid_minutes",
+      "title": {
+        "en": "Valid for minutes",
+        "no": "Gyldig i minutter"
+      },
+      "placeholder": {
+        "en": "15",
+        "no": "15"
+      }
+    },
+    {
+      "type": "text",
+      "name": "source",
+      "title": {
+        "en": "Source",
+        "no": "Kilde"
+      },
+      "placeholder": {
+        "en": "my-weather-flow",
+        "no": "min-vaerflow"
+      }
+    }
+  ],
+  "titleFormatted": {
+    "en": "Set outdoor computed lux to [[lux]] from [[source]] for [[valid_minutes]] minutes",
+    "no": "Sett beregnet utendors lux til [[lux]] fra [[source]] i [[valid_minutes]] minutter"
+  }
+}

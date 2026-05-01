@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #222; }
+        .homey-title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+        .homey-subtitle { font-size: 14px; color: #666; margin: 0 0 16px; }
+        .section { background: #fff; border: 1px solid #e7e7e7; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .section h2 { font-size: 15px; margin: 0 0 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .phase-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
+        input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: #fff; }
+        input[type="checkbox"] { width: auto; margin-right: 6px; }
+        input[type="range"] { padding: 0; }
+        .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .row label { margin: 0; flex: 1; }
+        .device-card { border: 1px solid #ececec; border-radius: 8px; padding: 10px; margin-bottom: 8px; background: #fcfcfc; }
+        .device-title { font-weight: 600; margin-bottom: 2px; }
+        .meta { font-size: 12px; color: #777; margin-bottom: 8px; }
+        .device-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+        button { border: 0; border-radius: 8px; padding: 10px 12px; font-size: 14px; cursor: pointer; }
+        .primary { width: 100%; background: #4CAF50; color: #fff; font-weight: 600; padding: 14px; }
+        .secondary { background: #ececec; color: #222; }
+        .danger { background: #f1d7d7; color: #8a1f1f; }
+        .muted { color: #777; font-size: 12px; line-height: 1.35; }
+        .two-actions { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+        .hidden { display: none; }
+        @media (max-width: 420px) { .grid, .phase-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 class="homey-title" data-i18n="pair.circadian_light_group.repair_title">Edit Circadian Light Group</h1>
+        <p class="homey-subtitle" data-i18n="pair.circadian_light_group.repair_subtitle">Adjust schedule, outdoor source and managed lights.</p>
+    </header>
+
+    <div class="section">
+        <h2 data-i18n="pair.circadian_light_group.schedule">Schedule</h2>
+        <div class="grid">
+            <div><label for="morning" data-i18n="pair.circadian_light_group.morning">Morning</label><input id="morning" type="time"></div>
+            <div><label for="day" data-i18n="pair.circadian_light_group.day">Day</label><input id="day" type="time"></div>
+            <div><label for="evening" data-i18n="pair.circadian_light_group.evening">Evening</label><input id="evening" type="time"></div>
+            <div><label for="night" data-i18n="pair.circadian_light_group.night">Night</label><input id="night" type="time"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 data-i18n="pair.circadian_light_group.light_profile">Light Profile</h2>
+        <div id="phase-editor" class="phase-grid"></div>
+        <div class="row" style="margin-top:10px;">
+            <input id="night-red" type="checkbox">
+            <label for="night-red" data-i18n="pair.circadian_light_group.use_red_light">Use red light at night when supported</label>
+        </div>
+        <div>
+            <label for="red-saturation" data-i18n="pair.circadian_light_group.red_saturation">Night red saturation</label>
+            <input id="red-saturation" type="range" min="0" max="1" step="0.01">
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 data-i18n="pair.circadian_light_group.outdoor_source">Outdoor Light Source</h2>
+        <div class="grid">
+            <div>
+                <label for="provider" data-i18n="pair.circadian_light_group.provider">Provider</label>
+                <select id="provider">
+                    <option value="astronomical" data-i18n="pair.circadian_light_group.provider_astronomical">Astronomical fallback</option>
+                    <option value="external_value" data-i18n="pair.circadian_light_group.provider_external">External value from Flow</option>
+                    <option value="homey_lux_sensor" data-i18n="pair.circadian_light_group.provider_lux_sensor">Homey lux sensor</option>
+                    <option value="open_meteo" data-i18n="pair.circadian_light_group.provider_open_meteo">Open-Meteo</option>
+                    <option value="met_no" data-i18n="pair.circadian_light_group.provider_met_no">MET.no</option>
+                </select>
+            </div>
+            <div>
+                <label for="fallback-provider" data-i18n="pair.circadian_light_group.fallback">Fallback</label>
+                <select id="fallback-provider">
+                    <option value="astronomical" data-i18n="pair.circadian_light_group.fallback_astronomical">Astronomical</option>
+                    <option value="open_meteo" data-i18n="pair.circadian_light_group.provider_open_meteo">Open-Meteo</option>
+                    <option value="met_no" data-i18n="pair.circadian_light_group.provider_met_no">MET.no</option>
+                </select>
+            </div>
+            <div>
+                <label for="cache-minutes" data-i18n="pair.circadian_light_group.cache_minutes">Cache minutes</label>
+                <input id="cache-minutes" type="number" min="1" max="240">
+            </div>
+            <div>
+                <label for="stale-minutes" data-i18n="pair.circadian_light_group.stale_minutes">External stale after minutes</label>
+                <input id="stale-minutes" type="number" min="1" max="240">
+            </div>
+        </div>
+        <div id="lux-sensor-wrap" style="margin-top:10px;">
+            <label for="lux-sensor" data-i18n="pair.circadian_light_group.lux_sensor">Lux sensor</label>
+            <select id="lux-sensor"></select>
+        </div>
+        <p class="muted" data-i18n="pair.circadian_light_group.external_flow_hint">For external values, use the Flow action "Set outdoor computed lux".</p>
+    </div>
+
+    <div class="section">
+        <h2 data-i18n="pair.circadian_light_group.outdoor_adjustment">Outdoor Adjustment</h2>
+        <div class="row">
+            <input id="outdoor-enabled" type="checkbox">
+            <label for="outdoor-enabled" data-i18n="pair.circadian_light_group.outdoor_enabled">Adjust brightness by outdoor light</label>
+        </div>
+        <div class="grid">
+            <div><label for="min-lux" data-i18n="pair.circadian_light_group.min_lux">Min lux</label><input id="min-lux" type="number" min="0"></div>
+            <div><label for="max-lux" data-i18n="pair.circadian_light_group.max_lux">Max lux</label><input id="max-lux" type="number" min="1"></div>
+            <div><label for="min-factor" data-i18n="pair.circadian_light_group.min_factor">Min dim factor</label><input id="min-factor" type="number" min="0" max="2" step="0.01"></div>
+            <div><label for="max-factor" data-i18n="pair.circadian_light_group.max_factor">Max dim factor</label><input id="max-factor" type="number" min="0" max="2" step="0.01"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 data-i18n="pair.circadian_light_group.managed_lights">Managed Lights</h2>
+        <div id="devices"></div>
+        <div class="two-actions">
+            <select id="candidate-select"></select>
+            <button id="add-light" class="secondary" data-i18n="pair.circadian_light_group.add">Add</button>
+        </div>
+    </div>
+
+    <div class="homey-view-buttons">
+        <button id="save" class="primary" data-i18n="pair.circadian_light_group.save_changes">Save Changes</button>
+    </div>
+
+    <script type="text/javascript">
+        let config = null;
+        let candidates = [];
+        let sensors = [];
+
+        const DEFAULT_PROFILE = {
+            updateIntervalSeconds: 120,
+            transitionSeconds: 90,
+            anchors: { morning: '07:00', day: '10:00', evening: '19:00', night: '23:00' },
+            day: { dim: 1, temperature: 0.85 },
+            evening: { dim: 0.45, temperature: 0.25 },
+            night: { dim: 0.08, temperature: 0, red: true, redSaturation: 1 },
+            outdoor: { enabled: true, minLux: 0, maxLux: 20000, minDimFactor: 0.65, maxDimFactor: 1.15 }
+        };
+
+        function t(key, fallback) {
+            try {
+                if (typeof Homey !== 'undefined' && typeof Homey.__ === 'function') return Homey.__(key) || fallback;
+            } catch (e) {}
+            return fallback;
+        }
+
+        function applyTranslations() {
+            if (typeof Homey === 'undefined' || typeof Homey.__ !== 'function') return;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.getAttribute('data-i18n'), el.textContent);
+            });
+        }
+
+        function numberValue(id, fallback) {
+            const value = Number(document.getElementById(id).value);
+            return Number.isFinite(value) ? value : fallback;
+        }
+
+        function checkboxValue(id) {
+            return document.getElementById(id).checked;
+        }
+
+        function ensureConfig() {
+            config.profile = config.profile || {};
+            config.profile.anchors = Object.assign({}, DEFAULT_PROFILE.anchors, config.profile.anchors || {});
+            config.profile.day = Object.assign({}, DEFAULT_PROFILE.day, config.profile.day || {});
+            config.profile.evening = Object.assign({}, DEFAULT_PROFILE.evening, config.profile.evening || {});
+            config.profile.night = Object.assign({}, DEFAULT_PROFILE.night, config.profile.night || {});
+            config.profile.outdoor = Object.assign({}, DEFAULT_PROFILE.outdoor, config.profile.outdoor || {});
+            config.outdoorLight = Object.assign({
+                provider: 'astronomical',
+                fallbackProvider: 'astronomical',
+                staleAfterMinutes: 20,
+                cacheMinutes: 15
+            }, config.outdoorLight || {});
+            config.devices = Array.isArray(config.devices) ? config.devices : [];
+        }
+
+        function render() {
+            ensureConfig();
+            document.getElementById('morning').value = config.profile.anchors.morning;
+            document.getElementById('day').value = config.profile.anchors.day;
+            document.getElementById('evening').value = config.profile.anchors.evening;
+            document.getElementById('night').value = config.profile.anchors.night;
+            renderProfile();
+            renderOutdoor();
+            renderDevices();
+            renderCandidates();
+        }
+
+        function renderProfile() {
+            const editor = document.getElementById('phase-editor');
+            editor.innerHTML = '';
+            ['day', 'evening', 'night'].forEach(phase => {
+                const data = config.profile[phase];
+                const phaseTitle = t('pair.circadian_light_group.' + phase, phase);
+                const div = document.createElement('div');
+                div.innerHTML =
+                    '<label>' + phaseTitle + ' ' + t('pair.circadian_light_group.dim_suffix', 'dim') + '</label>' +
+                    '<input data-phase="' + phase + '" data-key="dim" type="number" min="0" max="1" step="0.01" value="' + data.dim + '">' +
+                    '<label style="margin-top:6px;">' + phaseTitle + ' ' + t('pair.circadian_light_group.temperature_suffix', 'temperature') + '</label>' +
+                    '<input data-phase="' + phase + '" data-key="temperature" type="number" min="0" max="1" step="0.01" value="' + data.temperature + '">';
+                editor.appendChild(div);
+            });
+            document.getElementById('night-red').checked = config.profile.night.red === true;
+            document.getElementById('red-saturation').value = config.profile.night.redSaturation;
+        }
+
+        function renderOutdoor() {
+            document.getElementById('provider').value = config.outdoorLight.provider;
+            document.getElementById('fallback-provider').value = config.outdoorLight.fallbackProvider || 'astronomical';
+            document.getElementById('cache-minutes').value = config.outdoorLight.cacheMinutes || 15;
+            document.getElementById('stale-minutes').value = config.outdoorLight.staleAfterMinutes || 20;
+            document.getElementById('outdoor-enabled').checked = config.profile.outdoor.enabled !== false;
+            document.getElementById('min-lux').value = config.profile.outdoor.minLux;
+            document.getElementById('max-lux').value = config.profile.outdoor.maxLux;
+            document.getElementById('min-factor').value = config.profile.outdoor.minDimFactor;
+            document.getElementById('max-factor').value = config.profile.outdoor.maxDimFactor;
+
+            const sensorWrap = document.getElementById('lux-sensor-wrap');
+            sensorWrap.className = config.outdoorLight.provider === 'homey_lux_sensor' ? '' : 'hidden';
+            const sensorSelect = document.getElementById('lux-sensor');
+            sensorSelect.innerHTML = '<option value="">' + t('pair.circadian_light_group.select_lux_sensor', 'Select lux sensor...') + '</option>';
+            sensors.forEach(sensor => {
+                const option = document.createElement('option');
+                option.value = sensor.id;
+                option.textContent = sensor.name + (sensor.zoneName ? ' (' + sensor.zoneName + ')' : '');
+                option.selected = sensor.id === config.outdoorLight.sensorDeviceId;
+                sensorSelect.appendChild(option);
+            });
+        }
+
+        function renderDevices() {
+            const container = document.getElementById('devices');
+            container.innerHTML = '';
+            if (config.devices.length === 0) {
+                container.innerHTML = '<p class="muted">' + t('pair.circadian_light_group.no_lights_selected', 'No lights selected.') + '</p>';
+                return;
+            }
+
+            config.devices.forEach((device, index) => {
+                const card = document.createElement('div');
+                card.className = 'device-card';
+                card.innerHTML =
+                    '<div class="device-title">' + (device.name || device.id) + '</div>' +
+                    '<div class="meta">' + (device.zoneName || '') + '</div>' +
+                    '<div class="grid">' +
+                    checkboxHtml(index, 'enabled', t('pair.circadian_light_group.enabled', 'Enabled'), device.enabled !== false) +
+                    checkboxHtml(index, 'prewarmBeforeOn', t('pair.circadian_light_group.prewarm_before_on', 'Prewarm before on'), device.prewarmBeforeOn !== false) +
+                    checkboxHtml(index, 'redModeAllowed', t('pair.circadian_light_group.allow_red_mode', 'Allow red mode'), device.redModeAllowed !== false) +
+                    '<div></div>' +
+                    numberHtml(index, 'minDim', t('pair.circadian_light_group.min_dim', 'Min dim'), device.minDim !== undefined ? device.minDim : 0.05, 0, 1, 0.01) +
+                    numberHtml(index, 'maxDim', t('pair.circadian_light_group.max_dim', 'Max dim'), device.maxDim !== undefined ? device.maxDim : 1, 0, 1, 0.01) +
+                    '</div>' +
+                    '<div class="device-actions"><button class="danger" data-remove="' + index + '">' + t('pair.circadian_light_group.remove', 'Remove') + '</button></div>';
+                container.appendChild(card);
+            });
+        }
+
+        function checkboxHtml(index, key, label, checked) {
+            return '<div class="row"><input type="checkbox" data-index="' + index + '" data-key="' + key + '"' + (checked ? ' checked' : '') + '><label>' + label + '</label></div>';
+        }
+
+        function numberHtml(index, key, label, value, min, max, step) {
+            return '<div><label>' + label + '</label><input type="number" data-index="' + index + '" data-key="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"></div>';
+        }
+
+        function renderCandidates() {
+            const select = document.getElementById('candidate-select');
+            const existing = new Set(config.devices.map(device => device.id));
+            select.innerHTML = '<option value="">' + t('pair.circadian_light_group.select_light', 'Select light...') + '</option>';
+            candidates.filter(candidate => !existing.has(candidate.id)).forEach(candidate => {
+                const option = document.createElement('option');
+                option.value = candidate.id;
+                option.textContent = candidate.name + (candidate.zoneName ? ' (' + candidate.zoneName + ')' : '');
+                select.appendChild(option);
+            });
+        }
+
+        function collect() {
+            ensureConfig();
+            config.profile.anchors.morning = document.getElementById('morning').value || DEFAULT_PROFILE.anchors.morning;
+            config.profile.anchors.day = document.getElementById('day').value || DEFAULT_PROFILE.anchors.day;
+            config.profile.anchors.evening = document.getElementById('evening').value || DEFAULT_PROFILE.anchors.evening;
+            config.profile.anchors.night = document.getElementById('night').value || DEFAULT_PROFILE.anchors.night;
+
+            document.querySelectorAll('[data-phase][data-key]').forEach(input => {
+                config.profile[input.getAttribute('data-phase')][input.getAttribute('data-key')] = Number(input.value);
+            });
+
+            config.profile.night.red = checkboxValue('night-red');
+            config.profile.night.redSaturation = numberValue('red-saturation', 1);
+            config.outdoorLight.provider = document.getElementById('provider').value;
+            config.outdoorLight.fallbackProvider = document.getElementById('fallback-provider').value;
+            config.outdoorLight.cacheMinutes = numberValue('cache-minutes', 15);
+            config.outdoorLight.staleAfterMinutes = numberValue('stale-minutes', 20);
+            config.outdoorLight.sensorDeviceId = document.getElementById('lux-sensor').value || null;
+            config.profile.outdoor.enabled = checkboxValue('outdoor-enabled');
+            config.profile.outdoor.minLux = numberValue('min-lux', 0);
+            config.profile.outdoor.maxLux = numberValue('max-lux', 20000);
+            config.profile.outdoor.minDimFactor = numberValue('min-factor', 0.65);
+            config.profile.outdoor.maxDimFactor = numberValue('max-factor', 1.15);
+
+            document.querySelectorAll('[data-index][data-key]').forEach(input => {
+                const index = Number(input.getAttribute('data-index'));
+                const key = input.getAttribute('data-key');
+                if (!config.devices[index]) return;
+                config.devices[index][key] = input.type === 'checkbox' ? input.checked : Number(input.value);
+            });
+        }
+
+        document.getElementById('provider').addEventListener('change', () => {
+            collect();
+            renderOutdoor();
+        });
+
+        document.getElementById('add-light').addEventListener('click', () => {
+            collect();
+            const id = document.getElementById('candidate-select').value;
+            const candidate = candidates.find(item => item.id === id);
+            if (!candidate) return;
+            config.devices.push({
+                id: candidate.id,
+                name: candidate.name,
+                zoneName: candidate.zoneName,
+                enabled: true,
+                prewarmBeforeOn: true,
+                redModeAllowed: true,
+                minDim: 0.05,
+                maxDim: 1,
+                capabilities: Object.keys(candidate.capabilities || {})
+            });
+            renderDevices();
+            renderCandidates();
+        });
+
+        document.getElementById('devices').addEventListener('click', event => {
+            const index = event.target.getAttribute('data-remove');
+            if (index === null) return;
+            collect();
+            config.devices.splice(Number(index), 1);
+            renderDevices();
+            renderCandidates();
+        });
+
+        document.getElementById('save').addEventListener('click', () => {
+            collect();
+            const button = document.getElementById('save');
+            button.disabled = true;
+            button.textContent = t('pair.circadian_light_group.saving', 'Saving...');
+            Homey.emit('save_config', { config }, function(err) {
+                button.disabled = false;
+                button.textContent = t('pair.circadian_light_group.save_changes', 'Save Changes');
+                if (err) {
+                    Homey.alert(err.message || t('pair.circadian_light_group.error_save_config', 'Could not save configuration'));
+                    return;
+                }
+                Homey.done();
+            });
+        });
+
+        function waitForHomey() {
+            if (typeof Homey === 'undefined') {
+                setTimeout(waitForHomey, 100);
+                return;
+            }
+
+            Homey.setTitle(t('pair.circadian_light_group.repair_title', 'Edit Circadian Light Group'));
+            applyTranslations();
+            Homey.emit('get_config', {}, function(configErr, result) {
+                if (configErr) {
+                    Homey.alert(configErr.message || t('pair.circadian_light_group.error_load_config', 'Could not load configuration'));
+                    return;
+                }
+                config = result.config || {};
+
+                Homey.emit('get_light_candidates', {}, function(candidateErr, candidateResult) {
+                    candidates = candidateErr ? [] : (candidateResult || []);
+                    Homey.emit('get_lux_sensors', {}, function(sensorErr, sensorResult) {
+                        sensors = sensorErr ? [] : (sensorResult || []);
+                        render();
+                    });
+                });
+            });
+        }
+
+        waitForHomey();
+    </script>
+</body>
+</html>

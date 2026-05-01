@@ -1,0 +1,48 @@
+{
+  "id": "clg_target_changed",
+  "title": {
+    "en": "Circadian target changed",
+    "no": "Dognrytmemal endret"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "phase",
+      "type": "string",
+      "title": {
+        "en": "Phase",
+        "no": "Fase"
+      }
+    },
+    {
+      "name": "dim",
+      "type": "number",
+      "title": {
+        "en": "Dim",
+        "no": "Dim"
+      }
+    },
+    {
+      "name": "temperature",
+      "type": "number",
+      "title": {
+        "en": "Temperature",
+        "no": "Temperatur"
+      }
+    },
+    {
+      "name": "outdoor_lux",
+      "type": "number",
+      "title": {
+        "en": "Outdoor lux",
+        "no": "Utendors lux"
+      }
+    }
+  ]
+}

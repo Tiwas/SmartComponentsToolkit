@@ -1,0 +1,14 @@
+{
+  "type": "boolean",
+  "title": {
+    "en": "Paused",
+    "no": "Pauset"
+  },
+  "desc": {
+    "en": "True when circadian light adjustments are paused.",
+    "no": "Sann naar dognrytmejustering av lys er pauset."
+  },
+  "getable": true,
+  "setable": true,
+  "uiComponent": "toggle"
+}

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; }
+        .homey-header { margin-bottom: 20px; }
+        .homey-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+        .homey-subtitle { font-size: 16px; color: #666; }
+        .device-list { max-height: 350px; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-bottom: 15px; background: white; border-radius: 5px; }
+        .device-item { padding: 8px 5px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0; }
+        .device-item:last-child { border-bottom: none; }
+        .device-item label { margin-left: 10px; cursor: pointer; flex-grow: 1; }
+        .zone-name, .cap-summary { color: #999; font-size: 12px; margin-left: 10px; }
+        .toolbar { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .toolbar a { color: #4CAF50; text-decoration: none; font-size: 14px; cursor: pointer; }
+        button { padding: 15px 40px; background-color: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; width: 100%; font-weight: 500; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <header class="homey-header">
+        <h1 class="homey-title" data-i18n="pair.circadian_light_group.select_lights_title">Select Lights</h1>
+        <p class="homey-subtitle" data-i18n="pair.circadian_light_group.select_lights_subtitle">Select the lights this Circadian Light Group should manage.</p>
+    </header>
+
+    <div class="homey-view-content">
+        <div class="toolbar">
+            <a id="select-all" data-i18n="pair.circadian_light_group.select_all">Select All</a>
+            <a id="deselect-all" data-i18n="pair.circadian_light_group.deselect_all">Deselect All</a>
+        </div>
+        <div id="devices-list-container" class="device-list">
+            <p data-i18n="pair.circadian_light_group.loading_lights">Loading lights...</p>
+        </div>
+    </div>
+
+    <div class="homey-view-buttons">
+        <button id="devices-next-button" data-i18n="pair.next">Next</button>
+    </div>
+
+    <script type="text/javascript">
+        const devicesContainer = document.getElementById('devices-list-container');
+        const nextButton = document.getElementById('devices-next-button');
+        const selectAllBtn = document.getElementById('select-all');
+        const deselectAllBtn = document.getElementById('deselect-all');
+        let candidateDevices = [];
+
+        function t(key, fallback) {
+            try {
+                if (typeof Homey !== 'undefined' && typeof Homey.__ === 'function') return Homey.__(key) || fallback;
+            } catch (e) {}
+            return fallback;
+        }
+
+        function applyTranslations() {
+            if (typeof Homey === 'undefined' || typeof Homey.__ !== 'function') return;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.getAttribute('data-i18n'), el.textContent);
+            });
+        }
+
+        function onHomeyReady() {
+            Homey.setTitle(t('pair.circadian_light_group.select_lights_title', 'Select Lights'));
+            applyTranslations();
+            Homey.emit('get_snapshot_candidates', {}, function(err, result) {
+                if (err) {
+                    Homey.alert(err.message || t('pair.circadian_light_group.error_fetching_lights', 'Error fetching lights'));
+                    return;
+                }
+                candidateDevices = Array.isArray(result) ? result : [];
+                renderDevices();
+            });
+        }
+
+        function waitForHomey() {
+            if (typeof Homey !== 'undefined') onHomeyReady();
+            else setTimeout(waitForHomey, 100);
+        }
+        waitForHomey();
+
+        function renderDevices() {
+            devicesContainer.innerHTML = '';
+            if (candidateDevices.length === 0) {
+                devicesContainer.innerHTML = '<p style="padding:10px;">' + t('pair.circadian_light_group.no_supported_lights', 'No supported lights found.') + '</p>';
+                return;
+            }
+
+            candidateDevices.forEach(device => {
+                const div = document.createElement('div');
+                div.className = 'device-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = device.id;
+                checkbox.id = 'device-' + device.id;
+                checkbox.checked = true;
+
+                const label = document.createElement('label');
+                label.htmlFor = checkbox.id;
+                label.innerHTML = '<span>' + device.name + '</span>' +
+                    (device.zoneName ? '<span class="zone-name">(' + device.zoneName + ')</span>' : '') +
+                    (device.capabilitySummary ? '<span class="cap-summary">' + device.capabilitySummary + '</span>' : '');
+
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                devicesContainer.appendChild(div);
+            });
+        }
+
+        selectAllBtn.addEventListener('click', () => {
+            devicesContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        });
+
+        deselectAllBtn.addEventListener('click', () => {
+            devicesContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        });
+
+        nextButton.addEventListener('click', function() {
+            nextButton.disabled = true;
+            nextButton.innerText = t('pair.circadian_light_group.preparing', 'Preparing...');
+
+            const selectedIds = [];
+            devicesContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => selectedIds.push(cb.value));
+
+            Homey.emit('save_device_selection', { selectedIds }, function(err) {
+                nextButton.disabled = false;
+                nextButton.innerText = t('pair.next', 'Next');
+
+                if (err) {
+                    Homey.alert(err.message || t('pair.circadian_light_group.error_saving_selection', 'Error saving selection'));
+                    return;
+                }
+                Homey.showView('edit_configuration');
+            });
+        });
+    </script>
+</body>
+</html>

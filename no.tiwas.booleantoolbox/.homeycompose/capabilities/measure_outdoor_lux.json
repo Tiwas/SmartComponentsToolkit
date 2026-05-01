@@ -1,0 +1,18 @@
+{
+  "type": "number",
+  "title": {
+    "en": "Outdoor Computed Lux",
+    "no": "Beregnet utendors lux"
+  },
+  "desc": {
+    "en": "The outdoor light value currently used by the circadian profile.",
+    "no": "Utelystallet som brukes av dognrytmeprofilen."
+  },
+  "getable": true,
+  "setable": false,
+  "uiComponent": "sensor",
+  "units": {
+    "en": "lx"
+  },
+  "decimals": 0
+}

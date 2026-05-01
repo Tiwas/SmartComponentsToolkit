@@ -1,0 +1,82 @@
+{
+  "name": {
+    "en": "Circadian Light Group",
+    "no": "Dognrytme-lysgruppe"
+  },
+  "class": "light",
+  "capabilities": [
+    "onoff",
+    "dim",
+    "light_temperature",
+    "measure_outdoor_lux",
+    "clg_paused",
+    "alarm_config"
+  ],
+  "settings": [
+    {
+      "id": "config_json",
+      "type": "textarea",
+      "label": {
+        "en": "Configuration (JSON)",
+        "no": "Konfigurasjon (JSON)"
+      },
+      "value": "{\n  \"profile\": {},\n  \"outdoorLight\": {\n    \"provider\": \"astronomical\",\n    \"fallbackProvider\": \"astronomical\"\n  },\n  \"devices\": []\n}"
+    },
+    {
+      "id": "log_errors",
+      "type": "checkbox",
+      "label": {
+        "en": "Log errors to Timeline",
+        "no": "Logg feil til Tidslinjen"
+      },
+      "value": true
+    }
+  ],
+  "images": {
+    "large": "/assets/images_circadian_light_group/large.png",
+    "small": "/assets/images_circadian_light_group/small.png"
+  },
+  "pair": [
+    {
+      "id": "select_scope"
+    },
+    {
+      "id": "select_devices"
+    },
+    {
+      "id": "edit_configuration"
+    }
+  ],
+  "repair": [
+    {
+      "id": "repair_configuration"
+    }
+  ],
+  "flow": {
+    "triggers": [
+      {
+        "id": "clg_target_changed"
+      },
+      {
+        "id": "clg_error_occurred"
+      },
+      {
+        "id": "clg_outdoor_light_requested"
+      }
+    ],
+    "actions": [
+      {
+        "id": "clg_apply_now"
+      },
+      {
+        "id": "clg_pause"
+      },
+      {
+        "id": "clg_resume"
+      },
+      {
+        "id": "clg_set_external_lux"
+      }
+    ]
+  }
+}

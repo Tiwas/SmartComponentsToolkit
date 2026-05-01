@@ -1,0 +1,22 @@
+{
+  "id": "clg_apply_now",
+  "title": {
+    "en": "Apply current circadian profile",
+    "no": "Bruk gjeldende dognrytmeprofil"
+  },
+  "hint": {
+    "en": "Immediately applies the current circadian target to lights that are already on.",
+    "no": "Bruker gjeldende dognrytmemal umiddelbart paa lys som allerede er paa."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "titleFormatted": {
+    "en": "Apply current circadian profile",
+    "no": "Bruk gjeldende dognrytmeprofil"
+  }
+}

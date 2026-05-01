@@ -1,0 +1,24 @@
+{
+  "id": "clg_error_occurred",
+  "title": {
+    "en": "Circadian light group error occurred",
+    "no": "Feil oppstod i dognrytme-lysgruppe"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "error",
+      "type": "string",
+      "title": {
+        "en": "Error",
+        "no": "Feil"
+      }
+    }
+  ]
+}

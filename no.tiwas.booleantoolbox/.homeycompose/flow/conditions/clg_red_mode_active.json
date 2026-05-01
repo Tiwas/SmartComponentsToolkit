@@ -1,0 +1,14 @@
+{
+  "id": "clg_red_mode_active",
+  "title": {
+    "en": "Red mode is !{{active|not active}}",
+    "no": "Rødmodus er !{{aktiv|ikke aktiv}}"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

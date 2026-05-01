@@ -1,0 +1,14 @@
+{
+  "id": "clg_paused",
+  "title": {
+    "en": "Paused",
+    "no": "Satt på pause"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

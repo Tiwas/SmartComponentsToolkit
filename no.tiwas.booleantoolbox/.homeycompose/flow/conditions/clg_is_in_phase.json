@@ -1,0 +1,28 @@
+{
+  "id": "clg_is_in_phase",
+  "title": {
+    "en": "Is !{{in|not in}} phase",
+    "no": "Er !{{i|ikke i}} fase"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "dropdown",
+      "name": "phase",
+      "title": { "en": "Phase", "no": "Fase" },
+      "values": [
+        { "id": "day", "label": { "en": "Day", "no": "Dag" } },
+        { "id": "evening", "label": { "en": "Evening", "no": "Kveld" } },
+        { "id": "night", "label": { "en": "Night", "no": "Natt" } }
+      ]
+    }
+  ],
+  "titleFormatted": {
+    "en": "Is !{{in|not in}} phase [[phase]]",
+    "no": "Er !{{i|ikke i}} fase [[phase]]"
+  }
+}

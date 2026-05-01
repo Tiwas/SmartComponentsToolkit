@@ -6,8 +6,11 @@
 
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
-[![Version](https://img.shields.io/badge/version-1.9.2-blue.svg)](https://github.com/Tiwas/SmartComponentsToolkit)
+[![Stable](https://img.shields.io/badge/stable-1.9.2-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
+[![Test](https://img.shields.io/badge/test-1.10.0-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
+
+> **🧪 v1.10.0 in test channel** — adds the new **Circadian Light Group** virtual device with time/solar/lux anchors, red mode threshold, outdoor light providers and a wide set of new flow cards. Install via [test channel](https://homey.app/a/no.tiwas.booleantoolbox/test/). [Read the guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html)
 
 ---
 
@@ -106,6 +109,28 @@ THEN: Pop state (restore previous)
 [📚 Read State Capture Device guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/state-capture-device.html)
 
 ---
+
+### Circadian Light Group 🧪 *(test channel only — v1.10.0)*
+
+Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
+
+| Feature | Description |
+|---------|-------------|
+| **Schedule** | Per anchor: clock time / solar event / lux sensor crossing |
+| **Solar events** | Sunrise, sunset, civil/nautical/astronomical dawn/dusk, golden hour, blue hour, solar noon/midnight — with offset and polar fallback |
+| **Light profile** | Per-phase dim + temperature, red mode threshold |
+| **Outdoor source** | Astronomical / lux sensor / Open-Meteo / MET.no / external |
+| **Per-light** | Enable, prewarm, allow red mode, min/max dim |
+
+**Key features:**
+- Mix-and-match anchor modes per phase (e.g. morning by clock, evening by sunset)
+- Red mode threshold: lights with color support shift to red when calculated temperature drops below threshold
+- Live tile shows calculated values regardless of on/off or paused state
+- 24 flow cards: pause-until, force red, apply temporary state, phase-changed trigger, app-level solar event trigger and more
+
+**Install via test channel:** [homey.app/a/no.tiwas.booleantoolbox/test/](https://homey.app/a/no.tiwas.booleantoolbox/test/)
+
+[📚 Read Circadian Light Group guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html)
 
 ---
 

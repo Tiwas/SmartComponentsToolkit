@@ -1,0 +1,31 @@
+{
+  "id": "clg_set_red_threshold",
+  "title": {
+    "en": "Set red mode threshold",
+    "no": "Sett terskel for rødmodus"
+  },
+  "hint": {
+    "en": "Permanently sets the red mode threshold (0–1). When calculated temperature drops below this, lights with color support shift to red.",
+    "no": "Setter terskelen for rødmodus permanent (0–1). Når beregnet temperatur synker under denne, blir farge-støttende lys røde."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "number",
+      "name": "threshold",
+      "title": { "en": "Threshold (0–1)", "no": "Terskel (0–1)" },
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "placeholder": { "en": "0.2", "no": "0.2" }
+    }
+  ],
+  "titleFormatted": {
+    "en": "Set red threshold to [[threshold]]",
+    "no": "Sett rødterskel til [[threshold]]"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "clg_pause_until_time",
+  "title": {
+    "en": "Pause until time",
+    "no": "Pause til klokkeslett"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "time",
+      "name": "until_time",
+      "title": { "en": "Until", "no": "Til" }
+    }
+  ],
+  "titleFormatted": {
+    "en": "Pause until [[until_time]]",
+    "no": "Pause til [[until_time]]"
+  }
+}

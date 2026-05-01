@@ -1,0 +1,14 @@
+{
+  "id": "clg_toggle",
+  "title": {
+    "en": "Toggle",
+    "no": "Veksle"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

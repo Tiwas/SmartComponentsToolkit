@@ -1,0 +1,14 @@
+{
+  "id": "clg_turned_off",
+  "title": {
+    "en": "Turned off",
+    "no": "Slått av"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

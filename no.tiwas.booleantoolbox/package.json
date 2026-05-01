@@ -3,11 +3,11 @@
   "version": "1.9.0",
   "main": "app.js",
   "dependencies": {
-    "athom-api": "^3.5.0"
+    "athom-api": "^3.5.0",
+    "suncalc": "^1.9.0"
   },
   "author": "Lars Kvanum",
   "license": "ISC",
-  "description": "Create advanced, state-aware logic units with multiple formulas",
   "description": "",
   "devDependencies": {
     "jest": "^30.2.0"

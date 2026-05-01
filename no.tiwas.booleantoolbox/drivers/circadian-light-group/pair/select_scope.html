@@ -36,6 +36,7 @@
     </div>
 
     <script type="text/javascript">
+    (function () {
         const wholeHouseCheckbox = document.getElementById('scope-whole-house');
         const zonesContainer = document.getElementById('scope-zones-container');
         const nextButton = document.getElementById('scope-next-button');
@@ -116,20 +117,51 @@
                 }
             }
 
+            let responded = false;
+            const watchdog = setTimeout(function() {
+                if (responded) return;
+                responded = true;
+                nextButton.disabled = false;
+                nextButton.innerText = t('pair.next', 'Next');
+                Homey.alert('Scan timeout: handler ran but client never received the response. Check app log for "generate_snapshot returning".');
+            }, 30000);
+
+            Homey.emit('pair_debug', 'select_scope: emitting generate_snapshot', function() {});
+
             Homey.emit('generate_snapshot', {
                 wholeHouse: wholeHouseCheckbox.checked,
                 zones: selectedZones
-            }, function(err) {
+            }, function(err, result) {
+                if (responded) return;
+                responded = true;
+                clearTimeout(watchdog);
                 nextButton.disabled = false;
                 nextButton.innerText = t('pair.next', 'Next');
+
+                Homey.emit('pair_debug', 'select_scope: generate_snapshot callback err=' + (err ? err.message : 'none') + ' result=' + JSON.stringify(result || null), function() {});
 
                 if (err) {
                     Homey.alert(err.message || t('pair.circadian_light_group.error_scanning_lights', 'Error scanning lights'));
                     return;
                 }
-                Homey.showView('select_devices');
+                const navInfo = 'nextView=' + typeof Homey.nextView + ' showView=' + typeof Homey.showView + ' done=' + typeof Homey.done;
+                Homey.emit('pair_debug', 'select_scope: navigation api: ' + navInfo, function() {});
+                try {
+                    if (typeof Homey.nextView === 'function') {
+                        Homey.emit('pair_debug', 'select_scope: calling nextView()', function() {});
+                        Homey.nextView();
+                    } else if (typeof Homey.showView === 'function') {
+                        Homey.emit('pair_debug', 'select_scope: calling showView(select_devices)', function() {});
+                        Homey.showView('select_devices');
+                    } else {
+                        Homey.emit('pair_debug', 'select_scope: NO navigation function available!', function() {});
+                    }
+                } catch (e) {
+                    Homey.emit('pair_debug', 'select_scope: navigation threw: ' + (e && e.message), function() {});
+                }
             });
         });
+    })();
     </script>
 </body>
 </html>

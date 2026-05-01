@@ -6,7 +6,30 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
-## [1.9.2] - February 2026 (Current)
+## [1.10.0] - May 2026 (Test channel)
+
+> Available only via [the test channel](https://homey.app/a/no.tiwas.booleantoolbox/test/). Stable channel still ships v1.9.2.
+
+### ✨ New Device: Circadian Light Group
+A virtual light device that follows a circadian rhythm — adjusts dim and color temperature for a group of real lights based on time, sun position or ambient lux, with optional red mode at night.
+
+- **Anchor modes (per phase)**: clock time, solar event (sunrise, sunset, civil/nautical/astronomical dawn/dusk, golden hour morning/evening, blue hour morning/evening, solar noon, solar midnight) with offset and polar fallback, or lux sensor crossing (rising/falling) with polar/cloudy fallback.
+- **Light profile**: per-phase dim + temperature, smooth interpolation, red mode threshold (lower temperature → more saturated red on color-capable lights).
+- **Outdoor source**: astronomical, Homey lux sensor, weather API (Open-Meteo, MET.no) or external value pushed via Flow.
+- **Per-light settings**: enable, prewarm before on, allow red mode, min/max dim.
+- **Form-based pair + repair**: full UI for schedule, profile, sensors and per-light tuning. JSON config kept available as advanced fallback.
+- **Live tile**: dim/temperature on the device tile always reflects the calculated target, regardless of on/off or paused state.
+
+### ✨ New Flow Cards
+**Triggers**: phase changed, red mode started/ended, paused/resumed, turned on/off, target changed, error occurred, outdoor light requested. Plus app-level **Solar event occurred** with all 14 events and offset, usable from any flow.
+
+**Conditions**: is in phase, red mode active, is paused, is on.
+
+**Actions**: pause (with seconds/minutes/hours unit), pause until time, pause until solar event, resume, turn on/off/toggle, set red threshold, apply temporary state (dim/temp/saturation/force red — overwritten on next scheduler tick), force red mode (on/off/clear with optional duration), apply now, set outdoor lux.
+
+---
+
+## [1.9.2] - February 2026 (Current stable)
 
 ### 🐛 Bug Fixes
 - Fixed conditional gate condition cards to correctly return boolean values

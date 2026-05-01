@@ -5,8 +5,8 @@
     "no": "Pause dognrytme-lysgruppe"
   },
   "hint": {
-    "en": "Pauses automatic adjustments. Use minutes 0 to pause until resumed manually.",
-    "no": "Pauser automatiske justeringer. Bruk 0 minutter for pause til manuell gjenopptakelse."
+    "en": "Pauses automatic adjustments. Use amount 0 to pause until resumed manually.",
+    "no": "Pauser automatiske justeringer. Bruk 0 for pause til manuell gjenopptakelse."
   },
   "args": [
     {
@@ -16,19 +16,23 @@
     },
     {
       "type": "number",
-      "name": "minutes",
-      "title": {
-        "en": "Minutes",
-        "no": "Minutter"
-      },
-      "placeholder": {
-        "en": "0",
-        "no": "0"
-      }
+      "name": "amount",
+      "title": { "en": "Amount", "no": "Mengde" },
+      "placeholder": { "en": "10", "no": "10" }
+    },
+    {
+      "type": "dropdown",
+      "name": "unit",
+      "title": { "en": "Unit", "no": "Enhet" },
+      "values": [
+        { "id": "seconds", "label": { "en": "Seconds", "no": "Sekunder" } },
+        { "id": "minutes", "label": { "en": "Minutes", "no": "Minutter" } },
+        { "id": "hours", "label": { "en": "Hours", "no": "Timer" } }
+      ]
     }
   ],
   "titleFormatted": {
-    "en": "Pause circadian light group for [[minutes]] minutes",
-    "no": "Pause dognrytme-lysgruppe i [[minutes]] minutter"
+    "en": "Pause for [[amount]] [[unit]]",
+    "no": "Pause i [[amount]] [[unit]]"
   }
 }

@@ -1,0 +1,26 @@
+{
+  "id": "clg_phase_changed",
+  "title": {
+    "en": "Phase changed",
+    "no": "Fase endret"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "phase",
+      "type": "string",
+      "title": { "en": "Phase", "no": "Fase" }
+    },
+    {
+      "name": "previous_phase",
+      "type": "string",
+      "title": { "en": "Previous phase", "no": "Forrige fase" }
+    }
+  ]
+}

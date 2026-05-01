@@ -1,0 +1,14 @@
+{
+  "id": "clg_red_mode_started",
+  "title": {
+    "en": "Red mode started",
+    "no": "Rødmodus startet"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

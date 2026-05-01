@@ -1,0 +1,14 @@
+{
+  "id": "clg_is_on",
+  "title": {
+    "en": "Is !{{on|off}}",
+    "no": "Er !{{på|av}}"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

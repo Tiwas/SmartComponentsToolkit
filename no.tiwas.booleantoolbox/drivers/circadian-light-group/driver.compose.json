@@ -54,29 +54,36 @@
   ],
   "flow": {
     "triggers": [
-      {
-        "id": "clg_target_changed"
-      },
-      {
-        "id": "clg_error_occurred"
-      },
-      {
-        "id": "clg_outdoor_light_requested"
-      }
+      { "id": "clg_target_changed" },
+      { "id": "clg_error_occurred" },
+      { "id": "clg_outdoor_light_requested" },
+      { "id": "clg_phase_changed" },
+      { "id": "clg_red_mode_started" },
+      { "id": "clg_red_mode_ended" },
+      { "id": "clg_paused" },
+      { "id": "clg_resumed" },
+      { "id": "clg_turned_on" },
+      { "id": "clg_turned_off" }
+    ],
+    "conditions": [
+      { "id": "clg_is_in_phase" },
+      { "id": "clg_red_mode_active" },
+      { "id": "clg_is_paused" },
+      { "id": "clg_is_on" }
     ],
     "actions": [
-      {
-        "id": "clg_apply_now"
-      },
-      {
-        "id": "clg_pause"
-      },
-      {
-        "id": "clg_resume"
-      },
-      {
-        "id": "clg_set_external_lux"
-      }
+      { "id": "clg_apply_now" },
+      { "id": "clg_pause" },
+      { "id": "clg_pause_until_time" },
+      { "id": "clg_pause_until_solar" },
+      { "id": "clg_resume" },
+      { "id": "clg_set_external_lux" },
+      { "id": "clg_turn_on" },
+      { "id": "clg_turn_off" },
+      { "id": "clg_toggle" },
+      { "id": "clg_set_red_threshold" },
+      { "id": "clg_apply_state" },
+      { "id": "clg_force_red_mode" }
     ]
   }
 }

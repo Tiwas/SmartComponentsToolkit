@@ -46,5 +46,8 @@
   },
   "1.9.2": {
     "en": "Bugfix for conditional gate"
+  },
+  "1.10.0": {
+    "en": "Circadian Light Group - control lights to suit your circadian needs"
   }
 }

@@ -3,6 +3,7 @@
 const Homey = require('homey');
 const { calculateTarget, clamp } = require('../../lib/CircadianProfile');
 const { OutdoorLightProvider } = require('../../lib/OutdoorLightProvider');
+const { todayKey, defaultDirectionFor, detectCrossing, dateToMinutesOfDay } = require('../../lib/AnchorResolver');
 
 const APPLY_CAPABILITY_DELAY = 150;
 
@@ -16,33 +17,155 @@ class CircadianLightGroupDevice extends Homey.Device {
     });
     this.timer = null;
     this.deleted = false;
+    this.luxWatchers = new Map(); // sensorDeviceId -> { capInstance, prevValue }
+    this.previousPhase = null;
+    this.previousRedMode = null;
+    this.tempOverride = null; // { dim?, temperature?, saturation?, forceRed?, forceColor?, expiresAt? }
+    this.redModeOverride = null; // { value: true|false, expiresAt? }
+    this.redOverrideTimer = null;
 
     this.registerCapabilityListener('onoff', async (value) => {
-      if (value) {
-        await this.startScheduler(true);
-      } else {
-        this.stopScheduler();
-      }
+      await this.fireOnoffTrigger(value);
+      await this.applyCurrentProfile({ reason: 'onoff-change' });
     });
 
     this.registerCapabilityListener('clg_paused', async (value) => {
-      if (value) {
-        this.stopScheduler();
-      } else if (this.getCapabilityValue('onoff') === true) {
-        await this.startScheduler(true);
-      }
+      await this.firePauseTrigger(value);
+      await this.applyCurrentProfile({ reason: 'paused-change' });
     });
+
+    this.registerCapabilityListener('dim', async () => {});
+    this.registerCapabilityListener('light_temperature', async () => {});
 
     await this.ensureDefaultCapabilityValues();
 
-    if (this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true) {
-      await this.startScheduler(false);
+    await this.setupLuxWatchers();
+
+    // Always start the scheduler so the tile keeps showing live computed values.
+    // applyCurrentProfile internally gates whether to push to lights.
+    await this.startScheduler(true);
+  }
+
+  async setupLuxWatchers() {
+    await this.teardownLuxWatchers();
+
+    const config = this.getConfig();
+    const anchors = (config.profile && config.profile.anchors) || {};
+    const sensorIds = new Set();
+    Object.keys(anchors).forEach(key => {
+      const anchor = anchors[key];
+      if (anchor && anchor.mode === 'lux' && anchor.sensorDeviceId) {
+        sensorIds.add(anchor.sensorDeviceId);
+      }
+    });
+
+    if (sensorIds.size === 0) return;
+
+    const api = this.homey.app && this.homey.app.api;
+    if (!api) {
+      this.error('Cannot setup lux watchers: HomeyAPI not ready');
+      return;
+    }
+
+    for (const sensorId of sensorIds) {
+      try {
+        const apiDevice = await api.devices.getDevice({ id: sensorId });
+        const capDef = apiDevice.capabilitiesObj && apiDevice.capabilitiesObj.measure_luminance;
+        if (!capDef) {
+          this.error(`Lux sensor ${sensorId} has no measure_luminance capability`);
+          continue;
+        }
+        const initialValue = Number(capDef.value);
+        const watcher = { prevValue: Number.isFinite(initialValue) ? initialValue : null, listener: null };
+        this.luxWatchers.set(sensorId, watcher);
+
+        const listener = (newValue) => {
+          this.onLuxSensorValue(sensorId, Number(newValue)).catch(err => this.error('Lux watcher error:', err));
+        };
+        apiDevice.makeCapabilityInstance('measure_luminance', listener);
+        watcher.listener = listener;
+        watcher.apiDevice = apiDevice;
+        this.debug(`Lux watcher attached to sensor ${sensorId} (initial value: ${initialValue})`);
+      } catch (error) {
+        this.error(`Failed to attach lux watcher to ${sensorId}:`, error);
+      }
+    }
+  }
+
+  async teardownLuxWatchers() {
+    if (!this.luxWatchers || this.luxWatchers.size === 0) return;
+    for (const [, watcher] of this.luxWatchers) {
+      try {
+        if (watcher.apiDevice && watcher.listener && typeof watcher.apiDevice.destroyCapabilityInstance === 'function') {
+          watcher.apiDevice.destroyCapabilityInstance('measure_luminance');
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+    this.luxWatchers.clear();
+  }
+
+  async onLuxSensorValue(sensorId, currentValue) {
+    if (!Number.isFinite(currentValue)) return;
+    const watcher = this.luxWatchers.get(sensorId);
+    if (!watcher) return;
+
+    const prev = watcher.prevValue;
+    watcher.prevValue = currentValue;
+
+    if (!Number.isFinite(prev)) return; // first reading, no crossing detection
+
+    const config = this.getConfig();
+    const anchors = (config.profile && config.profile.anchors) || {};
+    const crossings = await this.getStoreValue('luxCrossings') || {};
+    const dateKey = todayKey(new Date());
+    let updated = false;
+
+    Object.keys(anchors).forEach(anchorKey => {
+      const anchor = anchors[anchorKey];
+      if (!anchor || anchor.mode !== 'lux' || anchor.sensorDeviceId !== sensorId) return;
+
+      const direction = anchor.direction || defaultDirectionFor(anchorKey);
+      const threshold = Number(anchor.threshold);
+      if (!Number.isFinite(threshold)) return;
+
+      const stored = crossings[anchorKey];
+      const alreadyToday = stored && stored.dateKey === dateKey;
+      if (alreadyToday) return;
+
+      if (detectCrossing(prev, currentValue, threshold, direction)) {
+        crossings[anchorKey] = {
+          dateKey,
+          minutes: dateToMinutesOfDay(new Date()),
+        };
+        updated = true;
+        this.debug(`Lux anchor "${anchorKey}" crossed (${prev} → ${currentValue}, threshold ${threshold}, ${direction})`);
+      }
+    });
+
+    if (updated) {
+      await this.setStoreValue('luxCrossings', crossings);
+      await this.applyCurrentProfile({ reason: 'lux-crossing' });
     }
   }
 
   debug(...args) {
     if (this.homey.settings.get('debug_mode')) {
       this.log('[DEBUG]', ...args);
+    }
+  }
+
+  getGeo() {
+    try {
+      const geo = this.homey.geolocation;
+      if (!geo) return {};
+      return {
+        latitude: typeof geo.getLatitude === 'function' ? geo.getLatitude() : geo.latitude,
+        longitude: typeof geo.getLongitude === 'function' ? geo.getLongitude() : geo.longitude,
+      };
+    } catch (error) {
+      return {};
     }
   }
 
@@ -102,16 +225,9 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
     if (this.deleted) return false;
-    if (this.getCapabilityValue('onoff') !== true) return false;
-    if (this.getCapabilityValue('clg_paused') === true) return false;
 
     const config = this.getConfig();
     const devices = Array.isArray(config.devices) ? config.devices.filter(device => device.enabled !== false) : [];
-
-    if (devices.length === 0) {
-      await this.setCapabilityValue('alarm_config', true).catch(this.error);
-      return false;
-    }
 
     let outdoor;
     try {
@@ -121,11 +237,49 @@ class CircadianLightGroupDevice extends Homey.Device {
       outdoor = await this.outdoorProvider.getAstronomical(config.outdoorLight || {}, new Date(), 'fallback-after-error');
     }
 
-    const target = calculateTarget(config.profile || {}, outdoor, new Date());
+    const geo = this.getGeo();
+    const luxCrossings = await this.getStoreValue('luxCrossings') || {};
+    const target = calculateTarget(config.profile || {}, outdoor, new Date(), {
+      ...geo,
+      luxCrossings,
+    });
 
+    this.applyOverridesToTarget(target);
+
+    // Phase + red mode change detection.
+    if (this.previousPhase !== null && this.previousPhase !== target.phase) {
+      this.homey.flow.getDeviceTriggerCard('clg_phase_changed')
+        .trigger(this, { phase: target.phase, previous_phase: this.previousPhase })
+        .catch(this.error);
+    }
+    this.previousPhase = target.phase;
+
+    const isRed = target.mode === 'color';
+    if (this.previousRedMode === false && isRed) {
+      this.homey.flow.getDeviceTriggerCard('clg_red_mode_started').trigger(this).catch(this.error);
+    } else if (this.previousRedMode === true && !isRed) {
+      this.homey.flow.getDeviceTriggerCard('clg_red_mode_ended').trigger(this).catch(this.error);
+    }
+    this.previousRedMode = isRed;
+
+    // Always update the virtual device's own status capabilities so the tile
+    // reflects what the system would do right now, regardless of onoff/paused.
     await this.setCapabilityValue('dim', target.dim).catch(this.error);
     await this.setCapabilityValue('light_temperature', target.temperature).catch(this.error);
     await this.setCapabilityValue('measure_outdoor_lux', outdoor.outdoorComputedLux || 0).catch(this.error);
+
+    // Light-application is gated by onoff/paused.
+    const shouldApplyToLights = this.getCapabilityValue('onoff') === true
+      && this.getCapabilityValue('clg_paused') !== true;
+
+    if (!shouldApplyToLights) {
+      return false;
+    }
+
+    if (devices.length === 0) {
+      await this.setCapabilityValue('alarm_config', true).catch(this.error);
+      return false;
+    }
 
     await this.requestExternalOutdoorLightIfNeeded(config);
 
@@ -236,20 +390,249 @@ class CircadianLightGroupDevice extends Homey.Device {
     }
   }
 
+  applyOverridesToTarget(target) {
+    const now = Date.now();
+
+    if (this.tempOverride && (!this.tempOverride.expiresAt || this.tempOverride.expiresAt > now)) {
+      const o = this.tempOverride;
+      if (Number.isFinite(o.dim)) target.dim = clamp(o.dim);
+      if (Number.isFinite(o.temperature)) target.temperature = clamp(o.temperature);
+      if (Number.isFinite(o.saturation)) {
+        target.saturation = clamp(o.saturation);
+        target.mode = 'color';
+        target.hue = 0;
+      }
+      if (o.forceRed === true) {
+        target.mode = 'color';
+        target.hue = 0;
+        if (!Number.isFinite(target.saturation)) target.saturation = 1;
+      }
+    } else if (this.tempOverride && this.tempOverride.expiresAt && this.tempOverride.expiresAt <= now) {
+      this.tempOverride = null;
+    }
+
+    if (this.redModeOverride && (!this.redModeOverride.expiresAt || this.redModeOverride.expiresAt > now)) {
+      if (this.redModeOverride.value === true) {
+        target.mode = 'color';
+        target.hue = 0;
+        if (!Number.isFinite(target.saturation)) target.saturation = 1;
+      } else {
+        target.mode = 'temperature';
+        target.hue = null;
+        target.saturation = null;
+      }
+    } else if (this.redModeOverride && this.redModeOverride.expiresAt && this.redModeOverride.expiresAt <= now) {
+      this.redModeOverride = null;
+    }
+  }
+
+  async fireOnoffTrigger(value) {
+    const cardId = value ? 'clg_turned_on' : 'clg_turned_off';
+    this.homey.flow.getDeviceTriggerCard(cardId).trigger(this).catch(this.error);
+  }
+
+  async firePauseTrigger(value) {
+    const cardId = value ? 'clg_paused' : 'clg_resumed';
+    this.homey.flow.getDeviceTriggerCard(cardId).trigger(this).catch(this.error);
+  }
+
+  resolveSolarEventToFutureMs(event, offsetMinutes = 0) {
+    const SunCalc = require('suncalc');
+    const { eventToDateLike } = this._solarHelpers();
+    const geo = this.getGeo();
+    const lat = Number(geo.latitude);
+    const lon = Number(geo.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+    const tryDay = (offsetDays) => {
+      const date = new Date();
+      date.setDate(date.getDate() + offsetDays);
+      const times = SunCalc.getTimes(date, lat, lon);
+      const eventDate = eventToDateLike(event, times);
+      if (!(eventDate instanceof Date) || Number.isNaN(eventDate.getTime())) return null;
+      return new Date(eventDate.getTime() + (Number(offsetMinutes) || 0) * 60000);
+    };
+
+    for (let day = 0; day <= 2; day++) {
+      const candidate = tryDay(day);
+      if (candidate && candidate.getTime() > Date.now()) return candidate;
+    }
+    return null;
+  }
+
+  _solarHelpers() {
+    function midpoint(a, b) {
+      if (!(a instanceof Date) || !(b instanceof Date)) return null;
+      if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+      return new Date((a.getTime() + b.getTime()) / 2);
+    }
+    return {
+      eventToDateLike(event, t) {
+        switch (event) {
+          case 'sunrise': return t.sunrise;
+          case 'sunset': return t.sunset;
+          case 'civil_dawn': return t.dawn;
+          case 'civil_dusk': return t.dusk;
+          case 'nautical_dawn': return t.nauticalDawn;
+          case 'nautical_dusk': return t.nauticalDusk;
+          case 'astronomical_dawn': return t.nightEnd;
+          case 'astronomical_dusk': return t.night;
+          case 'golden_hour_morning': return t.goldenHourEnd;
+          case 'golden_hour_evening': return t.goldenHour;
+          case 'blue_hour_morning': return midpoint(t.nauticalDawn, t.dawn);
+          case 'blue_hour_evening': return midpoint(t.dusk, t.nauticalDusk);
+          case 'solar_noon': return t.solarNoon;
+          case 'solar_midnight': return t.nadir;
+          default: return null;
+        }
+      },
+    };
+  }
+
+  // ---- Flow action handlers ----
+
   async onFlowApplyNow() {
     return this.applyCurrentProfile({ reason: 'flow' });
   }
 
-  async onFlowPause(args) {
-    const minutes = Number(args.minutes) || 0;
-    await this.setCapabilityValue('clg_paused', true);
-    this.stopScheduler();
+  async onFlowTurnOn() {
+    if (this.getCapabilityValue('onoff') !== true) {
+      await this.setCapabilityValue('onoff', true);
+      await this.fireOnoffTrigger(true);
+      await this.applyCurrentProfile({ reason: 'flow-turn-on' });
+    }
+    return true;
+  }
 
-    if (minutes > 0) {
+  async onFlowTurnOff() {
+    if (this.getCapabilityValue('onoff') !== false) {
+      await this.setCapabilityValue('onoff', false);
+      await this.fireOnoffTrigger(false);
+      await this.applyCurrentProfile({ reason: 'flow-turn-off' });
+    }
+    return true;
+  }
+
+  async onFlowToggle() {
+    const next = this.getCapabilityValue('onoff') !== true;
+    await this.setCapabilityValue('onoff', next);
+    await this.fireOnoffTrigger(next);
+    await this.applyCurrentProfile({ reason: 'flow-toggle' });
+    return true;
+  }
+
+  async onFlowPauseUntilTime(args) {
+    const match = String(args.until_time || '').match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) throw new Error('Invalid time format');
+    const targetHours = Number(match[1]);
+    const targetMinutes = Number(match[2]);
+
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(targetHours, targetMinutes, 0, 0);
+    if (target.getTime() <= now.getTime()) {
+      target.setDate(target.getDate() + 1); // tomorrow
+    }
+    const minutes = Math.max(1, Math.round((target.getTime() - now.getTime()) / 60000));
+    return this.onFlowPause({ amount: minutes, unit: 'minutes' });
+  }
+
+  async onFlowPauseUntilSolar(args) {
+    const target = this.resolveSolarEventToFutureMs(args.event, args.offset_minutes);
+    if (!target) throw new Error('Could not resolve solar event (missing geolocation or polar conditions)');
+    const minutes = Math.max(1, Math.round((target.getTime() - Date.now()) / 60000));
+    return this.onFlowPause({ amount: minutes, unit: 'minutes' });
+  }
+
+  async onFlowSetRedThreshold(args) {
+    const value = Number(args.threshold);
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error('Threshold must be between 0 and 1');
+    }
+    const config = this.getConfig();
+    config.profile = config.profile || {};
+    config.profile.redThreshold = value;
+    await this.setSettings({ config_json: JSON.stringify(config, null, 2) });
+    return true;
+  }
+
+  async onFlowApplyState(args) {
+    const expiresAt = Date.now() + (60 * 1000 * 30); // 30 min cap; usually overwritten by next tick
+    this.tempOverride = {
+      dim: Number.isFinite(Number(args.dim)) && args.dim !== '' ? Number(args.dim) : undefined,
+      temperature: Number.isFinite(Number(args.temperature)) && args.temperature !== '' ? Number(args.temperature) : undefined,
+      saturation: Number.isFinite(Number(args.saturation)) && args.saturation !== '' ? Number(args.saturation) : undefined,
+      forceRed: args.force_red === true,
+      expiresAt,
+    };
+    await this.applyCurrentProfile({ reason: 'flow-apply-state' });
+    return true;
+  }
+
+  async onFlowForceRedMode(args) {
+    if (this.redOverrideTimer) {
+      clearTimeout(this.redOverrideTimer);
+      this.redOverrideTimer = null;
+    }
+
+    if (args.state === 'clear') {
+      this.redModeOverride = null;
+    } else {
+      const duration = Number(args.duration_minutes) || 0;
+      this.redModeOverride = {
+        value: args.state === 'on',
+        expiresAt: duration > 0 ? Date.now() + duration * 60000 : null,
+      };
+      if (duration > 0) {
+        this.redOverrideTimer = setTimeout(() => {
+          this.redModeOverride = null;
+          this.applyCurrentProfile({ reason: 'red-override-expired' }).catch(this.error);
+        }, duration * 60000);
+      }
+    }
+    await this.applyCurrentProfile({ reason: 'flow-force-red' });
+    return true;
+  }
+
+  // ---- Flow condition handlers ----
+
+  async onConditionIsInPhase(args) {
+    return this.previousPhase === args.phase;
+  }
+
+  async onConditionRedModeActive() {
+    return this.previousRedMode === true;
+  }
+
+  async onConditionIsPaused() {
+    return this.getCapabilityValue('clg_paused') === true;
+  }
+
+  async onConditionIsOn() {
+    return this.getCapabilityValue('onoff') === true;
+  }
+
+  async onFlowPause(args) {
+    // Backwards compatibility: old card used { minutes }, new card uses { amount, unit }.
+    let ms = 0;
+    if (args && (args.amount !== undefined || args.unit !== undefined)) {
+      const amount = Number(args.amount) || 0;
+      const unit = args.unit || 'minutes';
+      const factor = unit === 'seconds' ? 1000 : unit === 'hours' ? 3600000 : 60000;
+      ms = amount * factor;
+    } else {
+      ms = (Number(args.minutes) || 0) * 60000;
+    }
+
+    const wasPaused = this.getCapabilityValue('clg_paused') === true;
+    await this.setCapabilityValue('clg_paused', true);
+    if (!wasPaused) await this.firePauseTrigger(true);
+
+    if (ms > 0) {
       if (this.pauseTimer) clearTimeout(this.pauseTimer);
       this.pauseTimer = setTimeout(() => {
         this.onFlowResume({}).catch(this.error);
-      }, minutes * 60 * 1000);
+      }, ms);
     }
 
     return true;
@@ -261,10 +644,10 @@ class CircadianLightGroupDevice extends Homey.Device {
       this.pauseTimer = null;
     }
 
+    const wasPaused = this.getCapabilityValue('clg_paused') === true;
     await this.setCapabilityValue('clg_paused', false);
-    if (this.getCapabilityValue('onoff') === true) {
-      await this.startScheduler(true);
-    }
+    if (wasPaused) await this.firePauseTrigger(false);
+    await this.applyCurrentProfile({ reason: 'flow-resume' });
     return true;
   }
 
@@ -277,10 +660,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     const value = this.outdoorProvider.setExternalValue(lux, validMinutes, source);
 
     await this.setCapabilityValue('measure_outdoor_lux', value.outdoorComputedLux).catch(this.error);
-    if (this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true) {
-      await this.applyCurrentProfile({ reason: 'external-lux' });
-    }
-
+    await this.applyCurrentProfile({ reason: 'external-lux' });
     return true;
   }
 
@@ -289,9 +669,8 @@ class CircadianLightGroupDevice extends Homey.Device {
       try {
         JSON.parse(newSettings.config_json);
         await this.setCapabilityValue('alarm_config', false).catch(this.error);
-        if (this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true) {
-          await this.startScheduler(true);
-        }
+        await this.setupLuxWatchers();
+        await this.startScheduler(true);
       } catch (error) {
         await this.setCapabilityValue('alarm_config', true).catch(this.error);
         throw new Error(`Invalid JSON: ${error.message}`);
@@ -303,6 +682,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.deleted = true;
     this.stopScheduler();
     if (this.pauseTimer) clearTimeout(this.pauseTimer);
+    await this.teardownLuxWatchers();
   }
 }
 

@@ -38,6 +38,31 @@
     </div>
 
     <script type="text/javascript">
+    (function () {
+        const __pairDebugBuffer = [];
+        function pairDebug(msg) {
+            try {
+                if (typeof Homey !== 'undefined' && typeof Homey.emit === 'function') {
+                    while (__pairDebugBuffer.length > 0) {
+                        const buffered = __pairDebugBuffer.shift();
+                        Homey.emit('pair_debug', buffered, function() {});
+                    }
+                    Homey.emit('pair_debug', msg, function() {});
+                } else {
+                    __pairDebugBuffer.push('[buffered] ' + msg);
+                }
+            } catch (e) {}
+        }
+
+        window.addEventListener('error', function(ev) {
+            pairDebug('select_devices: window error: ' + (ev.message || 'unknown') + ' at ' + (ev.filename || '?') + ':' + (ev.lineno || '?'));
+        });
+        window.addEventListener('unhandledrejection', function(ev) {
+            pairDebug('select_devices: unhandled rejection: ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason));
+        });
+
+        pairDebug('select_devices: script start, Homey defined=' + (typeof Homey !== 'undefined'));
+
         const devicesContainer = document.getElementById('devices-list-container');
         const nextButton = document.getElementById('devices-next-button');
         const selectAllBtn = document.getElementById('select-all');
@@ -61,7 +86,23 @@
         function onHomeyReady() {
             Homey.setTitle(t('pair.circadian_light_group.select_lights_title', 'Select Lights'));
             applyTranslations();
+
+            Homey.emit('pair_debug', 'select_devices: view loaded, requesting candidates', function() {});
+
+            let responded = false;
+            const watchdog = setTimeout(function() {
+                if (responded) return;
+                responded = true;
+                devicesContainer.innerHTML = '<p style="padding:10px;color:#c00;">Timeout waiting for candidates. Check app log.</p>';
+            }, 30000);
+
             Homey.emit('get_snapshot_candidates', {}, function(err, result) {
+                if (responded) return;
+                responded = true;
+                clearTimeout(watchdog);
+
+                Homey.emit('pair_debug', 'select_devices: get_snapshot_candidates callback err=' + (err ? err.message : 'none') + ' count=' + (Array.isArray(result) ? result.length : 'n/a'), function() {});
+
                 if (err) {
                     Homey.alert(err.message || t('pair.circadian_light_group.error_fetching_lights', 'Error fetching lights'));
                     return;
@@ -71,9 +112,20 @@
             });
         }
 
+        let waitTicks = 0;
         function waitForHomey() {
-            if (typeof Homey !== 'undefined') onHomeyReady();
-            else setTimeout(waitForHomey, 100);
+            if (typeof Homey !== 'undefined') {
+                pairDebug('select_devices: Homey defined after ' + waitTicks + ' ticks');
+                try {
+                    onHomeyReady();
+                } catch (e) {
+                    pairDebug('select_devices: onHomeyReady threw: ' + (e && e.message));
+                }
+            } else {
+                waitTicks++;
+                if (waitTicks === 50) pairDebug('select_devices: still waiting for Homey after 5s');
+                setTimeout(waitForHomey, 100);
+            }
         }
         waitForHomey();
 
@@ -131,6 +183,7 @@
                 Homey.showView('edit_configuration');
             });
         });
+    })();
     </script>
 </body>
 </html>

@@ -55,8 +55,9 @@
                     View on GitHub
                 </a>
             </div>
-            <div class="flex justify-center gap-2">
-                <span class="bg-purple-800 text-white text-sm px-3 py-1 rounded">v1.9.2</span>
+            <div class="flex justify-center gap-2 flex-wrap">
+                <span class="bg-purple-800 text-white text-sm px-3 py-1 rounded">v1.9.2 stable</span>
+                <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" class="bg-amber-500 hover:bg-amber-600 text-white text-sm px-3 py-1 rounded">v1.10.0 test</a>
                 <span class="bg-green-600 text-white text-sm px-3 py-1 rounded">Homey 5.0+</span>
             </div>
         </div>
@@ -251,6 +252,41 @@ THEN: Pop state (restore previous)</pre>
                 <p><a href="docs/conditional-gates.html" class="text-purple-600 hover:text-purple-800 font-semibold">Read Conditional Gates guide &rarr;</a></p>
             </div>
 
+            <!-- Circadian Light Group (TEST) -->
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 border-l-4 border-l-amber-500 mb-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <h3 class="text-xl font-semibold text-purple-600">Circadian Light Group</h3>
+                    <span class="beta-badge">v1.10.0 TEST</span>
+                </div>
+                <p class="text-amber-700 text-sm mb-3">Available in test channel only — stable channel still ships v1.9.2 without this device.</p>
+                <p class="text-gray-700 mb-4">A virtual light device that automatically adjusts brightness and color temperature for a group of real lights based on time of day, sun position or ambient light, with optional red mode at night.</p>
+                <div class="overflow-x-auto mb-4">
+                    <table class="w-full text-left text-sm">
+                        <tbody class="text-gray-700">
+                            <tr class="border-b border-gray-200">
+                                <td class="py-2 font-semibold w-32">Schedule</td>
+                                <td>Per anchor: clock time, solar event (sunrise/sunset/golden hour/etc.) or lux sensor crossing</td>
+                            </tr>
+                            <tr class="border-b border-gray-200">
+                                <td class="py-2 font-semibold">Profile</td>
+                                <td>Day / evening / night dim + temperature, plus red mode threshold</td>
+                            </tr>
+                            <tr class="border-b border-gray-200">
+                                <td class="py-2 font-semibold">Outdoor source</td>
+                                <td>Astronomical / lux sensor / weather API / external value</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2 font-semibold">Flow cards</td>
+                                <td>Pause-until-time/solar, force red, apply temporary state, phase-changed trigger, app-level solar event trigger and more</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-gray-700 mb-4"><strong>Key features:</strong> mix-and-match anchor modes per phase, polar fallback for high latitudes, smooth transitions, live tile status independent of on/off, per-light tweaks (prewarm, min/max dim, allow red).</p>
+                <p class="text-gray-700 mb-4"><strong>Get the test version:</strong> <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" class="text-purple-600 hover:text-purple-800 font-semibold">homey.app/a/no.tiwas.booleantoolbox/test/</a></p>
+                <p><a href="docs/circadian-light-group.html" class="text-purple-600 hover:text-purple-800 font-semibold">Read Circadian Light Group guide &rarr;</a></p>
+            </div>
+
             <!-- Waiter Gates (BETA) -->
             <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 border-l-4 border-l-yellow-500 mb-6">
                 <div class="flex items-center gap-3 mb-4">
@@ -439,6 +475,7 @@ THEN: Turn on lights</pre>
                     <li><a href="docs/state-capture-device.html" class="text-purple-600 hover:text-purple-800">State Capture Device</a></li>
                     <li><a href="docs/conditional-gates.html" class="text-purple-600 hover:text-purple-800">Conditional Gates</a></li>
                     <li><a href="docs/waiter-gates.html" class="text-purple-600 hover:text-purple-800">Waiter Gates</a></li>
+                    <li><a href="docs/circadian-light-group.html" class="text-purple-600 hover:text-purple-800">Circadian Light Group <span class="text-amber-600 text-xs">(test)</span></a></li>
                     <li><a href="docs/flow-cards.html" class="text-purple-600 hover:text-purple-800">Flow Cards Reference</a></li>
                 </ul>
             </div>

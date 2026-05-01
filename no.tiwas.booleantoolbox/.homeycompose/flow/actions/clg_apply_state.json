@@ -1,0 +1,54 @@
+{
+  "id": "clg_apply_state",
+  "title": {
+    "en": "Apply temporary state",
+    "no": "Påfør midlertidig tilstand"
+  },
+  "hint": {
+    "en": "Pushes the given values to all managed lights right now. Empty fields are skipped. Values are temporary — the next scheduler tick (~2 min) restores calculated values.",
+    "no": "Sender de angitte verdiene til alle styrte lys umiddelbart. Tomme felt hoppes over. Verdiene er midlertidige — neste scheduler-tick (~2 min) gjenoppretter beregnede verdier."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "number",
+      "name": "dim",
+      "title": { "en": "Dim (0–1, blank = skip)", "no": "Dim (0–1, tom = hopp over)" },
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "required": false
+    },
+    {
+      "type": "number",
+      "name": "temperature",
+      "title": { "en": "Temperature (0–1, blank = skip)", "no": "Temperatur (0–1, tom = hopp over)" },
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "required": false
+    },
+    {
+      "type": "number",
+      "name": "saturation",
+      "title": { "en": "Saturation (0–1, blank = skip)", "no": "Metning (0–1, tom = hopp over)" },
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "required": false
+    },
+    {
+      "type": "checkbox",
+      "name": "force_red",
+      "title": { "en": "Force red color", "no": "Tving rød farge" }
+    }
+  ],
+  "titleFormatted": {
+    "en": "Apply state — dim [[dim]], temp [[temperature]], sat [[saturation]], red [[force_red]]",
+    "no": "Påfør tilstand — dim [[dim]], temp [[temperature]], met [[saturation]], rød [[force_red]]"
+  }
+}

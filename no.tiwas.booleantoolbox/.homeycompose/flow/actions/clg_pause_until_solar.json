@@ -1,0 +1,48 @@
+{
+  "id": "clg_pause_until_solar",
+  "title": {
+    "en": "Pause until solar event",
+    "no": "Pause til sol-hendelse"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "dropdown",
+      "name": "event",
+      "title": { "en": "Event", "no": "Hendelse" },
+      "values": [
+        { "id": "sunrise", "label": { "en": "Sunrise", "no": "Soloppgang" } },
+        { "id": "sunset", "label": { "en": "Sunset", "no": "Solnedgang" } },
+        { "id": "civil_dawn", "label": { "en": "Civil dawn", "no": "Sivil daggry" } },
+        { "id": "civil_dusk", "label": { "en": "Civil dusk", "no": "Sivil skumring" } },
+        { "id": "nautical_dawn", "label": { "en": "Nautical dawn", "no": "Nautisk daggry" } },
+        { "id": "nautical_dusk", "label": { "en": "Nautical dusk", "no": "Nautisk skumring" } },
+        { "id": "astronomical_dawn", "label": { "en": "Astronomical dawn", "no": "Astronomisk daggry" } },
+        { "id": "astronomical_dusk", "label": { "en": "Astronomical dusk", "no": "Astronomisk skumring" } },
+        { "id": "golden_hour_morning", "label": { "en": "Golden hour (morning end)", "no": "Gylden time (morgen)" } },
+        { "id": "golden_hour_evening", "label": { "en": "Golden hour (evening start)", "no": "Gylden time (kveld)" } },
+        { "id": "blue_hour_morning", "label": { "en": "Blue hour (morning)", "no": "Blå time (morgen)" } },
+        { "id": "blue_hour_evening", "label": { "en": "Blue hour (evening)", "no": "Blå time (kveld)" } },
+        { "id": "solar_noon", "label": { "en": "Solar noon", "no": "Soltid middag" } },
+        { "id": "solar_midnight", "label": { "en": "Solar midnight", "no": "Soltid midnatt" } }
+      ]
+    },
+    {
+      "type": "number",
+      "name": "offset_minutes",
+      "title": { "en": "Offset (minutes)", "no": "Forskyvning (minutter)" },
+      "placeholder": { "en": "0", "no": "0" },
+      "min": -180,
+      "max": 180,
+      "step": 1
+    }
+  ],
+  "titleFormatted": {
+    "en": "Pause until [[event]] (offset [[offset_minutes]] min)",
+    "no": "Pause til [[event]] (forskyv [[offset_minutes]] min)"
+  }
+}

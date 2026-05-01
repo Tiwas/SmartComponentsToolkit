@@ -1,0 +1,41 @@
+{
+  "id": "clg_force_red_mode",
+  "title": {
+    "en": "Force red mode",
+    "no": "Tving rødmodus"
+  },
+  "hint": {
+    "en": "Forces red mode on or off, optionally for a duration. Set duration to 0 to keep until manually changed.",
+    "no": "Tvinger rødmodus på eller av, eventuelt for en varighet. Sett varighet til 0 for å beholde til manuell endring."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "dropdown",
+      "name": "state",
+      "title": { "en": "State", "no": "Tilstand" },
+      "values": [
+        { "id": "on", "label": { "en": "On", "no": "På" } },
+        { "id": "off", "label": { "en": "Off", "no": "Av" } },
+        { "id": "clear", "label": { "en": "Clear override", "no": "Fjern overstyring" } }
+      ]
+    },
+    {
+      "type": "number",
+      "name": "duration_minutes",
+      "title": { "en": "Duration (minutes, 0 = until cleared)", "no": "Varighet (minutter, 0 = til fjernet)" },
+      "min": 0,
+      "max": 1440,
+      "step": 1,
+      "placeholder": { "en": "0", "no": "0" }
+    }
+  ],
+  "titleFormatted": {
+    "en": "Force red mode [[state]] for [[duration_minutes]] min",
+    "no": "Tving rødmodus [[state]] i [[duration_minutes]] min"
+  }
+}

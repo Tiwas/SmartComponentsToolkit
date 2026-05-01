@@ -1,13 +1,16 @@
 'use strict';
 
+const { resolveAnchor } = require('./AnchorResolver');
+
 const DEFAULT_PROFILE = {
   updateIntervalSeconds: 120,
   transitionSeconds: 90,
+  redThreshold: 0.2,
   anchors: {
-    morning: '07:00',
-    day: '10:00',
-    evening: '19:00',
-    night: '23:00',
+    morning: { mode: 'time', time: '07:00' },
+    day: { mode: 'time', time: '10:00' },
+    evening: { mode: 'time', time: '19:00' },
+    night: { mode: 'time', time: '23:00' },
   },
   day: {
     dim: 1,
@@ -20,8 +23,6 @@ const DEFAULT_PROFILE = {
   night: {
     dim: 0.08,
     temperature: 0,
-    red: true,
-    redSaturation: 1,
   },
   outdoor: {
     enabled: true,
@@ -32,6 +33,35 @@ const DEFAULT_PROFILE = {
   },
 };
 
+function normalizeAnchor(value, fallback) {
+  if (typeof value === 'string') {
+    return { mode: 'time', time: value };
+  }
+  if (value && typeof value === 'object') {
+    if (value.mode === 'time' && typeof value.time === 'string') {
+      return { mode: 'time', time: value.time };
+    }
+    if (value.mode === 'solar') {
+      return {
+        mode: 'solar',
+        solarEvent: value.solarEvent || 'sunrise',
+        offsetMinutes: Number.isFinite(Number(value.offsetMinutes)) ? Number(value.offsetMinutes) : 0,
+        fallbackTime: typeof value.fallbackTime === 'string' ? value.fallbackTime : (fallback.time || '07:00'),
+      };
+    }
+    if (value.mode === 'lux') {
+      return {
+        mode: 'lux',
+        sensorDeviceId: value.sensorDeviceId || null,
+        threshold: Number.isFinite(Number(value.threshold)) ? Number(value.threshold) : 100,
+        direction: value.direction === 'rising' || value.direction === 'falling' ? value.direction : null,
+        fallbackTime: typeof value.fallbackTime === 'string' ? value.fallbackTime : (fallback.time || '07:00'),
+      };
+    }
+  }
+  return { ...fallback };
+}
+
 function clamp(value, min = 0, max = 1) {
   const num = Number(value);
   if (!Number.isFinite(num)) return min;
@@ -39,12 +69,15 @@ function clamp(value, min = 0, max = 1) {
 }
 
 function mergeProfile(profile = {}) {
+  const inputAnchors = profile.anchors || {};
   return {
     ...DEFAULT_PROFILE,
     ...profile,
     anchors: {
-      ...DEFAULT_PROFILE.anchors,
-      ...(profile.anchors || {}),
+      morning: normalizeAnchor(inputAnchors.morning, DEFAULT_PROFILE.anchors.morning),
+      day: normalizeAnchor(inputAnchors.day, DEFAULT_PROFILE.anchors.day),
+      evening: normalizeAnchor(inputAnchors.evening, DEFAULT_PROFILE.anchors.evening),
+      night: normalizeAnchor(inputAnchors.night, DEFAULT_PROFILE.anchors.night),
     },
     day: {
       ...DEFAULT_PROFILE.day,
@@ -89,11 +122,19 @@ function interpolate(start, end, t) {
   return start + ((end - start) * smoothstep(t));
 }
 
-function getSegment(nowMinutes, anchors) {
-  const morning = parseTimeToMinutes(anchors.morning, 420);
-  const day = parseTimeToMinutes(anchors.day, 600);
-  const evening = parseTimeToMinutes(anchors.evening, 1140);
-  const night = parseTimeToMinutes(anchors.night, 1380);
+function resolveAnchorMinutes(anchor, fallback, ctx, anchorKey) {
+  const resolved = resolveAnchor(anchor, { ...ctx, anchorKey });
+  if (resolved === null || resolved === undefined || !Number.isFinite(resolved)) {
+    return fallback;
+  }
+  return resolved;
+}
+
+function getSegment(nowMinutes, anchors, ctx) {
+  const morning = resolveAnchorMinutes(anchors.morning, 420, ctx, 'morning');
+  const day = resolveAnchorMinutes(anchors.day, 600, ctx, 'day');
+  const evening = resolveAnchorMinutes(anchors.evening, 1140, ctx, 'evening');
+  const night = resolveAnchorMinutes(anchors.night, 1380, ctx, 'night');
 
   if (nowMinutes < morning) {
     const start = night - 1440;
@@ -134,26 +175,35 @@ function calculateOutdoorDimFactor(outdoor, outdoorConfig) {
   return interpolate(outdoorConfig.minDimFactor, outdoorConfig.maxDimFactor, normalized);
 }
 
-function calculateTarget(profileInput = {}, outdoorInput = {}, now = new Date()) {
+function calculateTarget(profileInput = {}, outdoorInput = {}, now = new Date(), extras = {}) {
   const profile = mergeProfile(profileInput);
   const nowMinutes = getMinutesOfDay(now);
-  const segment = getSegment(nowMinutes, profile.anchors);
+  const ctx = {
+    date: now,
+    latitude: extras.latitude,
+    longitude: extras.longitude,
+    luxCrossings: extras.luxCrossings || {},
+  };
+  const segment = getSegment(nowMinutes, profile.anchors, ctx);
   const from = getPhaseValues(profile, segment.from);
   const to = getPhaseValues(profile, segment.to);
   const progress = clamp(segment.progress);
 
   const baseDim = interpolate(Number(from.dim), Number(to.dim), progress);
-  const temperature = interpolate(Number(from.temperature), Number(to.temperature), progress);
+  const temperature = clamp(interpolate(Number(from.temperature), Number(to.temperature), progress));
   const outdoorDimFactor = calculateOutdoorDimFactor(outdoorInput, profile.outdoor);
   const dim = clamp(baseDim * outdoorDimFactor);
   const targetPhase = segment.phase || (progress >= 0.5 ? segment.to : segment.from);
-  const redMode = targetPhase === 'night' && profile.night.red === true;
+
+  const threshold = clamp(Number(profile.redThreshold));
+  const redMode = threshold > 0 && temperature < threshold;
+  const saturation = redMode ? clamp((threshold - temperature) / threshold) : null;
 
   return {
     dim,
-    temperature: clamp(temperature),
+    temperature,
     hue: redMode ? 0 : null,
-    saturation: redMode ? clamp(profile.night.redSaturation) : null,
+    saturation,
     mode: redMode ? 'color' : 'temperature',
     phase: targetPhase,
     segment,

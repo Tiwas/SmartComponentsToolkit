@@ -1,6 +1,40 @@
 'use strict';
 
 const Homey = require('homey');
+const SunCalc = require('suncalc');
+
+const SOLAR_EVENTS_LIST = [
+  'sunrise', 'sunset', 'civil_dawn', 'civil_dusk',
+  'nautical_dawn', 'nautical_dusk', 'astronomical_dawn', 'astronomical_dusk',
+  'golden_hour_morning', 'golden_hour_evening', 'blue_hour_morning', 'blue_hour_evening',
+  'solar_noon', 'solar_midnight',
+];
+
+function midpointDate(a, b) {
+  if (!(a instanceof Date) || !(b instanceof Date)) return null;
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  return new Date((a.getTime() + b.getTime()) / 2);
+}
+
+function eventToDate(event, t) {
+  switch (event) {
+    case 'sunrise': return t.sunrise;
+    case 'sunset': return t.sunset;
+    case 'civil_dawn': return t.dawn;
+    case 'civil_dusk': return t.dusk;
+    case 'nautical_dawn': return t.nauticalDawn;
+    case 'nautical_dusk': return t.nauticalDusk;
+    case 'astronomical_dawn': return t.nightEnd;
+    case 'astronomical_dusk': return t.night;
+    case 'golden_hour_morning': return t.goldenHourEnd;
+    case 'golden_hour_evening': return t.goldenHour;
+    case 'blue_hour_morning': return midpointDate(t.nauticalDawn, t.dawn);
+    case 'blue_hour_evening': return midpointDate(t.dusk, t.nauticalDusk);
+    case 'solar_noon': return t.solarNoon;
+    case 'solar_midnight': return t.nadir;
+    default: return null;
+  }
+}
 
 const LIGHT_CAPABILITIES = [
   'onoff',
@@ -15,6 +49,60 @@ class CircadianLightGroupDriver extends Homey.Driver {
   async onInit() {
     this.debug('CircadianLightGroupDriver has been initialized');
     this.registerFlowCards();
+    this.startSolarEventScheduler();
+  }
+
+  async onUninit() {
+    if (this.solarTimer) {
+      clearInterval(this.solarTimer);
+      this.solarTimer = null;
+    }
+  }
+
+  startSolarEventScheduler() {
+    const trigger = this.homey.flow.getTriggerCard('app_solar_event_occurred');
+    trigger.registerRunListener(async (args, state) => {
+      if (args.event !== state.event) return false;
+      const argOffset = Math.round(Number(args.offset_minutes) || 0);
+      return argOffset === state.offsetMinutes;
+    });
+
+    const tick = () => {
+      try {
+        const geo = this.homey.geolocation;
+        if (!geo) return;
+        const lat = typeof geo.getLatitude === 'function' ? geo.getLatitude() : geo.latitude;
+        const lon = typeof geo.getLongitude === 'function' ? geo.getLongitude() : geo.longitude;
+        if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return;
+
+        const now = new Date();
+        const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+        const times = SunCalc.getTimes(now, Number(lat), Number(lon));
+
+        SOLAR_EVENTS_LIST.forEach(event => {
+          const eventDate = eventToDate(event, times);
+          if (!(eventDate instanceof Date) || Number.isNaN(eventDate.getTime())) return;
+          const eventMinutes = (eventDate.getHours() * 60) + eventDate.getMinutes();
+
+          let offset = nowMinutes - eventMinutes;
+          if (offset > 720) offset -= 1440;
+          if (offset < -720) offset += 1440;
+          if (offset < -180 || offset > 180) return;
+
+          trigger.trigger({}, { event, offsetMinutes: offset })
+            .catch(err => this.error('Solar trigger fire failed:', err));
+        });
+      } catch (error) {
+        this.error('Solar scheduler tick failed:', error);
+      }
+    };
+
+    // Align to next minute boundary, then fire every 60s.
+    const msToNextMinute = 60000 - (Date.now() % 60000);
+    setTimeout(() => {
+      tick();
+      this.solarTimer = setInterval(tick, 60000);
+    }, msToNextMinute);
   }
 
   debug(...args) {
@@ -24,17 +112,26 @@ class CircadianLightGroupDriver extends Homey.Driver {
   }
 
   registerFlowCards() {
-    this.homey.flow.getActionCard('clg_apply_now')
-      .registerRunListener(async (args) => args.device.onFlowApplyNow(args));
+    const action = (id, fn) => this.homey.flow.getActionCard(id).registerRunListener(async (args) => args.device[fn](args));
+    const cond = (id, fn) => this.homey.flow.getConditionCard(id).registerRunListener(async (args) => args.device[fn](args));
 
-    this.homey.flow.getActionCard('clg_pause')
-      .registerRunListener(async (args) => args.device.onFlowPause(args));
+    action('clg_apply_now', 'onFlowApplyNow');
+    action('clg_pause', 'onFlowPause');
+    action('clg_pause_until_time', 'onFlowPauseUntilTime');
+    action('clg_pause_until_solar', 'onFlowPauseUntilSolar');
+    action('clg_resume', 'onFlowResume');
+    action('clg_set_external_lux', 'onFlowSetExternalLux');
+    action('clg_turn_on', 'onFlowTurnOn');
+    action('clg_turn_off', 'onFlowTurnOff');
+    action('clg_toggle', 'onFlowToggle');
+    action('clg_set_red_threshold', 'onFlowSetRedThreshold');
+    action('clg_apply_state', 'onFlowApplyState');
+    action('clg_force_red_mode', 'onFlowForceRedMode');
 
-    this.homey.flow.getActionCard('clg_resume')
-      .registerRunListener(async (args) => args.device.onFlowResume(args));
-
-    this.homey.flow.getActionCard('clg_set_external_lux')
-      .registerRunListener(async (args) => args.device.onFlowSetExternalLux(args));
+    cond('clg_is_in_phase', 'onConditionIsInPhase');
+    cond('clg_red_mode_active', 'onConditionRedModeActive');
+    cond('clg_is_paused', 'onConditionIsPaused');
+    cond('clg_is_on', 'onConditionIsOn');
 
     this.homey.flow.getTriggerCard('clg_outdoor_light_requested')
       .registerRunListener(async (args, state) => args.device?.getData().id === state?.deviceId);
@@ -56,15 +153,25 @@ class CircadianLightGroupDriver extends Homey.Driver {
       candidateItems = await this.getLightCandidates(data);
       this.debug(`Found ${candidateItems.length} candidate light devices.`);
 
-      return { success: true, count: candidateItems.length };
+      const response = { success: true, count: candidateItems.length };
+      this.debug('generate_snapshot returning to client:', JSON.stringify(response));
+      return response;
     });
 
-    session.setHandler('get_snapshot_candidates', async () => candidateItems.map(item => ({
-      id: item.id,
-      name: item.name,
-      zoneName: item.zoneName,
-      capabilitySummary: Object.keys(item.capabilities).join(', '),
-    })));
+    session.setHandler('get_snapshot_candidates', async () => {
+      this.debug(`get_snapshot_candidates called, returning ${candidateItems.length} items`);
+      return candidateItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        zoneName: item.zoneName,
+        capabilitySummary: Object.keys(item.capabilities).join(', '),
+      }));
+    });
+
+    session.setHandler('pair_debug', async (msg) => {
+      this.debug('[pair-client]', msg);
+      return { ok: true };
+    });
 
     session.setHandler('save_device_selection', async (data) => {
       const selectedIds = new Set(data.selectedIds || []);
@@ -75,6 +182,8 @@ class CircadianLightGroupDriver extends Homey.Driver {
     });
 
     session.setHandler('get_generated_json', async () => generatedConfig || this.createDefaultConfig([]));
+
+    session.setHandler('get_lux_sensors', async () => this.getLuxSensors());
 
     session.setHandler('create_device', async (data) => {
       const name = data.name || 'Circadian Light Group';
@@ -109,11 +218,8 @@ class CircadianLightGroupDriver extends Homey.Driver {
 
       JSON.parse(configJson);
       await device.setSettings({ config_json: configJson });
-
-      if (device.getCapabilityValue('onoff') === true && device.getCapabilityValue('clg_paused') !== true) {
-        await device.startScheduler(true);
-      }
-
+      // setSettings triggers onSettings on the device, which re-runs lux watchers
+      // and the scheduler.
       return { success: true };
     });
 
@@ -162,6 +268,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
       const homeyDevice = allDevices[deviceId];
       if (!isZoneSelected(homeyDevice.zone)) continue;
       if (homeyDevice.driverUri && homeyDevice.driverUri.includes('circadian-light-group')) continue;
+      if (homeyDevice.class !== 'light') continue;
 
       const supportedCapabilities = {};
       let hasSupportedCapability = false;
@@ -221,16 +328,17 @@ class CircadianLightGroupDriver extends Homey.Driver {
     return {
       _meta: {
         device: 'Circadian Light Group',
-        version: 1,
+        version: 2,
       },
       profile: {
         updateIntervalSeconds: 120,
         transitionSeconds: 90,
+        redThreshold: 0.2,
         anchors: {
-          morning: '07:00',
-          day: '10:00',
-          evening: '19:00',
-          night: '23:00',
+          morning: { mode: 'time', time: '07:00' },
+          day: { mode: 'time', time: '10:00' },
+          evening: { mode: 'time', time: '19:00' },
+          night: { mode: 'time', time: '23:00' },
         },
         day: {
           dim: 1,
@@ -243,8 +351,6 @@ class CircadianLightGroupDriver extends Homey.Driver {
         night: {
           dim: 0.08,
           temperature: 0,
-          red: true,
-          redSaturation: 1,
         },
         outdoor: {
           enabled: true,

@@ -1,0 +1,14 @@
+{
+  "id": "clg_resumed",
+  "title": {
+    "en": "Resumed",
+    "no": "Gjenopptatt"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ]
+}

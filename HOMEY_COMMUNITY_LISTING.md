@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.9.2 stable / **v1.10.2 test — NEW: Circadian pre-warm auto-detection**]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — v1.9.2 stable / **v1.10.0 test**
+# Smart (Components) Toolkit — v1.9.2 stable / **v1.10.2 test**
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -15,9 +15,17 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 
 ---
 
-## 🧪 New in test (v1.10.0): Circadian Light Group
+## 🧪 New in test (v1.10.2): Circadian Light Group
 
 A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Available now in the [test channel](https://homey.app/a/no.tiwas.booleantoolbox/test/) only; the stable channel still ships v1.9.2 without this device.
+
+### 🆕 New in v1.10.2
+
+- **Pre-warm auto-detection during pairing.** A new wizard step tests each light by briefly cycling it off, pre-setting `dim` / `light_temperature` / `light_hue` / `light_saturation`, then turning back on to verify the value persisted. Each capability is marked ✓/✗ per device. No more guessing whether a lamp tolerates pre-warming — and no more turning lights on with the wrong colour.
+- **Re-test from Repair.** Each managed light has a "Test pre-warm" button so you can re-run the test after firmware updates or when adding new devices.
+- **Smarter candidate filter.** Lights registered as `socket` with `virtualClass: light` (Hue/Z2M-bridged lamps) and Z-Wave dimmer modules with a `dim` capability are now picked up automatically.
+- **New flow action: "Turn on light at current circadian level."** Pick any member of the group from a dropdown — the action sets temperature/colour and dim, then turns the light on, all in one step. Avoids the brief flash at the previous brightness for lamps that don't support pre-warming.
+- **Master "Prewarm before on" toggle** is now a fallback for untested capabilities only; tested capabilities use the actual test result.
 
 **Why use it?**
 - Bright cool light during the day, warm dim light in the evening, deep red at night to preserve melatonin and night vision.
@@ -46,17 +54,17 @@ Choose how the device knows how bright it is outside:
 - **Open-Meteo / MET.no** (radiation-based estimate)
 - **External value** pushed from a Flow
 
-### 24 new flow cards
+### 25 new flow cards
 
 **Triggers**: phase changed, red mode started/ended, paused/resumed, turned on/off, target changed, error, outdoor light requested. Plus an **app-level "Solar event occurred"** card with all 14 events + offset, usable from any flow.
 
 **Conditions**: is in phase, red mode active, is paused, is on.
 
-**Actions**: pause (sec/min/hour), pause until time, pause until solar event, resume, turn on/off/toggle, set red threshold, **apply temporary state** (override dim/temp/saturation/red — restored on next tick, perfect for testing or quick "moods"), **force red mode** (with optional duration), apply now, set outdoor lux.
+**Actions**: pause (sec/min/hour), pause until time, pause until solar event, resume, turn on/off/toggle, set red threshold, **apply temporary state** (override dim/temp/saturation/red — restored on next tick, perfect for testing or quick "moods"), **force red mode** (with optional duration), apply now, set outdoor lux, **turn on light at current circadian level** (pick any group member from dropdown).
 
 <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html" target="_blank">→ Read full Circadian Light Group guide</a>
 
-<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install v1.10.0 test version</a>
+<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install v1.10.2 test version</a>
 
 ---
 
@@ -125,7 +133,7 @@ THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
 ## Installation and Links
 
 * **Homey App Store (stable v1.9.2):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
-* **Test channel (v1.10.0 — Circadian Light Group):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
+* **Test channel (v1.10.2 — Circadian Light Group + pre-warm auto-detection):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
 * **GitHub Repo:** <a href="https://github.com/tiwas/SmartComponentsToolkit" target="_blank">github.com/tiwas/SmartComponentsToolkit</a>
 * **Online Emulator:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/emulator.html" target="_blank">Boolean Logic Emulator</a>
 * **Formula Builder:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/formula-builder.html" target="_blank">Formula Builder</a>

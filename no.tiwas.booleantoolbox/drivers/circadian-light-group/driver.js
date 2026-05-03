@@ -45,6 +45,31 @@ const LIGHT_CAPABILITIES = [
   'light_mode',
 ];
 
+const PREWARM_TEST_CAPABILITIES = ['dim', 'light_temperature', 'light_hue', 'light_saturation'];
+
+const PROBE_OFF_SETTLE_MS = 600;
+const PROBE_VERIFY_DELAY_MS = 800;
+const PROBE_RESTORE_DELAY_MS = 200;
+const PROBE_ONOFF_CHECK_MS = 500;
+
+function pickProbeValue(capId, currentValue) {
+  const cur = Number(currentValue);
+  switch (capId) {
+    case 'dim':
+    case 'light_temperature':
+      return Number.isFinite(cur) && Math.abs(cur - 0.5) < 0.05 ? 0.7 : 0.5;
+    case 'light_hue':
+      // Red (matches our actual red-mode usage; avoids leaving lamps blue if restore fails)
+      return Number.isFinite(cur) && Math.abs(cur - 0) < 0.02 ? 0.05 : 0;
+    case 'light_saturation':
+      return Number.isFinite(cur) && cur >= 0.9 ? 0.5 : 1;
+    default:
+      return 0.5;
+  }
+}
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 class CircadianLightGroupDriver extends Homey.Driver {
   async onInit() {
     this.debug('CircadianLightGroupDriver has been initialized');
@@ -127,6 +152,23 @@ class CircadianLightGroupDriver extends Homey.Driver {
     action('clg_set_red_threshold', 'onFlowSetRedThreshold');
     action('clg_apply_state', 'onFlowApplyState');
     action('clg_force_red_mode', 'onFlowForceRedMode');
+    action('clg_turn_on_member', 'onFlowTurnOnMember');
+
+    this.homey.flow.getActionCard('clg_turn_on_member')
+      .registerArgumentAutocompleteListener('member', async (query, args) => {
+        const device = args.device;
+        if (!device || typeof device.getConfig !== 'function') return [];
+        const config = device.getConfig();
+        const items = (config.devices || []).map(d => ({
+          name: d.name || d.id,
+          description: d.zoneName || '',
+          id: d.id,
+        }));
+        const q = (query || '').toLowerCase();
+        return items.filter(item =>
+          item.name.toLowerCase().includes(q) || item.description.toLowerCase().includes(q)
+        );
+      });
 
     cond('clg_is_in_phase', 'onConditionIsInPhase');
     cond('clg_red_mode_active', 'onConditionRedModeActive');
@@ -135,6 +177,184 @@ class CircadianLightGroupDriver extends Homey.Driver {
 
     this.homey.flow.getTriggerCard('clg_outdoor_light_requested')
       .registerRunListener(async (args, state) => args.device?.getData().id === state?.deviceId);
+  }
+
+  async probeDeviceAsync(deviceId, session) {
+    const emitProgress = (phase, capId) => {
+      if (!session) return;
+      try { session.emit('probe_progress', { deviceId, phase, capId }).catch(() => {}); } catch (error) { /* ignore */ }
+    };
+    const result = await this.probeDevice(deviceId, emitProgress);
+    if (session) {
+      try { await session.emit('probe_complete', result); } catch (error) { /* ignore */ }
+    }
+    return result;
+  }
+
+  async probeDevice(deviceId, emitProgress = () => {}) {
+    const api = this.homey.app && this.homey.app.api;
+    if (!api) throw new Error('Homey API not ready');
+
+    const result = {
+      deviceId,
+      tested: true,
+      support: { dim: null, light_temperature: null, light_hue: null, light_saturation: null },
+      capErrors: {},
+      error: null,
+    };
+
+    let apiDevice;
+    try {
+      apiDevice = await api.devices.getDevice({ id: deviceId });
+    } catch (error) {
+      result.tested = false;
+      result.error = `Device unavailable: ${error.message}`;
+      return result;
+    }
+
+    const initialCaps = apiDevice.capabilitiesObj || {};
+    const originalOnoff = initialCaps.onoff?.value === true;
+
+    // Realtime state via makeCapabilityInstance — capabilitiesObj from getDevice is cached
+    // and not reliably updated after setCapabilityValue calls.
+    const currentState = { onoff: originalOnoff };
+    const capInstances = {};
+    const watchedCaps = ['onoff', ...PREWARM_TEST_CAPABILITIES, 'light_mode']
+      .filter(capId => initialCaps[capId]);
+
+    for (const capId of watchedCaps) {
+      currentState[capId] = initialCaps[capId]?.value;
+      try {
+        const instance = apiDevice.makeCapabilityInstance(capId, (value) => {
+          currentState[capId] = value;
+        });
+        capInstances[capId] = instance;
+      } catch (error) {
+        this.debug(`Probe ${deviceId}: makeCapabilityInstance(${capId}) failed: ${error.message}`);
+      }
+    }
+
+    const valueChanged = (capId, before, after) => {
+      const a = Number(before);
+      const b = Number(after);
+      if (Number.isFinite(a) && Number.isFinite(b)) return Math.abs(a - b) > 0.01;
+      return before !== after;
+    };
+
+    const setOnoff = async (value) => {
+      if (initialCaps.onoff?.setable) {
+        try { await apiDevice.setCapabilityValue('onoff', value); } catch (error) { /* ignore */ }
+      }
+    };
+
+    const ensureOff = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await setOnoff(false);
+        await sleep(PROBE_OFF_SETTLE_MS);
+        if (currentState.onoff !== true) return true;
+      }
+      this.debug(`Probe ${deviceId}: failed to confirm off after 3 attempts (state=${currentState.onoff})`);
+      return false;
+    };
+
+    let snapshot = { onoff: originalOnoff };
+    PREWARM_TEST_CAPABILITIES.forEach(capId => {
+      if (initialCaps[capId]?.setable) snapshot[capId] = currentState[capId];
+    });
+    if (initialCaps.light_mode?.setable) snapshot.light_mode = currentState.light_mode;
+
+    try {
+      if (!originalOnoff) {
+        emitProgress('reading_baseline');
+        await setOnoff(true);
+        await sleep(PROBE_OFF_SETTLE_MS);
+        PREWARM_TEST_CAPABILITIES.forEach(capId => {
+          if (initialCaps[capId]?.setable && currentState[capId] !== undefined) {
+            snapshot[capId] = currentState[capId];
+          }
+        });
+        this.debug(`Probe ${deviceId}: baseline values=${JSON.stringify(snapshot)}`);
+      }
+
+      emitProgress('turning_off');
+      if (!await ensureOff()) {
+        result.error = 'Could not confirm device is off before testing';
+        return result;
+      }
+
+      for (const capId of PREWARM_TEST_CAPABILITIES) {
+        if (!initialCaps[capId]?.setable) continue;
+
+        const beforeValue = snapshot[capId];
+        const testValue = pickProbeValue(capId, beforeValue);
+
+        emitProgress('pre_setting', capId);
+        try {
+          await apiDevice.setCapabilityValue(capId, testValue);
+        } catch (error) {
+          result.support[capId] = false;
+          result.capErrors[capId] = error.message || String(error);
+          this.debug(`Probe ${deviceId}/${capId} setCapabilityValue threw: ${result.capErrors[capId]}`);
+          continue;
+        }
+        await sleep(PROBE_ONOFF_CHECK_MS);
+
+        if (currentState.onoff === true) {
+          result.support[capId] = false;
+          result.capErrors[capId] = 'turned on by write';
+          this.debug(`Probe ${deviceId}/${capId}: onoff=true after pre-set → ✗`);
+          await ensureOff();
+          continue;
+        }
+
+        // Lamp stayed off. Turn on briefly to see if pre-set value persisted.
+        emitProgress('verifying', capId);
+        await setOnoff(true);
+        await sleep(PROBE_VERIFY_DELAY_MS);
+
+        const observed = currentState[capId];
+        const matched = valueChanged(capId, beforeValue, observed) && !valueChanged(capId, testValue, observed);
+        result.support[capId] = matched;
+        if (!matched) {
+          result.capErrors[capId] = `value did not persist (set ${testValue}, baseline ${beforeValue}, observed ${observed})`;
+        }
+        this.debug(`Probe ${deviceId}/${capId}: support=${matched} baseline=${beforeValue} test=${testValue} observed=${observed}`);
+
+        await ensureOff();
+      }
+    } finally {
+      emitProgress('restoring');
+      try {
+        if (originalOnoff && initialCaps.onoff?.setable) {
+          await setOnoff(true);
+          await sleep(PROBE_OFF_SETTLE_MS);
+          if (snapshot.light_mode !== undefined && initialCaps.light_mode?.setable) {
+            await apiDevice.setCapabilityValue('light_mode', snapshot.light_mode).catch(() => {});
+            await sleep(PROBE_RESTORE_DELAY_MS);
+          }
+          for (const capId of PREWARM_TEST_CAPABILITIES) {
+            if (snapshot[capId] === undefined) continue;
+            if (!Number.isFinite(Number(snapshot[capId]))) continue;
+            await apiDevice.setCapabilityValue(capId, snapshot[capId]).catch(() => {});
+            await sleep(PROBE_RESTORE_DELAY_MS);
+          }
+        } else if (initialCaps.onoff?.setable) {
+          await setOnoff(false);
+        }
+      } catch (error) {
+        this.error('Probe restore failed:', error);
+      }
+
+      for (const capId of Object.keys(capInstances)) {
+        try {
+          if (typeof apiDevice.destroyCapabilityInstance === 'function') {
+            apiDevice.destroyCapabilityInstance(capId);
+          }
+        } catch (error) { /* ignore */ }
+      }
+    }
+
+    return result;
   }
 
   async onPair(session) {
@@ -178,6 +398,41 @@ class CircadianLightGroupDriver extends Homey.Driver {
       selectedItems = candidateItems.filter(item => selectedIds.has(item.id));
 
       generatedConfig = this.createDefaultConfig(selectedItems);
+      return { success: true };
+    });
+
+    session.setHandler('get_selected_devices_for_test', async () => {
+      return selectedItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        zoneName: item.zoneName,
+        capabilities: Object.keys(item.capabilities || {}).filter(c => PREWARM_TEST_CAPABILITIES.includes(c)),
+      }));
+    });
+
+    session.setHandler('probe_device', async ({ deviceId } = {}) => {
+      if (!deviceId) throw new Error('deviceId required');
+      this.probeDeviceAsync(deviceId, session)
+        .then(probe => {
+          if (generatedConfig && Array.isArray(generatedConfig.devices)) {
+            const device = generatedConfig.devices.find(d => d.id === deviceId);
+            if (device) {
+              device.prewarmSupport = { ...probe.support, testedAt: new Date().toISOString() };
+            }
+          }
+        })
+        .catch(error => {
+          session.emit('probe_complete', { deviceId, tested: false, error: error.message, support: {} }).catch(() => {});
+        });
+      return { started: true };
+    });
+
+    session.setHandler('skip_capability_test', async () => {
+      if (generatedConfig && Array.isArray(generatedConfig.devices)) {
+        generatedConfig.devices.forEach(device => {
+          device.prewarmSupport = { dim: null, light_temperature: null, light_hue: null, light_saturation: null, testedAt: null };
+        });
+      }
       return { success: true };
     });
 
@@ -225,6 +480,15 @@ class CircadianLightGroupDriver extends Homey.Driver {
 
     session.setHandler('get_light_candidates', async () => this.getLightCandidates({ wholeHouse: true }));
     session.setHandler('get_lux_sensors', async () => this.getLuxSensors());
+
+    session.setHandler('probe_device', async ({ deviceId } = {}) => {
+      if (!deviceId) throw new Error('deviceId required');
+      this.probeDeviceAsync(deviceId, session)
+        .catch(error => {
+          session.emit('probe_complete', { deviceId, tested: false, error: error.message, support: {} }).catch(() => {});
+        });
+      return { started: true };
+    });
   }
 
   parseConfig(json) {
@@ -268,7 +532,12 @@ class CircadianLightGroupDriver extends Homey.Driver {
       const homeyDevice = allDevices[deviceId];
       if (!isZoneSelected(homeyDevice.zone)) continue;
       if (homeyDevice.driverUri && homeyDevice.driverUri.includes('circadian-light-group')) continue;
-      if (homeyDevice.class !== 'light') continue;
+
+      const deviceClass = homeyDevice.virtualClass || homeyDevice.class;
+      const isLight = deviceClass === 'light';
+      const hasLightControl = ['dim', 'light_temperature', 'light_hue', 'light_saturation']
+        .some(cap => homeyDevice.capabilitiesObj?.[cap]?.setable === true);
+      if (!isLight && !hasLightControl) continue;
 
       const supportedCapabilities = {};
       let hasSupportedCapability = false;
@@ -376,6 +645,13 @@ class CircadianLightGroupDriver extends Homey.Driver {
         minDim: 0.05,
         maxDim: 1,
         capabilities: Object.keys(device.capabilities),
+        prewarmSupport: {
+          dim: null,
+          light_temperature: null,
+          light_hue: null,
+          light_saturation: null,
+          testedAt: null,
+        },
       })),
     };
   }

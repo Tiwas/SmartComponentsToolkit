@@ -349,15 +349,17 @@ class CircadianLightGroupDevice extends Homey.Device {
     const maxDim = Number.isFinite(Number(item.maxDim)) ? Number(item.maxDim) : 1;
     const canUseRed = item.redModeAllowed !== false;
     const mode = target.mode === 'color' && canUseRed ? 'color' : 'temperature';
+    const prewarm = item.prewarmSupport || {};
+    const prewarmAllowed = (capId) => isOn || prewarm[capId] !== false;
 
     if (caps.light_mode?.setable && caps.light_mode.value !== mode) {
       result.push(['light_mode', mode]);
     }
 
     if (mode === 'color' && caps.light_hue?.setable && caps.light_saturation?.setable) {
-      result.push(['light_hue', target.hue]);
-      result.push(['light_saturation', target.saturation]);
-    } else if (caps.light_temperature?.setable) {
+      if (prewarmAllowed('light_hue')) result.push(['light_hue', target.hue]);
+      if (prewarmAllowed('light_saturation')) result.push(['light_saturation', target.saturation]);
+    } else if (caps.light_temperature?.setable && prewarmAllowed('light_temperature')) {
       const temperature = item.invertTemperature === true ? 1 - target.temperature : target.temperature;
       result.push(['light_temperature', clamp(temperature)]);
     }
@@ -487,6 +489,59 @@ class CircadianLightGroupDevice extends Homey.Device {
         }
       },
     };
+  }
+
+  async onFlowTurnOnMember(args) {
+    const memberId = args.member?.id;
+    if (!memberId) throw new Error('No light selected');
+
+    const config = this.getConfig();
+    const item = (Array.isArray(config.devices) ? config.devices : []).find(d => d.id === memberId);
+    if (!item) throw new Error('Light is not a member of this group');
+
+    let outdoor;
+    try {
+      outdoor = await this.outdoorProvider.getOutdoorLight(config.outdoorLight || {});
+    } catch (error) {
+      outdoor = await this.outdoorProvider.getAstronomical(config.outdoorLight || {}, new Date(), 'fallback');
+    }
+    const geo = this.getGeo();
+    const luxCrossings = await this.getStoreValue('luxCrossings') || {};
+    const target = calculateTarget(config.profile || {}, outdoor, new Date(), { ...geo, luxCrossings });
+    this.applyOverridesToTarget(target);
+
+    const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+    const caps = apiDevice.capabilitiesObj || {};
+
+    const minDim = Number.isFinite(Number(item.minDim)) ? Number(item.minDim) : 0.05;
+    const maxDim = Number.isFinite(Number(item.maxDim)) ? Number(item.maxDim) : 1;
+    const canUseRed = item.redModeAllowed !== false;
+    const mode = target.mode === 'color' && canUseRed ? 'color' : 'temperature';
+
+    const writes = [];
+    if (caps.light_mode?.setable && caps.light_mode.value !== mode) {
+      writes.push(['light_mode', mode]);
+    }
+    if (mode === 'color' && caps.light_hue?.setable && caps.light_saturation?.setable) {
+      writes.push(['light_hue', target.hue]);
+      writes.push(['light_saturation', target.saturation]);
+    } else if (caps.light_temperature?.setable) {
+      const temperature = item.invertTemperature === true ? 1 - target.temperature : target.temperature;
+      writes.push(['light_temperature', clamp(temperature)]);
+    }
+    if (caps.dim?.setable) {
+      writes.push(['dim', clamp(target.dim, minDim, maxDim)]);
+    }
+
+    for (const [capability, value] of writes) {
+      await apiDevice.setCapabilityValue(capability, value);
+      await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+    }
+
+    if (caps.onoff?.setable && caps.onoff.value !== true) {
+      await apiDevice.setCapabilityValue('onoff', true);
+    }
+    return true;
   }
 
   // ---- Flow action handlers ----

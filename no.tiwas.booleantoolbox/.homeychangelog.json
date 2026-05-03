@@ -49,5 +49,11 @@
   },
   "1.10.0": {
     "en": "Circadian Light Group - control lights to suit your circadian needs"
+  },
+  "1.10.1": {
+    "en": "Added translations"
+  },
+  "1.10.2": {
+    "en": "More user config options + test capabilities"
   }
 }

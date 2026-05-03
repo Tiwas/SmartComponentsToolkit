@@ -24,7 +24,13 @@
         .device-card { border: 1px solid #ececec; border-radius: 8px; padding: 10px; margin-bottom: 8px; background: #fcfcfc; }
         .device-title { font-weight: 600; margin-bottom: 2px; }
         .meta { font-size: 12px; color: #777; margin-bottom: 8px; }
-        .device-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+        .device-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
+        .prewarm-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+        .pw-badge { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: #f0f0f0; color: #777; }
+        .pw-badge.ok { background: #e8f5e9; color: #2e7d32; }
+        .pw-badge.fail { background: #ffebee; color: #c62828; }
+        .spinner-sm { display: inline-block; width: 10px; height: 10px; border: 2px solid #ccc; border-top-color: #1976d2; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 4px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         button { border: 0; border-radius: 8px; padding: 10px 12px; font-size: 14px; cursor: pointer; }
         .primary { width: 100%; background: #4CAF50; color: #fff; font-weight: 600; padding: 14px; }
         .secondary { background: #ececec; color: #222; }
@@ -415,6 +421,26 @@
             return '<div><label>' + label + '</label><input type="number" data-index="' + index + '" data-key="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"></div>';
         }
 
+        const PREWARM_CAPS = ['dim', 'light_temperature', 'light_hue', 'light_saturation'];
+        const CAP_LABELS = { dim: 'Dim', light_temperature: 'Temp', light_hue: 'Hue', light_saturation: 'Sat' };
+
+        function prewarmBadgesHtml(device) {
+            const support = device.prewarmSupport || {};
+            const badges = PREWARM_CAPS.map(capId => {
+                const value = support[capId];
+                let cls = '';
+                let mark = '·';
+                if (value === true) { cls = 'ok'; mark = '✓'; }
+                else if (value === false) { cls = 'fail'; mark = '✗'; }
+                const label = t('pair.circadian_light_group.cap_' + capId, CAP_LABELS[capId]);
+                return '<span class="pw-badge ' + cls + '">' + mark + ' ' + label + '</span>';
+            }).join('');
+            const tested = support.testedAt
+                ? t('pair.circadian_light_group.prewarm_tested', 'Pre-warm test results')
+                : t('pair.circadian_light_group.prewarm_untested', 'Pre-warm not tested yet');
+            return '<div class="muted" style="font-size:11px;margin-top:6px;">' + tested + '</div><div class="prewarm-badges">' + badges + '</div>';
+        }
+
         function renderDevices() {
             const container = document.getElementById('devices');
             container.innerHTML = '';
@@ -436,9 +462,61 @@
                     numberHtml(index, 'minDim', t('pair.circadian_light_group.min_dim', 'Min dim'), device.minDim !== undefined ? device.minDim : 0.05, 0, 1, 0.01) +
                     numberHtml(index, 'maxDim', t('pair.circadian_light_group.max_dim', 'Max dim'), device.maxDim !== undefined ? device.maxDim : 1, 0, 1, 0.01) +
                     '</div>' +
-                    '<div class="device-actions"><button class="danger" data-remove="' + index + '">' + t('pair.circadian_light_group.remove', 'Remove') + '</button></div>';
+                    '<div class="muted" style="font-size:11px;margin-top:4px;">' + t('pair.circadian_light_group.prewarm_master_hint', 'Prewarm before on is a fallback for capabilities that have not been tested. Tested capabilities use the test result.') + '</div>' +
+                    prewarmBadgesHtml(device) +
+                    '<div class="device-actions">' +
+                        '<button class="secondary" data-test="' + index + '">' + t('pair.circadian_light_group.test_prewarm', 'Test pre-warm') + '</button>' +
+                        '<button class="danger" data-remove="' + index + '">' + t('pair.circadian_light_group.remove', 'Remove') + '</button>' +
+                    '</div>';
                 container.appendChild(card);
             });
+        }
+
+        let pendingProbeDeviceId = null;
+        let pendingProbeContext = null;
+
+        function runPrewarmTest(index) {
+            const device = config.devices[index];
+            if (!device) return;
+            if (pendingProbeDeviceId) return;
+
+            const buttons = document.querySelectorAll('button[data-test], button[data-remove], #save');
+            buttons.forEach(b => b.disabled = true);
+            const card = document.querySelectorAll('.device-card')[index];
+            const meta = card ? card.querySelector('.meta') : null;
+            const originalMeta = meta ? meta.textContent : '';
+            if (meta) meta.innerHTML = '<span class="spinner-sm"></span>' + t('pair.circadian_light_group.testing', 'Testing...');
+
+            pendingProbeDeviceId = device.id;
+            pendingProbeContext = { device, meta, originalMeta, buttons };
+
+            Homey.emit('probe_device', { deviceId: device.id }, function (err) {
+                if (err) {
+                    pendingProbeDeviceId = null;
+                    pendingProbeContext = null;
+                    buttons.forEach(b => b.disabled = false);
+                    if (meta) meta.textContent = originalMeta;
+                    Homey.alert(err.message || 'Test failed');
+                }
+            });
+        }
+
+        function handleProbeComplete(result) {
+            if (!result || !pendingProbeContext) return;
+            if (pendingProbeDeviceId && result.deviceId !== pendingProbeDeviceId) return;
+
+            const ctx = pendingProbeContext;
+            pendingProbeDeviceId = null;
+            pendingProbeContext = null;
+            ctx.buttons.forEach(b => b.disabled = false);
+
+            if (result.tested === false) {
+                if (ctx.meta) ctx.meta.textContent = ctx.originalMeta;
+                Homey.alert(result.error || 'Device unavailable');
+                return;
+            }
+            ctx.device.prewarmSupport = Object.assign({}, result.support, { testedAt: new Date().toISOString() });
+            renderDevices();
         }
 
         function renderCandidates() {
@@ -526,19 +604,27 @@
                 redModeAllowed: true,
                 minDim: 0.05,
                 maxDim: 1,
-                capabilities: Object.keys(candidate.capabilities || {})
+                capabilities: Object.keys(candidate.capabilities || {}),
+                prewarmSupport: { dim: null, light_temperature: null, light_hue: null, light_saturation: null, testedAt: null }
             });
             renderDevices();
             renderCandidates();
         });
 
         document.getElementById('devices').addEventListener('click', event => {
-            const index = event.target.getAttribute('data-remove');
-            if (index === null) return;
-            collect();
-            config.devices.splice(Number(index), 1);
-            renderDevices();
-            renderCandidates();
+            const removeIdx = event.target.getAttribute('data-remove');
+            if (removeIdx !== null) {
+                collect();
+                config.devices.splice(Number(removeIdx), 1);
+                renderDevices();
+                renderCandidates();
+                return;
+            }
+            const testIdx = event.target.getAttribute('data-test');
+            if (testIdx !== null) {
+                collect();
+                runPrewarmTest(Number(testIdx));
+            }
         });
 
         document.getElementById('save').addEventListener('click', () => {
@@ -565,6 +651,17 @@
 
             Homey.setTitle(t('pair.circadian_light_group.repair_title', 'Edit Circadian Light Group'));
             applyTranslations();
+            Homey.on('probe_complete', handleProbeComplete);
+            Homey.on('probe_progress', function (event) {
+                if (!event || !pendingProbeContext || event.deviceId !== pendingProbeDeviceId) return;
+                let label = '';
+                if (event.phase === 'reading_baseline') label = t('pair.circadian_light_group.phase_reading_baseline', 'Reading baseline...');
+                else if (event.phase === 'turning_off') label = t('pair.circadian_light_group.phase_turning_off', 'Turning off...');
+                else if (event.phase === 'pre_setting') label = t('pair.circadian_light_group.phase_pre_setting', 'Pre-setting') + ' ' + t('pair.circadian_light_group.cap_' + event.capId, event.capId) + '...';
+                else if (event.phase === 'verifying') label = t('pair.circadian_light_group.phase_verifying', 'Verifying') + ' ' + t('pair.circadian_light_group.cap_' + event.capId, event.capId) + '...';
+                else if (event.phase === 'restoring') label = t('pair.circadian_light_group.phase_restoring', 'Restoring...');
+                if (pendingProbeContext.meta) pendingProbeContext.meta.innerHTML = '<span class="spinner-sm"></span>' + label;
+            });
             Homey.emit('get_config', {}, function(configErr, result) {
                 if (configErr) {
                     Homey.alert(configErr.message || t('pair.circadian_light_group.error_load_config', 'Could not load configuration'));

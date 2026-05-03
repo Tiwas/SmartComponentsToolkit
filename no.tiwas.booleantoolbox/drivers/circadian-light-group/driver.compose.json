@@ -44,6 +44,9 @@
       "id": "select_devices"
     },
     {
+      "id": "test_capabilities"
+    },
+    {
       "id": "edit_configuration"
     }
   ],
@@ -83,7 +86,8 @@
       { "id": "clg_toggle" },
       { "id": "clg_set_red_threshold" },
       { "id": "clg_apply_state" },
-      { "id": "clg_force_red_mode" }
+      { "id": "clg_force_red_mode" },
+      { "id": "clg_turn_on_member" }
     ]
   }
 }

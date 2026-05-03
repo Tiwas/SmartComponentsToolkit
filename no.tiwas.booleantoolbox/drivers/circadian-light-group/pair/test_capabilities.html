@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; color: #222; margin: 0; }
+        .subtitle { font-size: 14px; color: #666; margin: 0 0 14px; }
+        .info { background: #fff8e1; border: 1px solid #ffe082; padding: 10px; border-radius: 6px; font-size: 13px; color: #5d4037; margin-bottom: 12px; }
+        .toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .toolbar button { width: 100%; }
+        .device-list { background: #fff; border: 1px solid #e7e7e7; border-radius: 8px; padding: 6px; max-height: 360px; overflow-y: auto; }
+        .device-row { padding: 10px 8px; border-bottom: 1px solid #f0f0f0; }
+        .device-row:last-child { border-bottom: none; }
+        .device-name { font-weight: 600; font-size: 14px; word-break: break-word; }
+        .device-meta { font-size: 12px; color: #999; word-break: break-word; }
+        .row-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .row-actions .status { flex: 1; font-size: 12px; color: #777; }
+        .row-actions button { width: auto !important; padding: 6px 14px; font-size: 12px; flex: 0 0 auto; }
+        .status.testing { color: #1976d2; }
+        .status.done { color: #2e7d32; }
+        .status.error { color: #c62828; }
+        .badges { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+        .badge { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: #eee; color: #666; }
+        .badge.ok { background: #e8f5e9; color: #2e7d32; }
+        .badge.fail { background: #ffebee; color: #c62828; }
+        .badge.untested { background: #f5f5f5; color: #999; }
+        button { border: 0; border-radius: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer; font-weight: 500; box-sizing: border-box; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .test-btn { background: #1976d2; color: #fff; }
+        .secondary { background: #ececec; color: #222; }
+        .primary { background: #4CAF50; color: #fff; padding: 14px; font-size: 16px; width: 100%; }
+        .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ccc; border-top-color: #1976d2; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 4px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <p class="subtitle" data-i18n="pair.circadian_light_group.test_capabilities_subtitle">Detect which lights can be safely pre-warmed (color/temperature changed while off).</p>
+
+    <div class="info" data-i18n="pair.circadian_light_group.test_capabilities_info">During testing each light is briefly turned off and back on. Lights may flicker. You can re-test or change group members later via Repair.</div>
+
+    <div class="toolbar">
+        <button id="test-all" class="test-btn" data-i18n="pair.circadian_light_group.test_all">Test all</button>
+        <button id="skip" class="secondary" data-i18n="pair.circadian_light_group.skip_test">Skip</button>
+    </div>
+
+    <div id="device-list" class="device-list">
+        <p style="padding:10px;" data-i18n="pair.circadian_light_group.loading_lights">Loading lights...</p>
+    </div>
+
+    <div class="homey-view-buttons">
+        <button id="next" class="primary" data-i18n="pair.next">Next</button>
+    </div>
+
+    <script type="text/javascript">
+    (function () {
+        const CAPS = ['dim', 'light_temperature', 'light_hue', 'light_saturation'];
+        const CAP_LABELS = {
+            dim: 'Dim',
+            light_temperature: 'Temp',
+            light_hue: 'Hue',
+            light_saturation: 'Sat',
+        };
+
+        let devices = [];
+        let testing = false;
+        let pendingResolve = null;
+        let pendingDeviceId = null;
+
+        function t(key, fallback) {
+            try {
+                if (typeof Homey !== 'undefined' && typeof Homey.__ === 'function') {
+                    const v = Homey.__(key);
+                    if (v && v !== key) return v;
+                }
+            } catch (e) {}
+            return fallback;
+        }
+
+        function applyTranslations() {
+            if (typeof Homey === 'undefined' || typeof Homey.__ !== 'function') return;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.getAttribute('data-i18n'), el.textContent);
+            });
+        }
+
+        function capLabel(capId) {
+            return t('pair.circadian_light_group.cap_' + capId, CAP_LABELS[capId] || capId);
+        }
+
+        function renderBadges(device) {
+            const support = device.support || {};
+            return CAPS
+                .filter(capId => (device.capabilities || []).includes(capId))
+                .map(capId => {
+                    const value = support[capId];
+                    let cls = 'untested';
+                    let mark = '·';
+                    if (value === true) { cls = 'ok'; mark = '✓'; }
+                    else if (value === false) { cls = 'fail'; mark = '✗'; }
+                    return '<span class="badge ' + cls + '">' + mark + ' ' + capLabel(capId) + '</span>';
+                })
+                .join('');
+        }
+
+        function renderDevices() {
+            const container = document.getElementById('device-list');
+            if (devices.length === 0) {
+                container.innerHTML = '<p style="padding:10px;">' + t('pair.circadian_light_group.no_lights_selected', 'No lights selected.') + '</p>';
+                return;
+            }
+            container.innerHTML = devices.map((device, index) => {
+                const status = device.status || 'idle';
+                let statusHtml = '<span class="status">&nbsp;</span>';
+                if (status === 'testing') statusHtml = '<span class="status testing"><span class="spinner"></span>' + (device.phaseLabel || t('pair.circadian_light_group.testing', 'Testing...')) + '</span>';
+                else if (status === 'done') statusHtml = '<span class="status done">' + t('pair.circadian_light_group.tested', 'Tested') + '</span>';
+                else if (status === 'error') statusHtml = '<span class="status error">' + t('pair.circadian_light_group.test_error', 'Error') + '</span>';
+
+                return '<div class="device-row">' +
+                    '<div class="device-name">' + device.name + '</div>' +
+                    '<div class="device-meta">' + (device.zoneName || '') + (device.error ? ' — ' + device.error : '') + '</div>' +
+                    '<div class="badges">' + renderBadges(device) + '</div>' +
+                    '<div class="row-actions">' +
+                        statusHtml +
+                        '<button class="secondary" data-test-index="' + index + '"' + (testing ? ' disabled' : '') + '>' + t('pair.circadian_light_group.test', 'Test') + '</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            container.querySelectorAll('button[data-test-index]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.getAttribute('data-test-index'));
+                    testDevice(idx);
+                });
+            });
+        }
+
+        function setControlsDisabled(disabled) {
+            testing = disabled;
+            document.getElementById('test-all').disabled = disabled;
+            document.getElementById('skip').disabled = disabled;
+            document.getElementById('next').disabled = disabled;
+            renderDevices();
+        }
+
+        function applyProbeResult(device, result) {
+            if (!result || result.tested === false) {
+                device.status = 'error';
+                device.error = (result && result.error) || 'Unavailable';
+            } else {
+                device.status = 'done';
+                device.support = result.support;
+            }
+        }
+
+        function startProbe(device) {
+            return new Promise(resolve => {
+                pendingDeviceId = device.id;
+                pendingResolve = (result) => {
+                    applyProbeResult(device, result);
+                    renderDevices();
+                    resolve();
+                };
+                Homey.emit('probe_device', { deviceId: device.id }, function (err) {
+                    if (err) {
+                        const r = pendingResolve;
+                        pendingResolve = null;
+                        pendingDeviceId = null;
+                        device.status = 'error';
+                        device.error = err.message || String(err);
+                        renderDevices();
+                        if (r) r(null);
+                    }
+                });
+            });
+        }
+
+        function testDevice(index) {
+            const device = devices[index];
+            if (!device || testing) return;
+            setControlsDisabled(true);
+            device.status = 'testing';
+            device.error = null;
+            renderDevices();
+            startProbe(device).then(() => setControlsDisabled(false));
+        }
+
+        async function testAll() {
+            if (testing) return;
+            for (let i = 0; i < devices.length; i++) {
+                const device = devices[i];
+                setControlsDisabled(true);
+                device.status = 'testing';
+                device.error = null;
+                renderDevices();
+                await startProbe(device);
+            }
+            setControlsDisabled(false);
+        }
+
+        function skipAll() {
+            Homey.emit('skip_capability_test', {}, function () {
+                Homey.showView('edit_configuration');
+            });
+        }
+
+        function gotoNext() {
+            Homey.showView('edit_configuration');
+        }
+
+        function waitForHomey() {
+            if (typeof Homey === 'undefined') {
+                setTimeout(waitForHomey, 100);
+                return;
+            }
+            Homey.setTitle(t('pair.circadian_light_group.test_capabilities_title', 'Test light capabilities'));
+            applyTranslations();
+
+            Homey.on('probe_complete', function (result) {
+                if (!result || !pendingResolve) return;
+                if (pendingDeviceId && result.deviceId !== pendingDeviceId) return;
+                const cb = pendingResolve;
+                pendingResolve = null;
+                pendingDeviceId = null;
+                cb(result);
+            });
+
+            Homey.on('probe_progress', function (event) {
+                if (!event || !event.deviceId) return;
+                const device = devices.find(d => d.id === event.deviceId);
+                if (!device) return;
+                let label = '';
+                if (event.phase === 'reading_baseline') label = t('pair.circadian_light_group.phase_reading_baseline', 'Reading baseline...');
+                else if (event.phase === 'turning_off') label = t('pair.circadian_light_group.phase_turning_off', 'Turning off...');
+                else if (event.phase === 'pre_setting') label = t('pair.circadian_light_group.phase_pre_setting', 'Pre-setting') + ' ' + capLabel(event.capId) + '...';
+                else if (event.phase === 'verifying') label = t('pair.circadian_light_group.phase_verifying', 'Verifying') + ' ' + capLabel(event.capId) + '...';
+                else if (event.phase === 'restoring') label = t('pair.circadian_light_group.phase_restoring', 'Restoring...');
+                device.phaseLabel = label;
+                renderDevices();
+            });
+
+            document.getElementById('test-all').addEventListener('click', testAll);
+            document.getElementById('skip').addEventListener('click', skipAll);
+            document.getElementById('next').addEventListener('click', gotoNext);
+
+            Homey.emit('get_selected_devices_for_test', {}, function (err, result) {
+                if (err) {
+                    Homey.alert(err.message || 'Could not load devices');
+                    return;
+                }
+                devices = (result || []).map(device => Object.assign({}, device, {
+                    status: 'idle',
+                    support: { dim: null, light_temperature: null, light_hue: null, light_saturation: null },
+                }));
+                renderDevices();
+            });
+        }
+        waitForHomey();
+    })();
+    </script>
+</body>
+</html>

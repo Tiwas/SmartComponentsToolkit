@@ -1,0 +1,30 @@
+{
+  "id": "clg_turn_on_member",
+  "title": {
+    "en": "Turn on light at current circadian level",
+    "no": "Slå på lys med gjeldende dognrytmeniva"
+  },
+  "hint": {
+    "en": "Sets temperature/color and dim, then turns the light on. Avoids the brief flash at the previous brightness.",
+    "no": "Setter temperatur/farge og dim, deretter skrur lyset paa. Unngaar kort blink ved forrige lysstyrke."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    },
+    {
+      "type": "autocomplete",
+      "name": "member",
+      "title": {
+        "en": "Light",
+        "no": "Lys"
+      }
+    }
+  ],
+  "titleFormatted": {
+    "en": "Turn on [[member]] at current circadian level",
+    "no": "Slå på [[member]] med gjeldende dognrytmeniva"
+  }
+}

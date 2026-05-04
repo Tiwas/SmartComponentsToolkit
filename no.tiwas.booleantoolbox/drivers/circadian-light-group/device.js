@@ -6,6 +6,20 @@ const { OutdoorLightProvider } = require('../../lib/OutdoorLightProvider');
 const { todayKey, defaultDirectionFor, detectCrossing, dateToMinutesOfDay } = require('../../lib/AnchorResolver');
 
 const APPLY_CAPABILITY_DELAY = 150;
+const PREWARM_ONOFF_WAIT_MS = 4000;
+const PREWARM_ONOFF_POLL_MS = 100;
+
+const TRANSIENT_ERROR_PATTERNS = [
+  /TRANSMIT_COMPLETE_NO_ACK/i,
+  /did not respond/i,
+  /timeout/i,
+  /TRANSMIT_COMPLETE_FAIL/i,
+];
+
+function isTransientDeviceError(error) {
+  const message = `${error?.message || ''} ${error?.cause?.error || ''} ${error?.cause?.error_description || ''}`;
+  return TRANSIENT_ERROR_PATTERNS.some(re => re.test(message));
+}
 
 class CircadianLightGroupDevice extends Homey.Device {
   async onInit() {
@@ -289,10 +303,15 @@ class CircadianLightGroupDevice extends Homey.Device {
     await this.requestExternalOutdoorLightIfNeeded(config);
 
     const errors = [];
+    const debugCtx = { remaining: 3, reason };
     for (const item of devices) {
       try {
-        await this.applyTargetToDevice(item, target);
+        await this.applyTargetToDevice(item, target, debugCtx);
       } catch (error) {
+        if (isTransientDeviceError(error)) {
+          this.debug(`applyTargetToDevice[${item.name || item.id}]: transient error ignored — ${error.message}`);
+          continue;
+        }
         errors.push({ device: item.name || item.id, error: error.message });
         this.error(`Failed to apply target to ${item.name || item.id}:`, error);
       }
@@ -324,7 +343,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       .catch(this.error);
   }
 
-  async applyTargetToDevice(item, target) {
+  async applyTargetToDevice(item, target, debugCtx) {
     if (!item.id) {
       this.debug(`applyTargetToDevice: skipped (no id) for ${item.name || '<unnamed>'}`);
       return;
@@ -335,32 +354,95 @@ class CircadianLightGroupDevice extends Homey.Device {
     const caps = apiDevice.capabilitiesObj || {};
     const isOn = caps.onoff?.value === true;
     const unsafePrewarmDevices = await this.getStoreValue('unsafe_prewarm_devices') || {};
-    const prewarmBeforeOn = item.prewarmBeforeOn !== false && !unsafePrewarmDevices[item.id];
+    const unsafeEntry = unsafePrewarmDevices[item.id];
+    const prewarmBeforeOn = item.prewarmBeforeOn !== false && !unsafeEntry;
+
+    const verbose = debugCtx && debugCtx.remaining > 0;
+    if (verbose) {
+      debugCtx.remaining -= 1;
+      const capSummary = {
+        onoff: { value: caps.onoff?.value, setable: caps.onoff?.setable },
+        light_mode: { value: caps.light_mode?.value, setable: caps.light_mode?.setable },
+        light_temperature: { value: caps.light_temperature?.value, setable: caps.light_temperature?.setable },
+        light_hue: { setable: caps.light_hue?.setable },
+        light_saturation: { setable: caps.light_saturation?.setable },
+        dim: { value: caps.dim?.value, setable: caps.dim?.setable },
+      };
+      this.debug(`applyTargetToDevice[${label}] DIAG: isOn=${isOn} item.prewarmBeforeOn=${item.prewarmBeforeOn} unsafeEntry=${unsafeEntry ? JSON.stringify(unsafeEntry) : 'none'} -> prewarmBeforeOn=${prewarmBeforeOn}`);
+      this.debug(`applyTargetToDevice[${label}] DIAG: prewarmSupport=${JSON.stringify(item.prewarmSupport || {})} redModeAllowed=${item.redModeAllowed} invertTemperature=${item.invertTemperature} minDim=${item.minDim} maxDim=${item.maxDim}`);
+      this.debug(`applyTargetToDevice[${label}] DIAG: caps=${JSON.stringify(capSummary)}`);
+      this.debug(`applyTargetToDevice[${label}] DIAG: target={mode:${target.mode}, dim:${target.dim}, temp:${target.temperature}, hue:${target.hue}, sat:${target.saturation}}`);
+    }
 
     if (!isOn && !prewarmBeforeOn) {
-      this.debug(`applyTargetToDevice[${label}]: skipped (off + prewarm disabled)`);
+      this.debug(`applyTargetToDevice[${label}]: skipped (off + prewarm disabled) [item.prewarmBeforeOn=${item.prewarmBeforeOn} unsafe=${!!unsafeEntry}]`);
       return;
     }
 
-    const capabilitiesToSet = this.getCapabilitiesToSet(item, target, caps, isOn);
+    const capabilitiesToSet = this.getCapabilitiesToSet(item, target, caps, isOn, verbose ? label : null);
     if (capabilitiesToSet.length === 0) {
       this.debug(`applyTargetToDevice[${label}]: nothing to set (isOn=${isOn})`);
       return;
     }
 
-    this.debug(`applyTargetToDevice[${label}]: isOn=${isOn} writes=${JSON.stringify(capabilitiesToSet)}`);
+    const decision = isOn ? 'apply-live' : (prewarmBeforeOn ? 'prewarm-while-off' : 'unexpected');
+    this.debug(`applyTargetToDevice[${label}]: decision=${decision} isOn=${isOn} writes=${JSON.stringify(capabilitiesToSet)}`);
 
-    for (const [capability, value] of capabilitiesToSet) {
-      await apiDevice.setCapabilityValue(capability, value);
-      await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+    let liveOnoff = isOn;
+    let onoffInstance = null;
+    if (!isOn && prewarmBeforeOn) {
+      try {
+        onoffInstance = apiDevice.makeCapabilityInstance('onoff', (value) => {
+          liveOnoff = value === true;
+        });
+      } catch (error) {
+        this.debug(`applyTargetToDevice[${label}]: makeCapabilityInstance(onoff) failed: ${error.message}`);
+      }
     }
 
-    if (!isOn && prewarmBeforeOn) {
-      await this.detectUnsafePrewarm(item);
+    try {
+      for (const [capability, value] of capabilitiesToSet) {
+        await apiDevice.setCapabilityValue(capability, value);
+        await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+        if (!isOn && prewarmBeforeOn && liveOnoff === true) break;
+      }
+
+      if (!isOn && prewarmBeforeOn) {
+        const tripped = await this.waitForPrewarmTrip(() => liveOnoff, PREWARM_ONOFF_WAIT_MS);
+        if (tripped) {
+          await this.markUnsafePrewarm(item, label);
+        } else {
+          this.debug(`applyTargetToDevice[${label}]: prewarm OK (onoff stayed false ${PREWARM_ONOFF_WAIT_MS}ms)`);
+        }
+      }
+    } finally {
+      if (onoffInstance) {
+        try { onoffInstance.destroy(); } catch (error) { /* ignore */ }
+      }
     }
   }
 
-  getCapabilitiesToSet(item, target, caps, isOn) {
+  async waitForPrewarmTrip(getOnoff, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (getOnoff() === true) return true;
+      await new Promise(resolve => setTimeout(resolve, Math.min(PREWARM_ONOFF_POLL_MS, Math.max(0, deadline - Date.now()))));
+    }
+    return getOnoff() === true;
+  }
+
+  async markUnsafePrewarm(item, label) {
+    const unsafe = await this.getStoreValue('unsafe_prewarm_devices') || {};
+    unsafe[item.id] = {
+      name: item.name,
+      detectedAt: new Date().toISOString(),
+    };
+    await this.setStoreValue('unsafe_prewarm_devices', unsafe);
+    this.debug(`markUnsafePrewarm[${label}]: marked UNSAFE; future passes will skip prewarm`);
+    await this.triggerError(`Prewarm turned on ${item.name || item.id}. Disable prewarm for this light.`);
+  }
+
+  getCapabilitiesToSet(item, target, caps, isOn, debugLabel) {
     const result = [];
     const minDim = Number.isFinite(Number(item.minDim)) ? Number(item.minDim) : 0.05;
     const maxDim = Number.isFinite(Number(item.maxDim)) ? Number(item.maxDim) : 1;
@@ -369,36 +451,34 @@ class CircadianLightGroupDevice extends Homey.Device {
     const prewarm = item.prewarmSupport || {};
     const prewarmAllowed = (capId) => isOn || prewarm[capId] !== false;
 
-    if (caps.light_mode?.setable && caps.light_mode.value !== mode) {
+    const lightModeAllowed = isOn || prewarm.light_mode === true;
+    if (caps.light_mode?.setable && caps.light_mode.value !== mode && lightModeAllowed) {
       result.push(['light_mode', mode]);
+      if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: light_mode ${caps.light_mode.value} -> ${mode} (isOn=${isOn} prewarm.light_mode=${prewarm.light_mode})`);
+    } else if (debugLabel && caps.light_mode?.setable && caps.light_mode.value !== mode) {
+      this.debug(`getCapabilitiesToSet[${debugLabel}]: light_mode write SUPPRESSED (isOn=${isOn} prewarm.light_mode=${prewarm.light_mode}) — strict opt-in`);
     }
 
     if (mode === 'color' && caps.light_hue?.setable && caps.light_saturation?.setable) {
       if (prewarmAllowed('light_hue')) result.push(['light_hue', target.hue]);
       if (prewarmAllowed('light_saturation')) result.push(['light_saturation', target.saturation]);
+      if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: color path, prewarmAllowed(hue)=${prewarmAllowed('light_hue')} prewarmAllowed(sat)=${prewarmAllowed('light_saturation')}`);
     } else if (caps.light_temperature?.setable && prewarmAllowed('light_temperature')) {
       const temperature = item.invertTemperature === true ? 1 - target.temperature : target.temperature;
       result.push(['light_temperature', clamp(temperature)]);
+      if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: temperature path, prewarmAllowed(temp)=${prewarmAllowed('light_temperature')} (prewarm.light_temperature=${prewarm.light_temperature})`);
+    } else if (debugLabel) {
+      this.debug(`getCapabilitiesToSet[${debugLabel}]: no color/temperature write — mode=${mode} hue.setable=${caps.light_hue?.setable} sat.setable=${caps.light_saturation?.setable} temp.setable=${caps.light_temperature?.setable} prewarmAllowed(temp)=${prewarmAllowed('light_temperature')}`);
     }
 
-    if (isOn && caps.dim?.setable) {
+    if (caps.dim?.setable && (isOn || prewarm.dim === true)) {
       result.push(['dim', clamp(target.dim, minDim, maxDim)]);
+      if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: dim included (isOn=${isOn} prewarm.dim=${prewarm.dim})`);
+    } else if (debugLabel && caps.dim?.setable) {
+      this.debug(`getCapabilitiesToSet[${debugLabel}]: dim suppressed (isOn=${isOn} prewarm.dim=${prewarm.dim})`);
     }
 
     return result;
-  }
-
-  async detectUnsafePrewarm(item) {
-    const refreshed = await this.homey.app.api.devices.getDevice({ id: item.id });
-    if (refreshed.capabilitiesObj?.onoff?.value !== true) return;
-
-    const unsafe = await this.getStoreValue('unsafe_prewarm_devices') || {};
-    unsafe[item.id] = {
-      name: item.name,
-      detectedAt: new Date().toISOString(),
-    };
-    await this.setStoreValue('unsafe_prewarm_devices', unsafe);
-    await this.triggerError(`Prewarm turned on ${item.name || item.id}. Disable prewarm for this light.`);
   }
 
   async triggerError(error) {
@@ -516,16 +596,54 @@ class CircadianLightGroupDevice extends Homey.Device {
     const item = (Array.isArray(config.devices) ? config.devices : []).find(d => d.id === memberId);
     if (!item) throw new Error('Light is not a member of this group');
 
-    const clgActive = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
-    if (!clgActive) {
-      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
-      if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== true) {
-        await apiDevice.setCapabilityValue('onoff', true);
-      }
-      this.debug(`turn_on_member[${item.name || item.id}]: CLG inactive, only set onoff=true`);
-      return true;
-    }
+    const target = await this.computeCurrentTarget(config);
+    await this.turnOnMemberToTarget(item, target);
+    return true;
+  }
 
+  async onFlowTurnOnAllMembers() {
+    const config = this.getConfig();
+    const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
+    if (members.length === 0) return true;
+
+    const target = await this.computeCurrentTarget(config);
+    for (const item of members) {
+      try {
+        await this.turnOnMemberToTarget(item, target);
+      } catch (error) {
+        if (isTransientDeviceError(error)) {
+          this.debug(`turn_on_all_members[${item.name || item.id}]: transient error ignored — ${error.message}`);
+          continue;
+        }
+        this.error(`turn_on_all_members[${item.name || item.id}] failed:`, error);
+      }
+    }
+    return true;
+  }
+
+  async onFlowTurnOffAllMembers() {
+    const config = this.getConfig();
+    const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
+    if (members.length === 0) return true;
+
+    for (const item of members) {
+      try {
+        const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+        if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== false) {
+          await apiDevice.setCapabilityValue('onoff', false);
+        }
+      } catch (error) {
+        if (isTransientDeviceError(error)) {
+          this.debug(`turn_off_all_members[${item.name || item.id}]: transient error ignored — ${error.message}`);
+          continue;
+        }
+        this.error(`turn_off_all_members[${item.name || item.id}] failed:`, error);
+      }
+    }
+    return true;
+  }
+
+  async computeCurrentTarget(config) {
     let outdoor;
     try {
       outdoor = await this.outdoorProvider.getOutdoorLight(config.outdoorLight || {});
@@ -536,6 +654,19 @@ class CircadianLightGroupDevice extends Homey.Device {
     const luxCrossings = await this.getStoreValue('luxCrossings') || {};
     const target = calculateTarget(config.profile || {}, outdoor, new Date(), { ...geo, luxCrossings });
     this.applyOverridesToTarget(target);
+    return target;
+  }
+
+  async turnOnMemberToTarget(item, target) {
+    const clgActive = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+    if (!clgActive) {
+      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+      if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== true) {
+        await apiDevice.setCapabilityValue('onoff', true);
+      }
+      this.debug(`turn_on_member[${item.name || item.id}]: CLG inactive, only set onoff=true`);
+      return;
+    }
 
     const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
     const caps = apiDevice.capabilitiesObj || {};
@@ -568,7 +699,6 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (caps.onoff?.setable && caps.onoff.value !== true) {
       await apiDevice.setCapabilityValue('onoff', true);
     }
-    return true;
   }
 
   // ---- Flow action handlers ----

@@ -50,7 +50,17 @@ const PREWARM_TEST_CAPABILITIES = ['dim', 'light_temperature', 'light_hue', 'lig
 const PROBE_OFF_SETTLE_MS = 600;
 const PROBE_VERIFY_DELAY_MS = 800;
 const PROBE_RESTORE_DELAY_MS = 200;
-const PROBE_ONOFF_CHECK_MS = 500;
+const PROBE_ONOFF_CHECK_MS = 4000;
+const PROBE_ONOFF_POLL_MS = 100;
+
+async function waitForOnoffTrueOrTimeout(getValue, timeoutMs, pollMs = PROBE_ONOFF_POLL_MS) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (getValue() === true) return true;
+    await sleep(Math.min(pollMs, Math.max(0, deadline - Date.now())));
+  }
+  return getValue() === true;
+}
 
 function pickProbeValue(capId, currentValue) {
   const cur = Number(currentValue);
@@ -153,6 +163,8 @@ class CircadianLightGroupDriver extends Homey.Driver {
     action('clg_apply_state', 'onFlowApplyState');
     action('clg_force_red_mode', 'onFlowForceRedMode');
     action('clg_turn_on_member', 'onFlowTurnOnMember');
+    action('clg_turn_on_all_members', 'onFlowTurnOnAllMembers');
+    action('clg_turn_off_all_members', 'onFlowTurnOffAllMembers');
 
     this.homey.flow.getActionCard('clg_turn_on_member')
       .registerArgumentAutocompleteListener('member', async (query, args) => {
@@ -195,7 +207,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
     const result = {
       deviceId,
       tested: true,
-      support: { dim: null, light_temperature: null, light_hue: null, light_saturation: null },
+      support: { dim: null, light_temperature: null, light_hue: null, light_saturation: null, light_mode: null },
       capErrors: {},
       error: null,
     };
@@ -294,7 +306,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
           this.debug(`Probe ${deviceId}/${capId} setCapabilityValue threw: ${result.capErrors[capId]}`);
           continue;
         }
-        await sleep(PROBE_ONOFF_CHECK_MS);
+        await waitForOnoffTrueOrTimeout(() => currentState.onoff, PROBE_ONOFF_CHECK_MS);
 
         if (currentState.onoff === true) {
           result.support[capId] = false;
@@ -318,6 +330,30 @@ class CircadianLightGroupDriver extends Homey.Driver {
         this.debug(`Probe ${deviceId}/${capId}: support=${matched} baseline=${beforeValue} test=${testValue} observed=${observed}`);
 
         await ensureOff();
+      }
+
+      if (initialCaps.light_mode?.setable) {
+        const baselineMode = currentState.light_mode;
+        const testMode = baselineMode === 'color' ? 'temperature' : 'color';
+        emitProgress('pre_setting', 'light_mode');
+        try {
+          await apiDevice.setCapabilityValue('light_mode', testMode);
+          await waitForOnoffTrueOrTimeout(() => currentState.onoff, PROBE_ONOFF_CHECK_MS);
+          if (currentState.onoff === true) {
+            result.support.light_mode = false;
+            result.capErrors.light_mode = 'turned on by write';
+            this.debug(`Probe ${deviceId}/light_mode: onoff=true after pre-set → ✗`);
+            await ensureOff();
+          } else {
+            result.support.light_mode = true;
+            this.debug(`Probe ${deviceId}/light_mode: support=true (${baselineMode} -> ${testMode}, lamp stayed off)`);
+          }
+          await apiDevice.setCapabilityValue('light_mode', baselineMode).catch(() => {});
+        } catch (error) {
+          result.support.light_mode = false;
+          result.capErrors.light_mode = error.message || String(error);
+          this.debug(`Probe ${deviceId}/light_mode setCapabilityValue threw: ${result.capErrors.light_mode}`);
+        }
       }
     } finally {
       emitProgress('restoring');
@@ -427,7 +463,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
     session.setHandler('skip_capability_test', async () => {
       if (generatedConfig && Array.isArray(generatedConfig.devices)) {
         generatedConfig.devices.forEach(device => {
-          device.prewarmSupport = { dim: null, light_temperature: null, light_hue: null, light_saturation: null, testedAt: null };
+          device.prewarmSupport = { dim: null, light_temperature: null, light_hue: null, light_saturation: null, light_mode: null, testedAt: null };
         });
       }
       return { success: true };
@@ -536,11 +572,9 @@ class CircadianLightGroupDriver extends Homey.Driver {
       if (!isZoneSelected(homeyDevice.zone)) continue;
       if (homeyDevice.driverUri && homeyDevice.driverUri.includes('circadian-light-group')) continue;
 
-      const deviceClass = homeyDevice.virtualClass || homeyDevice.class;
-      const isLight = deviceClass === 'light';
       const hasLightControl = ['dim', 'light_temperature', 'light_hue', 'light_saturation']
         .some(cap => homeyDevice.capabilitiesObj?.[cap]?.setable === true);
-      if (!isLight && !hasLightControl) continue;
+      if (!hasLightControl) continue;
 
       const supportedCapabilities = {};
       let hasSupportedCapability = false;
@@ -653,6 +687,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
           light_temperature: null,
           light_hue: null,
           light_saturation: null,
+          light_mode: null,
           testedAt: null,
         },
       })),

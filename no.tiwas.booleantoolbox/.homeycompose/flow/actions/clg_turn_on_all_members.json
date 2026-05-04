@@ -1,0 +1,22 @@
+{
+  "id": "clg_turn_on_all_members",
+  "title": {
+    "en": "Turn on all lights at current circadian level",
+    "no": "Slå på alle lys med gjeldende dognrytmeniva"
+  },
+  "hint": {
+    "en": "Sets temperature/color and dim on every enabled member, then turns each on. Avoids the brief flash at the previous brightness.",
+    "no": "Setter temperatur/farge og dim på hvert aktive medlem, deretter slås det paa. Unngaar kort blink ved forrige lysstyrke."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "titleFormatted": {
+    "en": "Turn on all lights in the group at current circadian level",
+    "no": "Slå på alle lys i gruppen med gjeldende dognrytmeniva"
+  }
+}

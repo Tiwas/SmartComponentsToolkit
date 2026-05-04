@@ -52,12 +52,13 @@
 
     <script type="text/javascript">
     (function () {
-        const CAPS = ['dim', 'light_temperature', 'light_hue', 'light_saturation'];
+        const CAPS = ['dim', 'light_temperature', 'light_hue', 'light_saturation', 'light_mode'];
         const CAP_LABELS = {
             dim: 'Dim',
             light_temperature: 'Temp',
             light_hue: 'Hue',
             light_saturation: 'Sat',
+            light_mode: 'Mode',
         };
 
         let devices = [];
@@ -108,11 +109,13 @@
                 return;
             }
             container.innerHTML = devices.map((device, index) => {
+                const hasTestableCaps = (device.capabilities || []).some(c => CAPS.includes(c));
                 const status = device.status || 'idle';
                 let statusHtml = '<span class="status">&nbsp;</span>';
                 if (status === 'testing') statusHtml = '<span class="status testing"><span class="spinner"></span>' + (device.phaseLabel || t('pair.circadian_light_group.testing', 'Testing...')) + '</span>';
                 else if (status === 'done') statusHtml = '<span class="status done">' + t('pair.circadian_light_group.tested', 'Tested') + '</span>';
                 else if (status === 'error') statusHtml = '<span class="status error">' + t('pair.circadian_light_group.test_error', 'Error') + '</span>';
+                else if (!hasTestableCaps) statusHtml = '<span class="status">' + t('pair.circadian_light_group.no_testable_caps', 'No testable capabilities') + '</span>';
 
                 return '<div class="device-row">' +
                     '<div class="device-name">' + device.name + '</div>' +
@@ -120,7 +123,7 @@
                     '<div class="badges">' + renderBadges(device) + '</div>' +
                     '<div class="row-actions">' +
                         statusHtml +
-                        '<button class="secondary" data-test-index="' + index + '"' + (testing ? ' disabled' : '') + '>' + t('pair.circadian_light_group.test', 'Test') + '</button>' +
+                        (hasTestableCaps ? '<button class="secondary" data-test-index="' + index + '"' + (testing ? ' disabled' : '') + '>' + t('pair.circadian_light_group.test', 'Test') + '</button>' : '') +
                     '</div>' +
                 '</div>';
             }).join('');
@@ -248,7 +251,7 @@
                 }
                 devices = (result || []).map(device => Object.assign({}, device, {
                     status: 'idle',
-                    support: { dim: null, light_temperature: null, light_hue: null, light_saturation: null },
+                    support: { dim: null, light_temperature: null, light_hue: null, light_saturation: null, light_mode: null },
                 }));
                 renderDevices();
             });

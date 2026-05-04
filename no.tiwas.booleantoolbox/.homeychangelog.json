@@ -55,5 +55,8 @@
   },
   "1.10.2": {
     "en": "More user config options + test capabilities"
+  },
+  "1.10.3": {
+    "en": "Fiddled with capability detection and some code. Also removed devices with only on_off from list as...there's nothing to do with them."
   }
 }

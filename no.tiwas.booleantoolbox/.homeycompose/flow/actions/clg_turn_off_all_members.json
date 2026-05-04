@@ -1,0 +1,18 @@
+{
+  "id": "clg_turn_off_all_members",
+  "title": {
+    "en": "Turn off all lights in the group",
+    "no": "Slå av alle lys i gruppen"
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=circadian-light-group"
+    }
+  ],
+  "titleFormatted": {
+    "en": "Turn off all lights in the group",
+    "no": "Slå av alle lys i gruppen"
+  }
+}

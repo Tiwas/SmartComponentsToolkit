@@ -87,7 +87,9 @@
       { "id": "clg_set_red_threshold" },
       { "id": "clg_apply_state" },
       { "id": "clg_force_red_mode" },
-      { "id": "clg_turn_on_member" }
+      { "id": "clg_turn_on_member" },
+      { "id": "clg_turn_on_all_members" },
+      { "id": "clg_turn_off_all_members" }
     ]
   }
 }

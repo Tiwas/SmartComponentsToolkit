@@ -422,12 +422,13 @@
             return '<div><label>' + label + '</label><input type="number" data-index="' + index + '" data-key="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"></div>';
         }
 
-        const PREWARM_CAPS = ['dim', 'light_temperature', 'light_hue', 'light_saturation'];
-        const CAP_LABELS = { dim: 'Dim', light_temperature: 'Temp', light_hue: 'Hue', light_saturation: 'Sat' };
+        const PREWARM_CAPS = ['dim', 'light_temperature', 'light_hue', 'light_saturation', 'light_mode'];
+        const CAP_LABELS = { dim: 'Dim', light_temperature: 'Temp', light_hue: 'Hue', light_saturation: 'Sat', light_mode: 'Mode' };
 
         function prewarmBadgesHtml(device) {
             const support = device.prewarmSupport || {};
-            const badges = PREWARM_CAPS.map(capId => {
+            const caps = Array.isArray(device.capabilities) ? device.capabilities : [];
+            const badges = PREWARM_CAPS.filter(capId => caps.includes(capId)).map(capId => {
                 const value = support[capId];
                 let cls = '';
                 let mark = '·';
@@ -450,6 +451,8 @@
                 return;
             }
             config.devices.forEach((device, index) => {
+                const caps = Array.isArray(device.capabilities) ? device.capabilities : [];
+                const hasTestableCaps = PREWARM_CAPS.some(c => caps.includes(c));
                 const card = document.createElement('div');
                 card.className = 'device-card';
                 card.innerHTML =
@@ -457,16 +460,15 @@
                     '<div class="meta">' + (device.zoneName || '') + '</div>' +
                     '<div class="grid">' +
                     checkboxHtml(index, 'enabled', t('pair.circadian_light_group.enabled', 'Enabled'), device.enabled !== false) +
-                    checkboxHtml(index, 'prewarmBeforeOn', t('pair.circadian_light_group.prewarm_before_on', 'Prewarm before on'), device.prewarmBeforeOn !== false) +
+                    (hasTestableCaps ? checkboxHtml(index, 'prewarmBeforeOn', t('pair.circadian_light_group.prewarm_before_on', 'Prewarm before on'), device.prewarmBeforeOn !== false) : '') +
                     checkboxHtml(index, 'redModeAllowed', t('pair.circadian_light_group.allow_red_mode', 'Allow red mode'), device.redModeAllowed !== false) +
                     '<div></div>' +
                     numberHtml(index, 'minDim', t('pair.circadian_light_group.min_dim', 'Min dim'), device.minDim !== undefined ? device.minDim : 0.05, 0, 1, 0.01) +
                     numberHtml(index, 'maxDim', t('pair.circadian_light_group.max_dim', 'Max dim'), device.maxDim !== undefined ? device.maxDim : 1, 0, 1, 0.01) +
                     '</div>' +
-                    '<div class="muted" style="font-size:11px;margin-top:4px;">' + t('pair.circadian_light_group.prewarm_master_hint', 'Prewarm before on is a fallback for capabilities that have not been tested. Tested capabilities use the test result.') + '</div>' +
-                    prewarmBadgesHtml(device) +
+                    (hasTestableCaps ? '<div class="muted" style="font-size:11px;margin-top:4px;">' + t('pair.circadian_light_group.prewarm_master_hint', 'Prewarm before on is a fallback for capabilities that have not been tested. Tested capabilities use the test result.') + '</div>' + prewarmBadgesHtml(device) : '') +
                     '<div class="device-actions">' +
-                        '<button class="secondary" data-test="' + index + '">' + t('pair.circadian_light_group.test_prewarm', 'Test pre-warm') + '</button>' +
+                        (hasTestableCaps ? '<button class="secondary" data-test="' + index + '">' + t('pair.circadian_light_group.test_prewarm', 'Test pre-warm') + '</button>' : '') +
                         '<button class="danger" data-remove="' + index + '">' + t('pair.circadian_light_group.remove', 'Remove') + '</button>' +
                     '</div>';
                 container.appendChild(card);

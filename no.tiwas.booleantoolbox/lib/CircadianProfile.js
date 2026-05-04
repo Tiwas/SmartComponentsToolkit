@@ -130,31 +130,30 @@ function resolveAnchorMinutes(anchor, fallback, ctx, anchorKey) {
   return resolved;
 }
 
+// Anchors mark when each phase's values are reached. Transitions happen
+// between anchors; before `morning` and after `night` we hold flat at night.
 function getSegment(nowMinutes, anchors, ctx) {
   const morning = resolveAnchorMinutes(anchors.morning, 420, ctx, 'morning');
   const day = resolveAnchorMinutes(anchors.day, 600, ctx, 'day');
   const evening = resolveAnchorMinutes(anchors.evening, 1140, ctx, 'evening');
   const night = resolveAnchorMinutes(anchors.night, 1380, ctx, 'night');
 
-  if (nowMinutes < morning) {
-    const start = night - 1440;
-    return { from: 'night', to: 'day', progress: (nowMinutes - start) / (morning - start), phase: 'night' };
+  if (nowMinutes < morning || nowMinutes >= night) {
+    return { from: 'night', to: 'night', progress: 0, phase: 'night' };
   }
 
   if (nowMinutes < day) {
-    const progress = (nowMinutes - morning) / (day - morning);
+    const progress = (nowMinutes - morning) / Math.max(1, day - morning);
     return { from: 'night', to: 'day', progress, phase: progress < 0.5 ? 'night' : 'day' };
   }
 
   if (nowMinutes < evening) {
-    return { from: 'day', to: 'day', progress: 1, phase: 'day' };
+    const progress = (nowMinutes - day) / Math.max(1, evening - day);
+    return { from: 'day', to: 'evening', progress, phase: progress < 0.5 ? 'day' : 'evening' };
   }
 
-  if (nowMinutes < night) {
-    return { from: 'day', to: 'evening', progress: (nowMinutes - evening) / (night - evening), phase: 'evening' };
-  }
-
-  return { from: 'evening', to: 'night', progress: (nowMinutes - night) / ((morning + 1440) - night), phase: 'night' };
+  const progress = (nowMinutes - evening) / Math.max(1, night - evening);
+  return { from: 'evening', to: 'night', progress, phase: progress < 0.5 ? 'evening' : 'night' };
 }
 
 function getPhaseValues(profile, phase) {

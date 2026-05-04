@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circadian Light Group — JSON Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1a202c; }
+        textarea, input, select { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .form-input { @apply w-full border border-slate-300 rounded-md px-3 py-2 text-sm; }
+    </style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-5xl mx-auto p-6">
+    <header class="mb-6">
+        <h1 class="text-3xl font-bold">Circadian Light Group — JSON Editor</h1>
+        <p class="text-slate-600 mt-1">Paste your <code class="text-xs bg-slate-200 px-1 rounded">config_json</code>, edit profile and devices, merge in lights from a temp CLG, then copy the result back into Homey (device settings → Advanced → config_json).</p>
+    </header>
+
+    <!-- INPUT -->
+    <section class="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="font-semibold">1. Paste existing JSON</h2>
+            <div class="flex gap-2">
+                <button id="load-btn" class="bg-slate-800 text-white text-sm px-3 py-1.5 rounded hover:bg-slate-700">Load</button>
+                <button id="load-default" class="bg-slate-200 text-slate-800 text-sm px-3 py-1.5 rounded hover:bg-slate-300">Start from defaults</button>
+            </div>
+        </div>
+        <textarea id="input-json" class="w-full h-32 border border-slate-300 rounded-md p-2 text-xs font-mono" placeholder='{"profile":{...},"outdoorLight":{...},"devices":[...]}'></textarea>
+        <p id="input-error" class="text-red-600 text-sm mt-1 hidden"></p>
+    </section>
+
+    <!-- EDITOR -->
+    <div id="editor" class="hidden">
+        <!-- PROFILE -->
+        <section class="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+            <h2 class="font-semibold mb-3">2. Profile</h2>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Update interval (s)</label>
+                    <input id="p-interval" type="number" min="30" class="form-input border rounded px-2 py-1 w-full text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Red mode threshold (0–1)</label>
+                    <input id="p-red" type="number" step="0.01" min="0" max="1" class="form-input border rounded px-2 py-1 w-full text-sm">
+                </div>
+            </div>
+
+            <h3 class="font-medium text-sm mb-2">Anchors (HH:MM)</h3>
+            <div class="grid grid-cols-4 gap-3 mb-4">
+                <label class="block text-xs">Morning<input id="a-morning" class="form-input border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">Day (peak)<input id="a-day" class="form-input border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">Evening<input id="a-evening" class="form-input border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">Night<input id="a-night" class="form-input border rounded px-2 py-1 w-full text-sm mt-1"></label>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Only simple time anchors are supported in this editor. Solar/lux anchors will be preserved if present in the source JSON but not editable here.</p>
+
+            <h3 class="font-medium text-sm mb-2">Phase values (dim 0–1, temperature 0–1)</h3>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="border rounded p-2">
+                    <div class="text-xs font-semibold text-slate-700 mb-2">Day</div>
+                    <label class="block text-xs">dim<input id="day-dim" type="number" step="0.01" min="0" max="1" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                    <label class="block text-xs mt-2">temperature<input id="day-temp" type="number" step="0.01" min="0" max="1" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                </div>
+                <div class="border rounded p-2">
+                    <div class="text-xs font-semibold text-slate-700 mb-2">Evening</div>
+                    <label class="block text-xs">dim<input id="ev-dim" type="number" step="0.01" min="0" max="1" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                    <label class="block text-xs mt-2">temperature<input id="ev-temp" type="number" step="0.01" min="0" max="1" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                </div>
+                <div class="border rounded p-2">
+                    <div class="text-xs font-semibold text-slate-700 mb-2">Night</div>
+                    <label class="block text-xs">dim<input id="ni-dim" type="number" step="0.01" min="0" max="1" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                    <label class="block text-xs mt-2">temperature<input id="ni-temp" type="number" step="0.01" min="0" max="1" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                </div>
+            </div>
+
+            <h3 class="font-medium text-sm mb-2">Outdoor adjustment</h3>
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <label class="block text-xs flex items-center gap-2">
+                    <input id="o-enabled" type="checkbox" class="w-4 h-4">
+                    <span>Adjust brightness by outdoor light</span>
+                </label>
+                <div></div>
+                <label class="block text-xs">min lux<input id="o-min" type="number" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">max lux<input id="o-max" type="number" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">min dim factor<input id="o-mindf" type="number" step="0.01" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">max dim factor<input id="o-maxdf" type="number" step="0.01" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+            </div>
+
+            <h3 class="font-medium text-sm mb-2 mt-4">Outdoor source (provider)</h3>
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <label class="block text-xs">provider
+                    <select id="ol-provider" class="border rounded px-2 py-1 w-full text-sm mt-1">
+                        <option value="external_value">external_value</option>
+                        <option value="met_no">met_no</option>
+                        <option value="open_meteo">open_meteo</option>
+                        <option value="homey_lux_sensor">homey_lux_sensor</option>
+                        <option value="astronomical">astronomical</option>
+                    </select>
+                </label>
+                <label class="block text-xs">fallback provider
+                    <select id="ol-fallback" class="border rounded px-2 py-1 w-full text-sm mt-1">
+                        <option value="astronomical">astronomical</option>
+                        <option value="met_no">met_no</option>
+                        <option value="open_meteo">open_meteo</option>
+                    </select>
+                </label>
+                <label class="block text-xs">cache minutes<input id="ol-cache" type="number" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="block text-xs">stale after minutes<input id="ol-stale" type="number" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+            </div>
+        </section>
+
+        <!-- DEVICES -->
+        <section class="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-semibold">3. Managed Lights (<span id="dev-count">0</span>)</h2>
+                <button id="select-all" class="text-xs text-slate-600 hover:underline">toggle all enabled</button>
+            </div>
+            <div id="devices-list" class="space-y-2"></div>
+            <p id="devices-empty" class="text-sm text-slate-500 italic hidden">No managed lights. Use section 4 to merge in lights from a temp CLG.</p>
+        </section>
+
+        <!-- MERGE -->
+        <section class="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+            <h2 class="font-semibold mb-2">4. Merge devices from another CLG (temp/test)</h2>
+            <p class="text-sm text-slate-600 mb-2">Paste the full JSON of another CLG. Devices not already in your list (matched by id) will be appended. Profile and outdoor settings are not changed.</p>
+            <textarea id="merge-json" class="w-full h-24 border border-slate-300 rounded-md p-2 text-xs font-mono" placeholder='{"devices":[...]}'></textarea>
+            <div class="flex gap-2 mt-2">
+                <button id="merge-btn" class="bg-emerald-600 text-white text-sm px-3 py-1.5 rounded hover:bg-emerald-700">Merge devices</button>
+                <span id="merge-status" class="text-sm text-slate-600 self-center"></span>
+            </div>
+        </section>
+
+        <!-- OUTPUT -->
+        <section class="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="font-semibold">5. Result</h2>
+                <div class="flex gap-2">
+                    <button id="rebuild" class="bg-slate-200 text-slate-800 text-sm px-3 py-1.5 rounded hover:bg-slate-300">Refresh</button>
+                    <button id="copy" class="bg-blue-600 text-white text-sm px-3 py-1.5 rounded hover:bg-blue-700">Copy to clipboard</button>
+                </div>
+            </div>
+            <textarea id="output-json" class="w-full h-64 border border-slate-300 rounded-md p-2 text-xs font-mono" readonly></textarea>
+            <p id="copy-status" class="text-sm text-emerald-700 mt-1 hidden">Copied!</p>
+        </section>
+    </div>
+</div>
+
+<script>
+const DEFAULT_CONFIG = {
+    profile: {
+        updateIntervalSeconds: 120,
+        transitionSeconds: 90,
+        redThreshold: 0.2,
+        anchors: {
+            morning: { mode: 'time', time: '07:00' },
+            day:     { mode: 'time', time: '10:00' },
+            evening: { mode: 'time', time: '19:00' },
+            night:   { mode: 'time', time: '23:00' }
+        },
+        day:     { dim: 1,    temperature: 0.85 },
+        evening: { dim: 0.45, temperature: 0.25 },
+        night:   { dim: 0.08, temperature: 0 },
+        outdoor: { enabled: true, minLux: 0, maxLux: 20000, minDimFactor: 0.65, maxDimFactor: 1.15 }
+    },
+    outdoorLight: { provider: 'met_no', fallbackProvider: 'astronomical', cacheMinutes: 15, staleAfterMinutes: 20 },
+    devices: []
+};
+
+let state = null;
+
+function $(id) { return document.getElementById(id); }
+function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+function load(jsonText) {
+    $('input-error').classList.add('hidden');
+    let parsed;
+    try {
+        parsed = JSON.parse(jsonText);
+    } catch (e) {
+        $('input-error').textContent = 'Invalid JSON: ' + e.message;
+        $('input-error').classList.remove('hidden');
+        return;
+    }
+    state = {
+        profile: Object.assign(deepCopy(DEFAULT_CONFIG.profile), parsed.profile || {}),
+        outdoorLight: Object.assign(deepCopy(DEFAULT_CONFIG.outdoorLight), parsed.outdoorLight || {}),
+        devices: Array.isArray(parsed.devices) ? deepCopy(parsed.devices) : []
+    };
+    // Ensure nested defaults
+    state.profile.anchors = Object.assign(deepCopy(DEFAULT_CONFIG.profile.anchors), state.profile.anchors || {});
+    state.profile.day     = Object.assign(deepCopy(DEFAULT_CONFIG.profile.day),     state.profile.day     || {});
+    state.profile.evening = Object.assign(deepCopy(DEFAULT_CONFIG.profile.evening), state.profile.evening || {});
+    state.profile.night   = Object.assign(deepCopy(DEFAULT_CONFIG.profile.night),   state.profile.night   || {});
+    state.profile.outdoor = Object.assign(deepCopy(DEFAULT_CONFIG.profile.outdoor), state.profile.outdoor || {});
+    renderProfile();
+    renderDevices();
+    rebuildOutput();
+    $('editor').classList.remove('hidden');
+}
+
+function timeFromAnchor(a) {
+    if (typeof a === 'string') return a;
+    if (a && a.mode === 'time' && typeof a.time === 'string') return a.time;
+    if (a && typeof a.fallbackTime === 'string') return a.fallbackTime;
+    return '';
+}
+
+function renderProfile() {
+    const p = state.profile;
+    $('p-interval').value = p.updateIntervalSeconds ?? 120;
+    $('p-red').value = p.redThreshold ?? 0.2;
+
+    $('a-morning').value = timeFromAnchor(p.anchors.morning);
+    $('a-day').value     = timeFromAnchor(p.anchors.day);
+    $('a-evening').value = timeFromAnchor(p.anchors.evening);
+    $('a-night').value   = timeFromAnchor(p.anchors.night);
+
+    $('day-dim').value  = p.day.dim;
+    $('day-temp').value = p.day.temperature;
+    $('ev-dim').value   = p.evening.dim;
+    $('ev-temp').value  = p.evening.temperature;
+    $('ni-dim').value   = p.night.dim;
+    $('ni-temp').value  = p.night.temperature;
+
+    $('o-enabled').checked = p.outdoor.enabled !== false;
+    $('o-min').value    = p.outdoor.minLux;
+    $('o-max').value    = p.outdoor.maxLux;
+    $('o-mindf').value  = p.outdoor.minDimFactor;
+    $('o-maxdf').value  = p.outdoor.maxDimFactor;
+
+    const ol = state.outdoorLight;
+    $('ol-provider').value = ol.provider || 'met_no';
+    $('ol-fallback').value = ol.fallbackProvider || 'astronomical';
+    $('ol-cache').value    = ol.cacheMinutes ?? 15;
+    $('ol-stale').value    = ol.staleAfterMinutes ?? 20;
+}
+
+function readProfile() {
+    const p = state.profile;
+    p.updateIntervalSeconds = Number($('p-interval').value) || 120;
+    p.redThreshold = Number($('p-red').value);
+
+    const setTime = (key, val) => {
+        const v = String(val || '').trim();
+        if (!v) return;
+        const cur = p.anchors[key];
+        if (cur && (cur.mode === 'solar' || cur.mode === 'lux')) {
+            cur.fallbackTime = v;
+        } else {
+            p.anchors[key] = { mode: 'time', time: v };
+        }
+    };
+    setTime('morning', $('a-morning').value);
+    setTime('day',     $('a-day').value);
+    setTime('evening', $('a-evening').value);
+    setTime('night',   $('a-night').value);
+
+    p.day.dim     = Number($('day-dim').value);
+    p.day.temperature = Number($('day-temp').value);
+    p.evening.dim = Number($('ev-dim').value);
+    p.evening.temperature = Number($('ev-temp').value);
+    p.night.dim   = Number($('ni-dim').value);
+    p.night.temperature = Number($('ni-temp').value);
+
+    p.outdoor.enabled = $('o-enabled').checked;
+    p.outdoor.minLux  = Number($('o-min').value);
+    p.outdoor.maxLux  = Number($('o-max').value);
+    p.outdoor.minDimFactor = Number($('o-mindf').value);
+    p.outdoor.maxDimFactor = Number($('o-maxdf').value);
+
+    const ol = state.outdoorLight;
+    ol.provider = $('ol-provider').value;
+    ol.fallbackProvider = $('ol-fallback').value;
+    ol.cacheMinutes = Number($('ol-cache').value);
+    ol.staleAfterMinutes = Number($('ol-stale').value);
+}
+
+function renderDevices() {
+    const list = $('devices-list');
+    list.innerHTML = '';
+    $('dev-count').textContent = state.devices.length;
+    $('devices-empty').classList.toggle('hidden', state.devices.length > 0);
+
+    state.devices.forEach((d, idx) => {
+        const card = document.createElement('div');
+        card.className = 'border border-slate-200 rounded p-3 bg-slate-50';
+        card.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex-1">
+                    <input data-f="name" class="border rounded px-2 py-1 text-sm font-medium w-full mb-1" value="${escapeAttr(d.name || '')}" placeholder="Light name">
+                    <div class="text-xs text-slate-500 break-all">id: ${escapeHtml(d.id || '')}</div>
+                </div>
+                <button data-action="del" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded text-sm">Delete</button>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                <label class="text-xs flex items-center gap-1"><input data-f="enabled" type="checkbox" ${d.enabled !== false ? 'checked' : ''}>enabled</label>
+                <label class="text-xs flex items-center gap-1"><input data-f="prewarmBeforeOn" type="checkbox" ${d.prewarmBeforeOn !== false ? 'checked' : ''}>prewarm</label>
+                <label class="text-xs flex items-center gap-1"><input data-f="redModeAllowed" type="checkbox" ${d.redModeAllowed !== false ? 'checked' : ''}>red mode</label>
+                <label class="text-xs flex items-center gap-1"><input data-f="invertTemperature" type="checkbox" ${d.invertTemperature === true ? 'checked' : ''}>invert temp</label>
+                <label class="text-xs">min dim<input data-f="minDim" type="number" step="0.01" min="0" max="1" value="${d.minDim ?? 0.05}" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+                <label class="text-xs">max dim<input data-f="maxDim" type="number" step="0.01" min="0" max="1" value="${d.maxDim ?? 1}" class="border rounded px-2 py-1 w-full text-sm mt-1"></label>
+            </div>
+        `;
+        card.addEventListener('input', (e) => {
+            const f = e.target.getAttribute('data-f');
+            if (!f) return;
+            if (e.target.type === 'checkbox') d[f] = e.target.checked;
+            else if (e.target.type === 'number') d[f] = Number(e.target.value);
+            else d[f] = e.target.value;
+            rebuildOutput();
+        });
+        card.querySelector('[data-action="del"]').addEventListener('click', () => {
+            if (!confirm(`Remove "${d.name || d.id}" from group?`)) return;
+            state.devices.splice(idx, 1);
+            renderDevices();
+            rebuildOutput();
+        });
+        list.appendChild(card);
+    });
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+function rebuildOutput() {
+    if (!state) return;
+    readProfile();
+    $('output-json').value = JSON.stringify(state, null, 2);
+}
+
+function mergeFromText(text) {
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (e) {
+        $('merge-status').textContent = 'Invalid JSON: ' + e.message;
+        $('merge-status').className = 'text-sm text-red-600 self-center';
+        return;
+    }
+    const incoming = Array.isArray(parsed.devices) ? parsed.devices : (Array.isArray(parsed) ? parsed : []);
+    if (incoming.length === 0) {
+        $('merge-status').textContent = 'No devices found in pasted JSON.';
+        $('merge-status').className = 'text-sm text-amber-700 self-center';
+        return;
+    }
+    const existingIds = new Set(state.devices.map(d => d.id));
+    let added = 0, skipped = 0;
+    incoming.forEach(d => {
+        if (!d || !d.id) { skipped++; return; }
+        if (existingIds.has(d.id)) { skipped++; return; }
+        state.devices.push(deepCopy(d));
+        existingIds.add(d.id);
+        added++;
+    });
+    $('merge-status').textContent = `Added ${added}, skipped ${skipped} (duplicate or missing id).`;
+    $('merge-status').className = 'text-sm text-emerald-700 self-center';
+    renderDevices();
+    rebuildOutput();
+}
+
+$('load-btn').addEventListener('click', () => load($('input-json').value));
+$('load-default').addEventListener('click', () => { $('input-json').value = JSON.stringify(DEFAULT_CONFIG, null, 2); load($('input-json').value); });
+$('merge-btn').addEventListener('click', () => mergeFromText($('merge-json').value));
+$('rebuild').addEventListener('click', rebuildOutput);
+
+// Live profile fields rebuild output
+['p-interval','p-red','a-morning','a-day','a-evening','a-night',
+ 'day-dim','day-temp','ev-dim','ev-temp','ni-dim','ni-temp',
+ 'o-enabled','o-min','o-max','o-mindf','o-maxdf',
+ 'ol-provider','ol-fallback','ol-cache','ol-stale'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', rebuildOutput);
+});
+
+$('select-all').addEventListener('click', () => {
+    if (!state) return;
+    const allEnabled = state.devices.every(d => d.enabled !== false);
+    state.devices.forEach(d => d.enabled = !allEnabled);
+    renderDevices();
+    rebuildOutput();
+});
+
+$('copy').addEventListener('click', async () => {
+    try {
+        await navigator.clipboard.writeText($('output-json').value);
+        $('copy-status').classList.remove('hidden');
+        setTimeout(() => $('copy-status').classList.add('hidden'), 1500);
+    } catch (e) {
+        $('output-json').select();
+        document.execCommand('copy');
+    }
+});
+</script>
+</body>
+</html>

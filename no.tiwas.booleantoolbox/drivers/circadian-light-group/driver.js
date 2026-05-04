@@ -174,9 +174,6 @@ class CircadianLightGroupDriver extends Homey.Driver {
     cond('clg_red_mode_active', 'onConditionRedModeActive');
     cond('clg_is_paused', 'onConditionIsPaused');
     cond('clg_is_on', 'onConditionIsOn');
-
-    this.homey.flow.getTriggerCard('clg_outdoor_light_requested')
-      .registerRunListener(async (args, state) => args.device?.getData().id === state?.deviceId);
   }
 
   async probeDeviceAsync(deviceId, session) {
@@ -468,23 +465,29 @@ class CircadianLightGroupDriver extends Homey.Driver {
     }));
 
     session.setHandler('save_config', async (data) => {
-      const config = data?.config || {};
-      const configJson = JSON.stringify(config, null, 2);
-
-      JSON.parse(configJson);
-      await device.setSettings({ config_json: configJson });
-      // setSettings triggers onSettings on the device, which re-runs lux watchers
-      // and the scheduler.
-      return { success: true };
+      this.debug(`save_config invoked, devices=${(data?.config?.devices || []).length}`);
+      try {
+        const config = data?.config || {};
+        const configJson = JSON.stringify(config, null, 2);
+        JSON.parse(configJson);
+        await device.setSettings({ config_json: configJson });
+        this.debug('save_config OK');
+        return { success: true };
+      } catch (error) {
+        this.error('save_config failed:', error);
+        throw error;
+      }
     });
 
     session.setHandler('get_light_candidates', async () => this.getLightCandidates({ wholeHouse: true }));
     session.setHandler('get_lux_sensors', async () => this.getLuxSensors());
 
     session.setHandler('probe_device', async ({ deviceId } = {}) => {
+      this.debug(`probe_device invoked deviceId=${deviceId}`);
       if (!deviceId) throw new Error('deviceId required');
       this.probeDeviceAsync(deviceId, session)
         .catch(error => {
+          this.error(`probe_device async failure for ${deviceId}:`, error);
           session.emit('probe_complete', { deviceId, tested: false, error: error.message, support: {} }).catch(() => {});
         });
       return { started: true };

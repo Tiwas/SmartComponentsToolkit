@@ -227,7 +227,9 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (this.deleted) return false;
 
     const config = this.getConfig();
-    const devices = Array.isArray(config.devices) ? config.devices.filter(device => device.enabled !== false) : [];
+    const allDevices = Array.isArray(config.devices) ? config.devices : [];
+    const devices = allDevices.filter(device => device.enabled !== false);
+    this.debug(`apply[${reason}] config: ${allDevices.length} device(s) total, ${devices.length} enabled`);
 
     let outdoor;
     try {
@@ -245,6 +247,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     });
 
     this.applyOverridesToTarget(target);
+    this.debug(`apply[${reason}] target: phase=${target.phase} dim=${target.dim?.toFixed?.(3)} temp=${target.temperature?.toFixed?.(3)} mode=${target.mode} outdoorLux=${outdoor.outdoorComputedLux} (source=${outdoor.source})`);
 
     // Phase + red mode change detection.
     if (this.previousPhase !== null && this.previousPhase !== target.phase) {
@@ -273,10 +276,12 @@ class CircadianLightGroupDevice extends Homey.Device {
       && this.getCapabilityValue('clg_paused') !== true;
 
     if (!shouldApplyToLights) {
+      this.debug(`apply[${reason}] SKIPPED push to lights: onoff=${this.getCapabilityValue('onoff')} clg_paused=${this.getCapabilityValue('clg_paused')}`);
       return false;
     }
 
     if (devices.length === 0) {
+      this.debug(`apply[${reason}] SKIPPED push to lights: no enabled devices in config`);
       await this.setCapabilityValue('alarm_config', true).catch(this.error);
       return false;
     }
@@ -299,7 +304,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       await this.triggerError(`${errors.length} light(s) failed during ${reason}`);
     }
 
-    await this.homey.flow.getTriggerCard('clg_target_changed')
+    await this.homey.flow.getDeviceTriggerCard('clg_target_changed')
       .trigger(this, {
         phase: target.phase,
         dim: target.dim,
@@ -314,24 +319,36 @@ class CircadianLightGroupDevice extends Homey.Device {
   async requestExternalOutdoorLightIfNeeded(config) {
     if (config.outdoorLight?.provider !== 'external_value') return;
 
-    await this.homey.flow.getTriggerCard('clg_outdoor_light_requested')
-      .trigger(this, {}, { deviceId: this.getData().id })
+    await this.homey.flow.getDeviceTriggerCard('clg_outdoor_light_requested')
+      .trigger(this, {}, {})
       .catch(this.error);
   }
 
   async applyTargetToDevice(item, target) {
-    if (!item.id) return;
+    if (!item.id) {
+      this.debug(`applyTargetToDevice: skipped (no id) for ${item.name || '<unnamed>'}`);
+      return;
+    }
 
+    const label = item.name || item.id;
     const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
     const caps = apiDevice.capabilitiesObj || {};
     const isOn = caps.onoff?.value === true;
     const unsafePrewarmDevices = await this.getStoreValue('unsafe_prewarm_devices') || {};
     const prewarmBeforeOn = item.prewarmBeforeOn !== false && !unsafePrewarmDevices[item.id];
 
-    if (!isOn && !prewarmBeforeOn) return;
+    if (!isOn && !prewarmBeforeOn) {
+      this.debug(`applyTargetToDevice[${label}]: skipped (off + prewarm disabled)`);
+      return;
+    }
 
     const capabilitiesToSet = this.getCapabilitiesToSet(item, target, caps, isOn);
-    if (capabilitiesToSet.length === 0) return;
+    if (capabilitiesToSet.length === 0) {
+      this.debug(`applyTargetToDevice[${label}]: nothing to set (isOn=${isOn})`);
+      return;
+    }
+
+    this.debug(`applyTargetToDevice[${label}]: isOn=${isOn} writes=${JSON.stringify(capabilitiesToSet)}`);
 
     for (const [capability, value] of capabilitiesToSet) {
       await apiDevice.setCapabilityValue(capability, value);
@@ -386,7 +403,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   async triggerError(error) {
     if (this.getSetting('log_errors') !== false) {
-      await this.homey.flow.getTriggerCard('clg_error_occurred')
+      await this.homey.flow.getDeviceTriggerCard('clg_error_occurred')
         .trigger(this, { error })
         .catch(this.error);
     }
@@ -498,6 +515,16 @@ class CircadianLightGroupDevice extends Homey.Device {
     const config = this.getConfig();
     const item = (Array.isArray(config.devices) ? config.devices : []).find(d => d.id === memberId);
     if (!item) throw new Error('Light is not a member of this group');
+
+    const clgActive = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+    if (!clgActive) {
+      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+      if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== true) {
+        await apiDevice.setCapabilityValue('onoff', true);
+      }
+      this.debug(`turn_on_member[${item.name || item.id}]: CLG inactive, only set onoff=true`);
+      return true;
+    }
 
     let outdoor;
     try {

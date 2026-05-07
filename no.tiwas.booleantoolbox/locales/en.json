@@ -594,6 +594,7 @@
       "phase_verifying": "Verifying",
       "phase_restoring": "Restoring...",
       "allow_red_mode": "Allow red mode",
+      "invert_temperature": "Invert temperature scale",
       "min_dim": "Min dim",
       "max_dim": "Max dim",
       "remove": "Remove",

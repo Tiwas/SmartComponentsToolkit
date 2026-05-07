@@ -15,6 +15,7 @@ node_modules/
 node_modules/
 npm-debug.log
 patch-files/
+*.backup/
 *.old/
 
 # Old version

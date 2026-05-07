@@ -287,12 +287,17 @@ class CircadianLightGroupDriver extends Homey.Driver {
 
       emitProgress('turning_off');
       if (!await ensureOff()) {
+        result.tested = false;
         result.error = 'Could not confirm device is off before testing';
         return result;
       }
 
       for (const capId of PREWARM_TEST_CAPABILITIES) {
-        if (!initialCaps[capId]?.setable) continue;
+        if (!initialCaps[capId]?.setable) {
+          result.capErrors[capId] = 'not setable';
+          this.debug(`Probe ${deviceId}/${capId}: not setable → ?`);
+          continue;
+        }
 
         const beforeValue = snapshot[capId];
         const testValue = pickProbeValue(capId, beforeValue);
@@ -354,6 +359,9 @@ class CircadianLightGroupDriver extends Homey.Driver {
           result.capErrors.light_mode = error.message || String(error);
           this.debug(`Probe ${deviceId}/light_mode setCapabilityValue threw: ${result.capErrors.light_mode}`);
         }
+      } else {
+        result.capErrors.light_mode = 'not setable';
+        this.debug(`Probe ${deviceId}/light_mode: not setable → ?`);
       }
     } finally {
       emitProgress('restoring');
@@ -570,7 +578,8 @@ class CircadianLightGroupDriver extends Homey.Driver {
     for (const deviceId in allDevices) {
       const homeyDevice = allDevices[deviceId];
       if (!isZoneSelected(homeyDevice.zone)) continue;
-      if (homeyDevice.driverUri && homeyDevice.driverUri.includes('circadian-light-group')) continue;
+      const driverRef = `${homeyDevice.driverUri || ''}|${homeyDevice.driverId || ''}|${homeyDevice.driver?.id || ''}`;
+      if (driverRef.includes('circadian-light-group')) continue;
 
       const hasLightControl = ['dim', 'light_temperature', 'light_hue', 'light_saturation']
         .some(cap => homeyDevice.capabilitiesObj?.[cap]?.setable === true);
@@ -679,6 +688,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
         enabled: true,
         prewarmBeforeOn: true,
         redModeAllowed: true,
+        invertTemperature: true,
         minDim: 0.05,
         maxDim: 1,
         capabilities: Object.keys(device.capabilities),

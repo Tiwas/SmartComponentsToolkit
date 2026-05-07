@@ -7,10 +7,12 @@
         .homey-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
         .homey-subtitle { font-size: 16px; color: #666; }
         .device-list { max-height: 350px; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-bottom: 15px; background: white; border-radius: 5px; }
-        .device-item { padding: 8px 5px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0; }
+        .device-item { padding: 10px 5px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0; }
         .device-item:last-child { border-bottom: none; }
-        .device-item label { margin-left: 10px; cursor: pointer; flex-grow: 1; }
-        .zone-name, .cap-summary { color: #999; font-size: 12px; margin-left: 10px; }
+        .device-item input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
+        .device-item label { margin-left: 12px; cursor: pointer; flex-grow: 1; display: flex; flex-direction: column; gap: 2px; line-height: 1.3; }
+        .device-item label .device-name { font-size: 15px; }
+        .zone-name, .cap-summary { color: #999; font-size: 12px; }
         .toolbar { display: flex; justify-content: space-between; margin-bottom: 10px; }
         .toolbar a { color: #4CAF50; text-decoration: none; font-size: 14px; cursor: pointer; }
         button { padding: 15px 40px; background-color: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; width: 100%; font-weight: 500; }
@@ -68,6 +70,12 @@
         const selectAllBtn = document.getElementById('select-all');
         const deselectAllBtn = document.getElementById('deselect-all');
         let candidateDevices = [];
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
 
         function t(key, fallback) {
             try {
@@ -147,9 +155,9 @@
 
                 const label = document.createElement('label');
                 label.htmlFor = checkbox.id;
-                label.innerHTML = '<span>' + device.name + '</span>' +
-                    (device.zoneName ? '<span class="zone-name">(' + device.zoneName + ')</span>' : '') +
-                    (device.capabilitySummary ? '<span class="cap-summary">' + device.capabilitySummary + '</span>' : '');
+                label.innerHTML = '<span class="device-name">' + esc(device.name) + '</span>' +
+                    (device.zoneName ? '<span class="zone-name">' + esc(device.zoneName) + '</span>' : '') +
+                    (device.capabilitySummary ? '<span class="cap-summary">' + esc(device.capabilitySummary) + '</span>' : '');
 
                 div.appendChild(checkbox);
                 div.appendChild(label);

@@ -595,6 +595,7 @@
       "phase_verifying": "Verifiserer",
       "phase_restoring": "Tilbakestiller...",
       "allow_red_mode": "Tillat rodmodus",
+      "invert_temperature": "Inverter temperaturskala",
       "min_dim": "Min dim",
       "max_dim": "Maks dim",
       "remove": "Fjern",

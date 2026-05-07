@@ -16,9 +16,20 @@ const TRANSIENT_ERROR_PATTERNS = [
   /TRANSMIT_COMPLETE_FAIL/i,
 ];
 
+const WARM_COLOR_HUE = 0.08; // amber on Homey's 0..1 hue wheel
+const RED_BLEND_TEMPERATURE = 0.25;
+const FULLY_DESATURATED_TEMPERATURE = 0.85;
+
 function isTransientDeviceError(error) {
   const message = `${error?.message || ''} ${error?.cause?.error || ''} ${error?.cause?.error_description || ''}`;
   return TRANSIENT_ERROR_PATTERNS.some(re => re.test(message));
+}
+
+function temperatureToWarmColor(temperature) {
+  const temp = clamp(temperature);
+  const hue = WARM_COLOR_HUE * clamp(temp / RED_BLEND_TEMPERATURE);
+  const saturation = clamp(1 - (temp / FULLY_DESATURATED_TEMPERATURE));
+  return { hue, saturation };
 }
 
 class CircadianLightGroupDevice extends Homey.Device {
@@ -410,6 +421,14 @@ class CircadianLightGroupDevice extends Homey.Device {
       if (!isOn && prewarmBeforeOn) {
         const tripped = await this.waitForPrewarmTrip(() => liveOnoff, PREWARM_ONOFF_WAIT_MS);
         if (tripped) {
+          if (caps.onoff?.setable) {
+            try {
+              await apiDevice.setCapabilityValue('onoff', false);
+              this.debug(`applyTargetToDevice[${label}]: prewarm tripped lamp on — forced off`);
+            } catch (error) {
+              this.debug(`applyTargetToDevice[${label}]: failed to force off after prewarm trip: ${error.message}`);
+            }
+          }
           await this.markUnsafePrewarm(item, label);
         } else {
           this.debug(`applyTargetToDevice[${label}]: prewarm OK (onoff stayed false ${PREWARM_ONOFF_WAIT_MS}ms)`);
@@ -447,28 +466,39 @@ class CircadianLightGroupDevice extends Homey.Device {
     const minDim = Number.isFinite(Number(item.minDim)) ? Number(item.minDim) : 0.05;
     const maxDim = Number.isFinite(Number(item.maxDim)) ? Number(item.maxDim) : 1;
     const canUseRed = item.redModeAllowed !== false;
-    const mode = target.mode === 'color' && canUseRed ? 'color' : 'temperature';
     const prewarm = item.prewarmSupport || {};
     const prewarmAllowed = (capId) => isOn || prewarm[capId] !== false;
+    const canWriteColor = canUseRed
+      && caps.light_hue?.setable === true
+      && caps.light_saturation?.setable === true
+      && prewarmAllowed('light_hue')
+      && prewarmAllowed('light_saturation');
+    const canWriteTemperature = caps.light_temperature?.setable === true && prewarmAllowed('light_temperature');
+    const useRedColor = target.mode === 'color' && canWriteColor;
+    const useWarmColorFallback = target.mode !== 'color' && !canWriteTemperature && canWriteColor;
+    const mode = useRedColor || useWarmColorFallback
+      ? 'color'
+      : (canWriteTemperature ? 'temperature' : null);
 
     const lightModeAllowed = isOn || prewarm.light_mode === true;
-    if (caps.light_mode?.setable && caps.light_mode.value !== mode && lightModeAllowed) {
+    if (mode && caps.light_mode?.setable && caps.light_mode.value !== mode && lightModeAllowed) {
       result.push(['light_mode', mode]);
       if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: light_mode ${caps.light_mode.value} -> ${mode} (isOn=${isOn} prewarm.light_mode=${prewarm.light_mode})`);
-    } else if (debugLabel && caps.light_mode?.setable && caps.light_mode.value !== mode) {
+    } else if (debugLabel && mode && caps.light_mode?.setable && caps.light_mode.value !== mode) {
       this.debug(`getCapabilitiesToSet[${debugLabel}]: light_mode write SUPPRESSED (isOn=${isOn} prewarm.light_mode=${prewarm.light_mode}) — strict opt-in`);
     }
 
-    if (mode === 'color' && caps.light_hue?.setable && caps.light_saturation?.setable) {
-      if (prewarmAllowed('light_hue')) result.push(['light_hue', target.hue]);
-      if (prewarmAllowed('light_saturation')) result.push(['light_saturation', target.saturation]);
-      if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: color path, prewarmAllowed(hue)=${prewarmAllowed('light_hue')} prewarmAllowed(sat)=${prewarmAllowed('light_saturation')}`);
-    } else if (caps.light_temperature?.setable && prewarmAllowed('light_temperature')) {
-      const temperature = item.invertTemperature === true ? 1 - target.temperature : target.temperature;
+    if (mode === 'color') {
+      const color = useRedColor ? target : temperatureToWarmColor(target.temperature);
+      result.push(['light_hue', clamp(color.hue)]);
+      result.push(['light_saturation', clamp(color.saturation)]);
+      if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: color path (${useRedColor ? 'red' : 'warm-fallback'}), hue=${color.hue} saturation=${color.saturation}`);
+    } else if (mode === 'temperature') {
+      const temperature = item.invertTemperature === false ? target.temperature : 1 - target.temperature;
       result.push(['light_temperature', clamp(temperature)]);
       if (debugLabel) this.debug(`getCapabilitiesToSet[${debugLabel}]: temperature path, prewarmAllowed(temp)=${prewarmAllowed('light_temperature')} (prewarm.light_temperature=${prewarm.light_temperature})`);
     } else if (debugLabel) {
-      this.debug(`getCapabilitiesToSet[${debugLabel}]: no color/temperature write — mode=${mode} hue.setable=${caps.light_hue?.setable} sat.setable=${caps.light_saturation?.setable} temp.setable=${caps.light_temperature?.setable} prewarmAllowed(temp)=${prewarmAllowed('light_temperature')}`);
+      this.debug(`getCapabilitiesToSet[${debugLabel}]: no color/temperature write — hue.setable=${caps.light_hue?.setable} sat.setable=${caps.light_saturation?.setable} temp.setable=${caps.light_temperature?.setable} prewarmAllowed(temp)=${prewarmAllowed('light_temperature')}`);
     }
 
     if (caps.dim?.setable && (isOn || prewarm.dim === true)) {
@@ -670,26 +700,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
     const caps = apiDevice.capabilitiesObj || {};
-
-    const minDim = Number.isFinite(Number(item.minDim)) ? Number(item.minDim) : 0.05;
-    const maxDim = Number.isFinite(Number(item.maxDim)) ? Number(item.maxDim) : 1;
-    const canUseRed = item.redModeAllowed !== false;
-    const mode = target.mode === 'color' && canUseRed ? 'color' : 'temperature';
-
-    const writes = [];
-    if (caps.light_mode?.setable && caps.light_mode.value !== mode) {
-      writes.push(['light_mode', mode]);
-    }
-    if (mode === 'color' && caps.light_hue?.setable && caps.light_saturation?.setable) {
-      writes.push(['light_hue', target.hue]);
-      writes.push(['light_saturation', target.saturation]);
-    } else if (caps.light_temperature?.setable) {
-      const temperature = item.invertTemperature === true ? 1 - target.temperature : target.temperature;
-      writes.push(['light_temperature', clamp(temperature)]);
-    }
-    if (caps.dim?.setable) {
-      writes.push(['dim', clamp(target.dim, minDim, maxDim)]);
-    }
+    const writes = this.getCapabilitiesToSet(item, target, caps, true);
 
     for (const [capability, value] of writes) {
       await apiDevice.setCapabilityValue(capability, value);

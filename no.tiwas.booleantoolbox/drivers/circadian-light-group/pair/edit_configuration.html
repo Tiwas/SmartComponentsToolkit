@@ -150,6 +150,12 @@
             return fallback;
         }
 
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
         function applyTranslations() {
             if (typeof Homey === 'undefined' || typeof Homey.__ !== 'function') return;
             document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -158,20 +164,20 @@
         }
 
         const SOLAR_EVENTS = [
-            { value: 'sunrise', key: 'pair.circadian_light_group.solar_event_sunrise', fallback: 'Sunrise' },
-            { value: 'sunset', key: 'pair.circadian_light_group.solar_event_sunset', fallback: 'Sunset' },
-            { value: 'civil_dawn', key: 'pair.circadian_light_group.solar_event_civil_dawn', fallback: 'Civil dawn' },
-            { value: 'civil_dusk', key: 'pair.circadian_light_group.solar_event_civil_dusk', fallback: 'Civil dusk' },
-            { value: 'nautical_dawn', key: 'pair.circadian_light_group.solar_event_nautical_dawn', fallback: 'Nautical dawn' },
-            { value: 'nautical_dusk', key: 'pair.circadian_light_group.solar_event_nautical_dusk', fallback: 'Nautical dusk' },
+            { value: 'solar_midnight', key: 'pair.circadian_light_group.solar_event_solar_midnight', fallback: 'Solar midnight' },
             { value: 'astronomical_dawn', key: 'pair.circadian_light_group.solar_event_astronomical_dawn', fallback: 'Astronomical dawn' },
-            { value: 'astronomical_dusk', key: 'pair.circadian_light_group.solar_event_astronomical_dusk', fallback: 'Astronomical dusk' },
-            { value: 'golden_hour_morning', key: 'pair.circadian_light_group.solar_event_golden_hour_morning', fallback: 'Golden hour (morning end)' },
-            { value: 'golden_hour_evening', key: 'pair.circadian_light_group.solar_event_golden_hour_evening', fallback: 'Golden hour (evening start)' },
+            { value: 'nautical_dawn', key: 'pair.circadian_light_group.solar_event_nautical_dawn', fallback: 'Nautical dawn' },
+            { value: 'civil_dawn', key: 'pair.circadian_light_group.solar_event_civil_dawn', fallback: 'Civil dawn' },
             { value: 'blue_hour_morning', key: 'pair.circadian_light_group.solar_event_blue_hour_morning', fallback: 'Blue hour (morning)' },
-            { value: 'blue_hour_evening', key: 'pair.circadian_light_group.solar_event_blue_hour_evening', fallback: 'Blue hour (evening)' },
+            { value: 'sunrise', key: 'pair.circadian_light_group.solar_event_sunrise', fallback: 'Sunrise' },
+            { value: 'golden_hour_morning', key: 'pair.circadian_light_group.solar_event_golden_hour_morning', fallback: 'Golden hour (morning end)' },
             { value: 'solar_noon', key: 'pair.circadian_light_group.solar_event_solar_noon', fallback: 'Solar noon' },
-            { value: 'solar_midnight', key: 'pair.circadian_light_group.solar_event_solar_midnight', fallback: 'Solar midnight' }
+            { value: 'golden_hour_evening', key: 'pair.circadian_light_group.solar_event_golden_hour_evening', fallback: 'Golden hour (evening start)' },
+            { value: 'sunset', key: 'pair.circadian_light_group.solar_event_sunset', fallback: 'Sunset' },
+            { value: 'blue_hour_evening', key: 'pair.circadian_light_group.solar_event_blue_hour_evening', fallback: 'Blue hour (evening)' },
+            { value: 'civil_dusk', key: 'pair.circadian_light_group.solar_event_civil_dusk', fallback: 'Civil dusk' },
+            { value: 'nautical_dusk', key: 'pair.circadian_light_group.solar_event_nautical_dusk', fallback: 'Nautical dusk' },
+            { value: 'astronomical_dusk', key: 'pair.circadian_light_group.solar_event_astronomical_dusk', fallback: 'Astronomical dusk' }
         ];
 
         function buildSolarOptions(selected) {
@@ -283,7 +289,7 @@
 
                 if (anchor.mode === 'lux') {
                     const sensorOpts = ['<option value="">' + t('pair.circadian_light_group.select_lux_sensor', 'Select lux sensor...') + '</option>']
-                        .concat(sensors.map(s => '<option value="' + s.id + '"' + (s.id === anchor.sensorDeviceId ? ' selected' : '') + '>' + s.name + (s.zoneName ? ' (' + s.zoneName + ')' : '') + '</option>'))
+                        .concat(sensors.map(s => '<option value="' + esc(s.id) + '"' + (s.id === anchor.sensorDeviceId ? ' selected' : '') + '>' + esc(s.name) + (s.zoneName ? ' (' + esc(s.zoneName) + ')' : '') + '</option>'))
                         .join('');
                     const direction = anchor.direction || ((key === 'morning' || key === 'day') ? 'rising' : 'falling');
                     const detail = document.createElement('div');
@@ -394,6 +400,45 @@
             return '<div class="row"><input type="checkbox" data-index="' + index + '" data-key="' + key + '"' + (checked ? ' checked' : '') + '><label>' + label + '</label></div>';
         }
 
+        function prewarmCapCheckbox(index, capKey, label, checked) {
+            return '<div class="row" style="margin-left:16px;"><input type="checkbox" data-index="' + index + '" data-prewarm-cap="' + capKey + '"' + (checked ? ' checked' : '') + '><label>' + label + '</label></div>';
+        }
+
+        function hasCap(device, capId) {
+            return Array.isArray(device.capabilities) && device.capabilities.indexOf(capId) >= 0;
+        }
+
+        function hasColor(device) { return hasCap(device, 'light_hue') && hasCap(device, 'light_saturation'); }
+
+        function prewarmDefault(device, capId) {
+            const v = device.prewarmSupport ? device.prewarmSupport[capId] : null;
+            if (v === true) return true;
+            if (v === false) return false;
+            // null/untested: opt-in for dim and light_mode (runtime requires === true), opt-out for temp/hue/sat
+            return capId !== 'dim' && capId !== 'light_mode';
+        }
+
+        function prewarmColorDefault(device) {
+            return prewarmDefault(device, 'light_hue') && prewarmDefault(device, 'light_saturation');
+        }
+
+        function prewarmMasterDefault(device) {
+            if (device.prewarmBeforeOn === false) return false;
+            if (device.prewarmBeforeOn === true) return true;
+            const s = device.prewarmSupport || {};
+            return s.dim === true || s.light_temperature === true || s.light_hue === true || s.light_saturation === true || s.light_mode === true;
+        }
+
+        function redModeDefault(device) {
+            if (device.redModeAllowed === false) return false;
+            if (device.redModeAllowed === true) return hasColor(device);
+            return hasColor(device);
+        }
+
+        function invertTemperatureDefault(device) {
+            return hasCap(device, 'light_temperature') && device.invertTemperature !== false;
+        }
+
         function numberHtml(index, key, label, value, min, max, step) {
             return '<div><label>' + label + '</label><input type="number" data-index="' + index + '" data-key="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"></div>';
         }
@@ -408,14 +453,25 @@
             config.devices.forEach((device, index) => {
                 const card = document.createElement('div');
                 card.className = 'device-card';
+                let prewarmSubs = '';
+                if (hasCap(device, 'dim')) prewarmSubs += prewarmCapCheckbox(index, 'dim', t('pair.circadian_light_group.prewarm_dim', 'Prewarm dim'), prewarmDefault(device, 'dim'));
+                if (hasColor(device)) prewarmSubs += prewarmCapCheckbox(index, 'color', t('pair.circadian_light_group.prewarm_color', 'Prewarm color'), prewarmColorDefault(device));
+                if (hasCap(device, 'light_temperature')) prewarmSubs += prewarmCapCheckbox(index, 'light_temperature', t('pair.circadian_light_group.prewarm_temperature', 'Prewarm temperature'), prewarmDefault(device, 'light_temperature'));
+                if (hasCap(device, 'light_mode')) prewarmSubs += prewarmCapCheckbox(index, 'light_mode', t('pair.circadian_light_group.prewarm_light_mode', 'Prewarm light mode'), prewarmDefault(device, 'light_mode'));
+
                 card.innerHTML =
-                    '<div class="device-title">' + (device.name || device.id) + '</div>' +
-                    '<div class="meta">' + (device.zoneName || '') + '</div>' +
+                    '<div class="device-title">' + esc(device.name || device.id) + '</div>' +
+                    '<div class="meta">' + esc(device.zoneName || '') + '</div>' +
                     '<div class="grid">' +
                     checkboxHtml(index, 'enabled', t('pair.circadian_light_group.enabled', 'Enabled'), device.enabled !== false) +
-                    checkboxHtml(index, 'prewarmBeforeOn', t('pair.circadian_light_group.prewarm_before_on', 'Prewarm before on'), device.prewarmBeforeOn !== false) +
-                    checkboxHtml(index, 'redModeAllowed', t('pair.circadian_light_group.allow_red_mode', 'Allow red mode'), device.redModeAllowed !== false) +
-                    '<div></div>' +
+                    checkboxHtml(index, 'redModeAllowed', t('pair.circadian_light_group.allow_red_mode', 'Allow red mode'), redModeDefault(device)) +
+                    '</div>' +
+                    (hasCap(device, 'light_temperature') ? '<div class="grid">' + checkboxHtml(index, 'invertTemperature', t('pair.circadian_light_group.invert_temperature', 'Invert temperature scale'), invertTemperatureDefault(device)) + '</div>' : '') +
+                    '<div class="grid">' +
+                    checkboxHtml(index, 'prewarmBeforeOn', t('pair.circadian_light_group.prewarm_before_on', 'Prewarm before on'), prewarmMasterDefault(device)) +
+                    '</div>' +
+                    prewarmSubs +
+                    '<div class="grid">' +
                     numberHtml(index, 'minDim', t('pair.circadian_light_group.min_dim', 'Min dim'), device.minDim !== undefined ? device.minDim : 0.05, 0, 1, 0.01) +
                     numberHtml(index, 'maxDim', t('pair.circadian_light_group.max_dim', 'Max dim'), device.maxDim !== undefined ? device.maxDim : 1, 0, 1, 0.01) +
                     '</div>';
@@ -471,6 +527,19 @@
                 const key = input.getAttribute('data-key');
                 if (!config.devices[index]) return;
                 config.devices[index][key] = input.type === 'checkbox' ? input.checked : Number(input.value);
+            });
+            document.querySelectorAll('[data-index][data-prewarm-cap]').forEach(input => {
+                const index = Number(input.getAttribute('data-index'));
+                const cap = input.getAttribute('data-prewarm-cap');
+                const device = config.devices[index];
+                if (!device) return;
+                if (!device.prewarmSupport) device.prewarmSupport = {};
+                if (cap === 'color') {
+                    device.prewarmSupport.light_hue = input.checked;
+                    device.prewarmSupport.light_saturation = input.checked;
+                } else {
+                    device.prewarmSupport[cap] = input.checked;
+                }
             });
         }
 

@@ -8,6 +8,9 @@ const { todayKey, defaultDirectionFor, detectCrossing, dateToMinutesOfDay } = re
 const APPLY_CAPABILITY_DELAY = 150;
 const PREWARM_ONOFF_WAIT_MS = 4000;
 const PREWARM_ONOFF_POLL_MS = 100;
+const RECENT_OFF_REVERT_WINDOW_MS = 10000;
+const CLG_ONOFF_STORE_KEY = 'clg_onoff_state';
+const CLG_ONOFF_LEGACY_STORE_KEY = 'clg_onoff';
 
 const TRANSIENT_ERROR_PATTERNS = [
   /TRANSMIT_COMPLETE_NO_ACK/i,
@@ -43,6 +46,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.timer = null;
     this.deleted = false;
     this.luxWatchers = new Map(); // sensorDeviceId -> { capInstance, prevValue }
+    this.memberOnoffWatchers = new Map(); // deviceId -> { apiDevice, listener, value }
     this.previousPhase = null;
     this.previousRedMode = null;
     this.tempOverride = null; // { dim?, temperature?, saturation?, forceRed?, forceColor?, expiresAt? }
@@ -50,6 +54,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.redOverrideTimer = null;
 
     this.registerCapabilityListener('onoff', async (value) => {
+      await this.setOnoffState(value);
       await this.fireOnoffTrigger(value);
       await this.applyCurrentProfile({ reason: 'onoff-change' });
     });
@@ -63,8 +68,10 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.registerCapabilityListener('light_temperature', async () => {});
 
     await this.ensureDefaultCapabilityValues();
+    await this.restorePersistedOnoffState();
 
     await this.setupLuxWatchers();
+    await this.setupMemberOnoffWatchers();
 
     // Always start the scheduler so the tile keeps showing live computed values.
     // applyCurrentProfile internally gates whether to push to lights.
@@ -129,6 +136,101 @@ class CircadianLightGroupDevice extends Homey.Device {
       }
     }
     this.luxWatchers.clear();
+  }
+
+  async setupMemberOnoffWatchers() {
+    await this.teardownMemberOnoffWatchers();
+
+    const config = this.getConfig();
+    const devices = Array.isArray(config.devices) ? config.devices.filter(device => device.enabled !== false) : [];
+    if (devices.length === 0) return;
+
+    const api = this.homey.app && this.homey.app.api;
+    if (!api) {
+      this.error('Cannot setup member onoff watchers: HomeyAPI not ready');
+      return;
+    }
+
+    for (const item of devices) {
+      if (!item.id) continue;
+      try {
+        const apiDevice = await api.devices.getDevice({ id: item.id });
+        const capDef = apiDevice.capabilitiesObj?.onoff;
+        if (!capDef) continue;
+
+        const watcher = {
+          apiDevice,
+          listener: null,
+          value: capDef.value === true,
+          onoffSetable: capDef.setable === true,
+          lastOffAt: null,
+          lastClgWriteAt: null,
+          lastClgWriteCapability: null,
+          allowOnUntil: null,
+        };
+        const listener = (value) => {
+          this.onMemberOnoffChange(item, watcher, value).catch(error => {
+            this.debug(`member onoff[${item.name || item.id}] handler failed: ${error.message}`);
+          });
+        };
+        apiDevice.makeCapabilityInstance('onoff', listener);
+        watcher.listener = listener;
+        this.memberOnoffWatchers.set(item.id, watcher);
+        this.debug(`Member onoff watcher attached to ${item.name || item.id} (initial value: ${watcher.value})`);
+      } catch (error) {
+        this.debug(`Failed to attach member onoff watcher to ${item.name || item.id}: ${error.message}`);
+      }
+    }
+  }
+
+  async teardownMemberOnoffWatchers() {
+    if (!this.memberOnoffWatchers || this.memberOnoffWatchers.size === 0) return;
+    for (const [, watcher] of this.memberOnoffWatchers) {
+      try {
+        if (watcher.apiDevice && watcher.listener && typeof watcher.apiDevice.destroyCapabilityInstance === 'function') {
+          watcher.apiDevice.destroyCapabilityInstance('onoff');
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+    this.memberOnoffWatchers.clear();
+  }
+
+  getLiveMemberOnoff(item, caps) {
+    const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+    if (watcher && typeof watcher.value === 'boolean') return watcher.value;
+    return caps.onoff?.value === true;
+  }
+
+  async onMemberOnoffChange(item, watcher, value) {
+    const isOn = value === true;
+    const now = Date.now();
+    watcher.value = isOn;
+    this.debug(`member onoff[${item.name || item.id}]: ${watcher.value}`);
+
+    if (!isOn) {
+      watcher.lastOffAt = now;
+      return;
+    }
+
+    const recentlyOff = watcher.lastOffAt && (now - watcher.lastOffAt) <= RECENT_OFF_REVERT_WINDOW_MS;
+    const recentlyWritten = watcher.lastClgWriteAt && (now - watcher.lastClgWriteAt) <= RECENT_OFF_REVERT_WINDOW_MS;
+    if (watcher.allowOnUntil && now <= watcher.allowOnUntil) {
+      watcher.allowOnUntil = null;
+      watcher.lastOffAt = null;
+      this.debug(`member onoff[${item.name || item.id}]: accepted intentional CLG turn-on`);
+      return;
+    }
+    if (!recentlyOff || !recentlyWritten || !watcher.onoffSetable) return;
+
+    try {
+      await watcher.apiDevice.setCapabilityValue('onoff', false);
+      watcher.value = false;
+      this.debug(`member onoff[${item.name || item.id}]: reverted delayed re-on after CLG ${watcher.lastClgWriteCapability || 'write'}`);
+    } catch (error) {
+      this.debug(`member onoff[${item.name || item.id}]: failed to revert delayed re-on: ${error.message}`);
+    }
   }
 
   async onLuxSensorValue(sensorId, currentValue) {
@@ -208,6 +310,49 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (this.getCapabilityValue('measure_outdoor_lux') === null) {
       await this.setCapabilityValue('measure_outdoor_lux', 0).catch(this.error);
     }
+  }
+
+  async persistOnoffState(value) {
+    const state = {
+      value: value === true,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.setStoreValue(CLG_ONOFF_STORE_KEY, state).catch(this.error);
+    await this.setStoreValue(CLG_ONOFF_LEGACY_STORE_KEY, state.value).catch(this.error);
+  }
+
+  async setOnoffState(value) {
+    const next = value === true;
+    if (this.getCapabilityValue('onoff') !== next) {
+      await this.setCapabilityValue('onoff', next).catch(this.error);
+    }
+    await this.persistOnoffState(next);
+    return next;
+  }
+
+  async restorePersistedOnoffState() {
+    let storedState = null;
+    let legacyStored = null;
+    try {
+      storedState = await this.getStoreValue(CLG_ONOFF_STORE_KEY);
+    } catch (error) {
+      storedState = null;
+    }
+    try {
+      legacyStored = await this.getStoreValue(CLG_ONOFF_LEGACY_STORE_KEY);
+    } catch (error) {
+      legacyStored = null;
+    }
+
+    let desired = true;
+    if (storedState && typeof storedState.value === 'boolean') {
+      desired = storedState.value;
+    } else if (legacyStored === true) {
+      desired = true;
+    }
+
+    this.debug(`CLG onoff restore: stored=${JSON.stringify(storedState)} legacy=${legacyStored} desired=${desired}`);
+    await this.setOnoffState(desired);
   }
 
   getConfig() {
@@ -363,30 +508,29 @@ class CircadianLightGroupDevice extends Homey.Device {
     const label = item.name || item.id;
     const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
     const caps = apiDevice.capabilitiesObj || {};
-    const isOn = caps.onoff?.value === true;
-    const unsafePrewarmDevices = await this.getStoreValue('unsafe_prewarm_devices') || {};
-    const unsafeEntry = unsafePrewarmDevices[item.id];
-    const prewarmBeforeOn = item.prewarmBeforeOn !== false && !unsafeEntry;
+    const cachedIsOn = caps.onoff?.value === true;
+    const isOn = this.getLiveMemberOnoff(item, caps);
+    const prewarmBeforeOn = item.prewarmBeforeOn !== false;
 
     const verbose = debugCtx && debugCtx.remaining > 0;
     if (verbose) {
       debugCtx.remaining -= 1;
       const capSummary = {
-        onoff: { value: caps.onoff?.value, setable: caps.onoff?.setable },
+        onoff: { value: caps.onoff?.value, liveValue: isOn, setable: caps.onoff?.setable },
         light_mode: { value: caps.light_mode?.value, setable: caps.light_mode?.setable },
         light_temperature: { value: caps.light_temperature?.value, setable: caps.light_temperature?.setable },
         light_hue: { setable: caps.light_hue?.setable },
         light_saturation: { setable: caps.light_saturation?.setable },
         dim: { value: caps.dim?.value, setable: caps.dim?.setable },
       };
-      this.debug(`applyTargetToDevice[${label}] DIAG: isOn=${isOn} item.prewarmBeforeOn=${item.prewarmBeforeOn} unsafeEntry=${unsafeEntry ? JSON.stringify(unsafeEntry) : 'none'} -> prewarmBeforeOn=${prewarmBeforeOn}`);
+      this.debug(`applyTargetToDevice[${label}] DIAG: isOn=${isOn} cachedIsOn=${cachedIsOn} item.prewarmBeforeOn=${item.prewarmBeforeOn} -> prewarmBeforeOn=${prewarmBeforeOn}`);
       this.debug(`applyTargetToDevice[${label}] DIAG: prewarmSupport=${JSON.stringify(item.prewarmSupport || {})} redModeAllowed=${item.redModeAllowed} invertTemperature=${item.invertTemperature} minDim=${item.minDim} maxDim=${item.maxDim}`);
       this.debug(`applyTargetToDevice[${label}] DIAG: caps=${JSON.stringify(capSummary)}`);
       this.debug(`applyTargetToDevice[${label}] DIAG: target={mode:${target.mode}, dim:${target.dim}, temp:${target.temperature}, hue:${target.hue}, sat:${target.saturation}}`);
     }
 
     if (!isOn && !prewarmBeforeOn) {
-      this.debug(`applyTargetToDevice[${label}]: skipped (off + prewarm disabled) [item.prewarmBeforeOn=${item.prewarmBeforeOn} unsafe=${!!unsafeEntry}]`);
+      this.debug(`applyTargetToDevice[${label}]: skipped (off + prewarm disabled)`);
       return;
     }
 
@@ -396,12 +540,15 @@ class CircadianLightGroupDevice extends Homey.Device {
       return;
     }
 
-    const decision = isOn ? 'apply-live' : (prewarmBeforeOn ? 'prewarm-while-off' : 'unexpected');
+    const isPrewarm = !isOn;
+    const decision = isPrewarm ? 'prewarm-while-off' : 'apply-live';
     this.debug(`applyTargetToDevice[${label}]: decision=${decision} isOn=${isOn} writes=${JSON.stringify(capabilitiesToSet)}`);
 
     let liveOnoff = isOn;
     let onoffInstance = null;
-    if (!isOn && prewarmBeforeOn) {
+    let lastPrewarmCapability = null;
+    const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+    if (isPrewarm) {
       try {
         onoffInstance = apiDevice.makeCapabilityInstance('onoff', (value) => {
           liveOnoff = value === true;
@@ -413,23 +560,24 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     try {
       for (const [capability, value] of capabilitiesToSet) {
+        if (isPrewarm) lastPrewarmCapability = capability;
         await apiDevice.setCapabilityValue(capability, value);
+        if (watcher) {
+          watcher.lastClgWriteAt = Date.now();
+          watcher.lastClgWriteCapability = capability;
+        }
         await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
-        if (!isOn && prewarmBeforeOn && liveOnoff === true) break;
+
+        if (isPrewarm && liveOnoff === true) {
+          await this.handlePrewarmTrip(item, label, apiDevice, caps, capability);
+          return;
+        }
       }
 
-      if (!isOn && prewarmBeforeOn) {
+      if (isPrewarm) {
         const tripped = await this.waitForPrewarmTrip(() => liveOnoff, PREWARM_ONOFF_WAIT_MS);
         if (tripped) {
-          if (caps.onoff?.setable) {
-            try {
-              await apiDevice.setCapabilityValue('onoff', false);
-              this.debug(`applyTargetToDevice[${label}]: prewarm tripped lamp on — forced off`);
-            } catch (error) {
-              this.debug(`applyTargetToDevice[${label}]: failed to force off after prewarm trip: ${error.message}`);
-            }
-          }
-          await this.markUnsafePrewarm(item, label);
+          await this.handlePrewarmTrip(item, label, apiDevice, caps, lastPrewarmCapability);
         } else {
           this.debug(`applyTargetToDevice[${label}]: prewarm OK (onoff stayed false ${PREWARM_ONOFF_WAIT_MS}ms)`);
         }
@@ -450,15 +598,40 @@ class CircadianLightGroupDevice extends Homey.Device {
     return getOnoff() === true;
   }
 
-  async markUnsafePrewarm(item, label) {
-    const unsafe = await this.getStoreValue('unsafe_prewarm_devices') || {};
-    unsafe[item.id] = {
-      name: item.name,
-      detectedAt: new Date().toISOString(),
+  async handlePrewarmTrip(item, label, apiDevice, caps, capability) {
+    if (caps.onoff?.setable) {
+      try {
+        await apiDevice.setCapabilityValue('onoff', false);
+        this.debug(`applyTargetToDevice[${label}]: prewarm ${capability} tripped lamp on — forced off`);
+      } catch (error) {
+        this.debug(`applyTargetToDevice[${label}]: failed to force off after prewarm trip: ${error.message}`);
+      }
+    }
+    await this.markPrewarmCapabilityLost(item, label, capability);
+  }
+
+  async markPrewarmCapabilityLost(item, label, capability) {
+    if (!capability) return;
+
+    const config = this.getConfig();
+    const devices = Array.isArray(config.devices) ? config.devices : [];
+    const configItem = devices.find(device => device.id === item.id);
+    if (!configItem) return;
+
+    configItem.prewarmSupport = {
+      ...(configItem.prewarmSupport || {}),
+      [capability]: false,
+      testedAt: new Date().toISOString(),
     };
-    await this.setStoreValue('unsafe_prewarm_devices', unsafe);
-    this.debug(`markUnsafePrewarm[${label}]: marked UNSAFE; future passes will skip prewarm`);
-    await this.triggerError(`Prewarm turned on ${item.name || item.id}. Disable prewarm for this light.`);
+    item.prewarmSupport = {
+      ...(item.prewarmSupport || {}),
+      [capability]: false,
+      testedAt: configItem.prewarmSupport.testedAt,
+    };
+
+    this.debug(`markPrewarmCapabilityLost[${label}]: ${capability} marked unsupported for prewarm`);
+    await this.setSettings({ config_json: JSON.stringify(config, null, 2) });
+    await this.triggerError(`Prewarm ${capability} turned on ${item.name || item.id}. Marked as unsupported for this light.`);
   }
 
   getCapabilitiesToSet(item, target, caps, isOn, debugLabel) {
@@ -467,7 +640,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     const maxDim = Number.isFinite(Number(item.maxDim)) ? Number(item.maxDim) : 1;
     const canUseRed = item.redModeAllowed !== false;
     const prewarm = item.prewarmSupport || {};
-    const prewarmAllowed = (capId) => isOn || prewarm[capId] !== false;
+    const prewarmAllowed = (capId) => isOn || prewarm[capId] === true;
     const canWriteColor = canUseRed
       && caps.light_hue?.setable === true
       && caps.light_saturation?.setable === true
@@ -691,24 +864,56 @@ class CircadianLightGroupDevice extends Homey.Device {
     const clgActive = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
     if (!clgActive) {
       const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
-      if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== true) {
-        await apiDevice.setCapabilityValue('onoff', true);
-      }
+      await this.setMemberOnoff(apiDevice, item, true);
       this.debug(`turn_on_member[${item.name || item.id}]: CLG inactive, only set onoff=true`);
       return;
     }
 
     const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
     const caps = apiDevice.capabilitiesObj || {};
-    const writes = this.getCapabilitiesToSet(item, target, caps, true);
+    const wasOn = this.getLiveMemberOnoff(item, caps);
+    const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+    const prewarmWrites = wasOn ? [] : this.getCapabilitiesToSet(item, target, caps, false);
 
-    for (const [capability, value] of writes) {
-      await apiDevice.setCapabilityValue(capability, value);
-      await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+    if (prewarmWrites.length > 0) {
+      this.debug(`turn_on_member[${item.name || item.id}]: prewarm before on writes=${JSON.stringify(prewarmWrites)}`);
+      for (const [capability, value] of prewarmWrites) {
+        await apiDevice.setCapabilityValue(capability, value);
+        if (watcher) {
+          watcher.lastClgWriteAt = Date.now();
+          watcher.lastClgWriteCapability = capability;
+        }
+        await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+      }
     }
 
-    if (caps.onoff?.setable && caps.onoff.value !== true) {
-      await apiDevice.setCapabilityValue('onoff', true);
+    await this.setMemberOnoff(apiDevice, item, true);
+    await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+
+    const writes = this.getCapabilitiesToSet(item, target, caps, true);
+    this.debug(`turn_on_member[${item.name || item.id}]: apply after on writes=${JSON.stringify(writes)}`);
+    for (const [capability, value] of writes) {
+      await apiDevice.setCapabilityValue(capability, value);
+      if (watcher) {
+        watcher.lastClgWriteAt = Date.now();
+        watcher.lastClgWriteCapability = capability;
+      }
+      await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+    }
+  }
+
+  async setMemberOnoff(apiDevice, item, value) {
+    const caps = apiDevice.capabilitiesObj || {};
+    const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+    if (watcher && value === true) {
+      watcher.allowOnUntil = Date.now() + RECENT_OFF_REVERT_WINDOW_MS;
+    }
+    if (caps.onoff?.setable && caps.onoff.value !== value) {
+      await apiDevice.setCapabilityValue('onoff', value);
+    }
+    if (watcher) {
+      watcher.value = value === true;
+      if (value === true) watcher.lastOffAt = null;
     }
   }
 
@@ -721,6 +926,7 @@ class CircadianLightGroupDevice extends Homey.Device {
   async onFlowTurnOn() {
     if (this.getCapabilityValue('onoff') !== true) {
       await this.setCapabilityValue('onoff', true);
+      await this.persistOnoffState(true);
       await this.fireOnoffTrigger(true);
       await this.applyCurrentProfile({ reason: 'flow-turn-on' });
     }
@@ -730,6 +936,7 @@ class CircadianLightGroupDevice extends Homey.Device {
   async onFlowTurnOff() {
     if (this.getCapabilityValue('onoff') !== false) {
       await this.setCapabilityValue('onoff', false);
+      await this.persistOnoffState(false);
       await this.fireOnoffTrigger(false);
       await this.applyCurrentProfile({ reason: 'flow-turn-off' });
     }
@@ -739,6 +946,7 @@ class CircadianLightGroupDevice extends Homey.Device {
   async onFlowToggle() {
     const next = this.getCapabilityValue('onoff') !== true;
     await this.setCapabilityValue('onoff', next);
+    await this.persistOnoffState(next);
     await this.fireOnoffTrigger(next);
     await this.applyCurrentProfile({ reason: 'flow-toggle' });
     return true;
@@ -893,6 +1101,7 @@ class CircadianLightGroupDevice extends Homey.Device {
         JSON.parse(newSettings.config_json);
         await this.setCapabilityValue('alarm_config', false).catch(this.error);
         await this.setupLuxWatchers();
+        await this.setupMemberOnoffWatchers();
         await this.startScheduler(true);
       } catch (error) {
         await this.setCapabilityValue('alarm_config', true).catch(this.error);
@@ -906,6 +1115,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.stopScheduler();
     if (this.pauseTimer) clearTimeout(this.pauseTimer);
     await this.teardownLuxWatchers();
+    await this.teardownMemberOnoffWatchers();
   }
 }
 

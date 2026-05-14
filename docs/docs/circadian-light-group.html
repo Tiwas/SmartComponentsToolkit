@@ -73,14 +73,19 @@
     <main class="max-w-3xl mx-auto px-6 py-8 flex-grow">
         <div class="flex items-center gap-3 mb-2">
             <h1 class="text-4xl font-bold text-gray-900">Circadian Light Group</h1>
-            <span class="test-badge">v1.10.0 — TEST</span>
+            <span class="bg-purple-100 text-purple-700 text-xs font-semibold px-2 py-1 rounded">v1.10.7</span>
         </div>
         <p class="text-gray-600 mb-8">A virtual light device that automatically adjusts brightness and color temperature throughout the day based on time, sun position or ambient light, with an optional red mode for night use.</p>
 
-        <div class="card card-test">
-            <h2 class="text-xl font-semibold mb-2 text-amber-700">⚠ Test version (v1.10.0)</h2>
-            <p class="text-gray-700 mb-2">Circadian Light Group is currently available only in the test channel. The stable channel ships v1.9.2 without this device.</p>
-            <p class="text-gray-700">Install the test version from <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" class="text-purple-600 hover:text-purple-800 font-semibold">homey.app/a/no.tiwas.booleantoolbox/test/</a> to try it out.</p>
+        <div class="card">
+            <h2 class="text-xl font-semibold mb-2 text-purple-600">What's new in 1.10.x</h2>
+            <ul class="list-disc ml-6 text-gray-700 space-y-1 text-sm">
+                <li><strong>1.10.7</strong> — Multi-device flow cards and the scheduler now write to up to 5 lights in parallel and retry transient mesh timeouts. Conflicting commands (e.g. an "all off" arriving mid-"all on") supersede the running one instead of fighting it.</li>
+                <li><strong>1.10.7</strong> — Group-level actions <em>Turn on all members</em> and <em>Turn off all members</em>.</li>
+                <li><strong>1.10.6</strong> — On/off state is now respected correctly under all paths.</li>
+                <li><strong>1.10.5</strong> — Tuneable lights now correctly become warmer (not cooler) towards evening.</li>
+                <li><strong>1.10.2</strong> — Pre-warm auto-detection during pairing; <em>Turn on light at current circadian level</em> action; smarter candidate filter (Hue/Z2M-bridged sockets and Z-Wave dimmer modules).</li>
+            </ul>
         </div>
 
         <div class="card">
@@ -223,7 +228,11 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
                 <li><span class="badge-action">Then</span> <strong>Apply temporary state</strong> — push specific dim, temperature, saturation values (any subset) and an optional "force red" flag. Values are temporary and the next scheduler tick (~2 min) restores calculated values. Useful for testing or quick "moods".</li>
                 <li><span class="badge-action">Then</span> <strong>Force red mode</strong> — on / off / clear, with an optional duration.</li>
                 <li><span class="badge-action">Then</span> <strong>Set outdoor lux</strong> — for the external value provider, push a lux reading from any Flow.</li>
+                <li><span class="badge-action">Then</span> <strong>Turn on light at current circadian level</strong> — pick any member from a dropdown; the action sets temperature/colour and dim, then turns the light on, in one step. Avoids the brief flash at the previous brightness on lamps that don't support pre-warm.</li>
+                <li><span class="badge-action">Then</span> <strong>Turn on all members</strong> — switch every enabled light in the group on at the current circadian dim/temperature.</li>
+                <li><span class="badge-action">Then</span> <strong>Turn off all members</strong> — switch every enabled light in the group off.</li>
             </ul>
+            <p class="text-gray-700 text-sm mt-4">The multi-device actions and the scheduler push to up to 5 lights in parallel, verify on/off state afterwards, and serially retry transient Z-Wave / Zigbee timeouts. If a conflicting command arrives (e.g. an "all off" right after an "all on"), the new command supersedes the running one — no fighting between flows.</p>
         </div>
 
         <div class="card">

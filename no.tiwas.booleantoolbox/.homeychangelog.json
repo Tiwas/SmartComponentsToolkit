@@ -64,5 +64,8 @@
   },
   "1.10.5": {
     "en": "Fixed a bug where tuneable lights became more blue instead of less in the evening."
+  },
+  "1.10.6": {
+    "en": "Fixed bug where app didn't respect onoff-state under certain conditions"
   }
 }

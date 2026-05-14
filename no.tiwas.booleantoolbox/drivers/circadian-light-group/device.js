@@ -9,6 +9,8 @@ const APPLY_CAPABILITY_DELAY = 150;
 const PREWARM_ONOFF_WAIT_MS = 4000;
 const PREWARM_ONOFF_POLL_MS = 100;
 const RECENT_OFF_REVERT_WINDOW_MS = 10000;
+const DEVICE_TASK_CONCURRENCY = 5;
+const DEVICE_TASK_MAX_RETRIES = 1;
 const CLG_ONOFF_STORE_KEY = 'clg_onoff_state';
 const CLG_ONOFF_LEGACY_STORE_KEY = 'clg_onoff';
 
@@ -17,6 +19,7 @@ const TRANSIENT_ERROR_PATTERNS = [
   /did not respond/i,
   /timeout/i,
   /TRANSMIT_COMPLETE_FAIL/i,
+  /could not reach/i,
 ];
 
 const WARM_COLOR_HUE = 0.08; // amber on Homey's 0..1 hue wheel
@@ -45,6 +48,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     });
     this.timer = null;
     this.deleted = false;
+    this.currentOpGen = 0;
     this.luxWatchers = new Map(); // sensorDeviceId -> { capInstance, prevValue }
     this.memberOnoffWatchers = new Map(); // deviceId -> { apiDevice, listener, value }
     this.previousPhase = null;
@@ -395,6 +399,12 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
     if (this.deleted) return false;
+    const op = this.acquireOp(`apply[${reason}]`);
+    return this._applyCurrentProfileImpl(reason, op);
+  }
+
+  async _applyCurrentProfileImpl(reason, op) {
+    if (this.deleted) return false;
 
     const config = this.getConfig();
     const allDevices = Array.isArray(config.devices) ? config.devices : [];
@@ -458,25 +468,18 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     await this.requestExternalOutdoorLightIfNeeded(config);
 
-    const errors = [];
     const debugCtx = { remaining: 3, reason };
-    for (const item of devices) {
-      try {
-        await this.applyTargetToDevice(item, target, debugCtx);
-      } catch (error) {
-        if (isTransientDeviceError(error)) {
-          this.debug(`applyTargetToDevice[${item.name || item.id}]: transient error ignored — ${error.message}`);
-          continue;
-        }
-        errors.push({ device: item.name || item.id, error: error.message });
-        this.error(`Failed to apply target to ${item.name || item.id}:`, error);
-      }
-    }
+    const { failed, superseded } = await this.runDeviceTasksParallel(devices, async (item) => {
+      await this.applyTargetToDevice(item, target, debugCtx);
+    }, { label: `apply[${reason}]`, isCurrent: op.isCurrent });
 
-    await this.setCapabilityValue('alarm_config', errors.length > 0).catch(this.error);
+    if (superseded) return false;
 
-    if (errors.length > 0) {
-      await this.triggerError(`${errors.length} light(s) failed during ${reason}`);
+    const nonTransientFailures = failed.filter(res => !isTransientDeviceError(res.error));
+    await this.setCapabilityValue('alarm_config', nonTransientFailures.length > 0).catch(this.error);
+
+    if (nonTransientFailures.length > 0) {
+      await this.triggerError(`${nonTransientFailures.length} light(s) failed during ${reason}`);
     }
 
     await this.homey.flow.getDeviceTriggerCard('clg_target_changed')
@@ -488,7 +491,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       })
       .catch(this.error);
 
-    return errors.length === 0;
+    return nonTransientFailures.length === 0;
   }
 
   async requestExternalOutdoorLightIfNeeded(config) {
@@ -497,6 +500,136 @@ class CircadianLightGroupDevice extends Homey.Device {
     await this.homey.flow.getDeviceTriggerCard('clg_outdoor_light_requested')
       .trigger(this, {}, {})
       .catch(this.error);
+  }
+
+  // Last-write-wins cancellation token. Any new device-mutating op (user flow card OR
+  // periodic apply) bumps the generation, which signals previous in-flight ops to bail
+  // between devices / between phases. In-flight setCapabilityValue calls cannot be
+  // aborted mid-air, but every check between operations short-circuits cleanly.
+  acquireOp(label) {
+    this.currentOpGen += 1;
+    const gen = this.currentOpGen;
+    this.debug(`op: started ${label} (gen=${gen})`);
+    return {
+      label,
+      gen,
+      isCurrent: () => this.currentOpGen === gen,
+    };
+  }
+
+  // Run an async task per device with bounded concurrency (preserves config order via
+  // a shared index — workers pull next-in-line, so the first N start in order).
+  // After the first pass, any failures or items where verifyFn returned false are retried
+  // serially up to opts.maxRetries times.
+  async runDeviceTasksParallel(items, taskFn, opts = {}) {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) return { ok: [], failed: [] };
+
+    const concurrency = Math.max(1, Math.min(opts.concurrency || DEVICE_TASK_CONCURRENCY, list.length));
+    const maxRetries = Number.isFinite(opts.maxRetries) ? opts.maxRetries : DEVICE_TASK_MAX_RETRIES;
+    const label = opts.label || 'device-task';
+    const verifyFn = typeof opts.verifyFn === 'function' ? opts.verifyFn : null;
+    const isCurrent = typeof opts.isCurrent === 'function' ? opts.isCurrent : () => true;
+
+    const results = new Array(list.length); // { ok, error?, item }
+
+    let cursor = 0;
+    const worker = async () => {
+      while (true) {
+        if (!isCurrent()) return;
+        const index = cursor;
+        cursor += 1;
+        if (index >= list.length) return;
+        const item = list[index];
+        try {
+          await taskFn(item, 0);
+          results[index] = { ok: true, item };
+        } catch (error) {
+          const retryable = isTransientDeviceError(error);
+          results[index] = { ok: false, item, error, retryable };
+          if (retryable) {
+            this.debug(`${label}[${item.name || item.id}]: transient error in parallel pass — ${error.message}`);
+          } else {
+            this.error(`${label}[${item.name || item.id}] failed (no retry):`, error);
+          }
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+    if (!isCurrent()) {
+      this.debug(`${label}: superseded after parallel pass — skipping verify/retry`);
+      const ok = [];
+      const failed = [];
+      for (const res of results) {
+        if (!res) continue;
+        (res.ok ? ok : failed).push(res);
+      }
+      return { ok, failed, superseded: true };
+    }
+
+    // Verify pass — runs in parallel since it's read-only.
+    if (verifyFn) {
+      await Promise.all(results.map(async (res, index) => {
+        if (!res || !res.ok) return;
+        try {
+          const verified = await verifyFn(res.item);
+          if (!verified) {
+            results[index] = { ok: false, item: res.item, error: new Error('verify failed'), retryable: true };
+            this.debug(`${label}[${res.item.name || res.item.id}]: verify failed after parallel pass`);
+          }
+        } catch (error) {
+          results[index] = { ok: false, item: res.item, error, retryable: true };
+          this.debug(`${label}[${res.item.name || res.item.id}]: verify threw — ${error.message}`);
+        }
+      }));
+    }
+
+    // Serial retry pass — only retry transient errors and verify-failures, in original order.
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+      if (!isCurrent()) {
+        this.debug(`${label}: superseded — skipping retry attempt ${attempt}`);
+        break;
+      }
+      const pending = [];
+      for (let i = 0; i < results.length; i += 1) {
+        if (results[i] && !results[i].ok && results[i].retryable) pending.push(i);
+      }
+      if (pending.length === 0) break;
+      this.debug(`${label}: retry attempt ${attempt} for ${pending.length} device(s)`);
+      for (const index of pending) {
+        if (!isCurrent()) break;
+        const item = list[index];
+        try {
+          await taskFn(item, attempt);
+          if (verifyFn) {
+            const verified = await verifyFn(item);
+            results[index] = verified
+              ? { ok: true, item }
+              : { ok: false, item, error: new Error('verify failed after retry'), retryable: true };
+          } else {
+            results[index] = { ok: true, item };
+          }
+        } catch (error) {
+          const retryable = isTransientDeviceError(error);
+          results[index] = { ok: false, item, error, retryable };
+          if (retryable) {
+            this.debug(`${label}[${item.name || item.id}]: transient error on retry ${attempt} — ${error.message}`);
+          } else {
+            this.error(`${label}[${item.name || item.id}] retry ${attempt} failed (no further retry):`, error);
+          }
+        }
+      }
+    }
+
+    const ok = [];
+    const failed = [];
+    for (const res of results) {
+      if (!res) continue;
+      (res.ok ? ok : failed).push(res);
+    }
+    return { ok, failed };
   }
 
   async applyTargetToDevice(item, target, debugCtx) {
@@ -791,6 +924,19 @@ class CircadianLightGroupDevice extends Homey.Device {
     };
   }
 
+  async verifyMemberOnoff(item, expected) {
+    if (!item?.id) return true;
+    try {
+      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+      const cap = apiDevice.capabilitiesObj?.onoff;
+      if (!cap || cap.setable !== true) return true; // can't verify — treat as OK
+      return cap.value === expected;
+    } catch (error) {
+      this.debug(`verifyMemberOnoff[${item.name || item.id}]: read failed — ${error.message}`);
+      return false;
+    }
+  }
+
   async onFlowTurnOnMember(args) {
     const memberId = args.member?.id;
     if (!memberId) throw new Error('No light selected');
@@ -799,8 +945,15 @@ class CircadianLightGroupDevice extends Homey.Device {
     const item = (Array.isArray(config.devices) ? config.devices : []).find(d => d.id === memberId);
     if (!item) throw new Error('Light is not a member of this group');
 
+    const op = this.acquireOp('turn_on_member');
     const target = await this.computeCurrentTarget(config);
-    await this.turnOnMemberToTarget(item, target);
+    await this.runDeviceTasksParallel([item], async (member) => {
+      await this.turnOnMemberToTarget(member, target);
+    }, {
+      label: 'turn_on_member',
+      verifyFn: (member) => this.verifyMemberOnoff(member, true),
+      isCurrent: op.isCurrent,
+    });
     return true;
   }
 
@@ -809,18 +962,15 @@ class CircadianLightGroupDevice extends Homey.Device {
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
     if (members.length === 0) return true;
 
+    const op = this.acquireOp('turn_on_all_members');
     const target = await this.computeCurrentTarget(config);
-    for (const item of members) {
-      try {
-        await this.turnOnMemberToTarget(item, target);
-      } catch (error) {
-        if (isTransientDeviceError(error)) {
-          this.debug(`turn_on_all_members[${item.name || item.id}]: transient error ignored — ${error.message}`);
-          continue;
-        }
-        this.error(`turn_on_all_members[${item.name || item.id}] failed:`, error);
-      }
-    }
+    await this.runDeviceTasksParallel(members, async (item) => {
+      await this.turnOnMemberToTarget(item, target);
+    }, {
+      label: 'turn_on_all_members',
+      verifyFn: (item) => this.verifyMemberOnoff(item, true),
+      isCurrent: op.isCurrent,
+    });
     return true;
   }
 
@@ -829,20 +979,17 @@ class CircadianLightGroupDevice extends Homey.Device {
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
     if (members.length === 0) return true;
 
-    for (const item of members) {
-      try {
-        const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
-        if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== false) {
-          await apiDevice.setCapabilityValue('onoff', false);
-        }
-      } catch (error) {
-        if (isTransientDeviceError(error)) {
-          this.debug(`turn_off_all_members[${item.name || item.id}]: transient error ignored — ${error.message}`);
-          continue;
-        }
-        this.error(`turn_off_all_members[${item.name || item.id}] failed:`, error);
+    const op = this.acquireOp('turn_off_all_members');
+    await this.runDeviceTasksParallel(members, async (item) => {
+      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+      if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== false) {
+        await apiDevice.setCapabilityValue('onoff', false);
       }
-    }
+    }, {
+      label: 'turn_off_all_members',
+      verifyFn: (item) => this.verifyMemberOnoff(item, false),
+      isCurrent: op.isCurrent,
+    });
     return true;
   }
 

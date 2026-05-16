@@ -693,6 +693,13 @@ class FlowDoctor {
             Object.values(apps).forEach(a => { installedApps[a.id] = a; });
             const installedAppIds = new Set(Object.keys(installedApps));
             const deviceIds = new Set(Object.values(devices).map(d => d.id));
+            const deviceToApp = {};
+            Object.values(devices).forEach(d => {
+                const u = d.driverUri || d.driver || '';
+                if (typeof u === 'string' && u.startsWith('homey:app:')) {
+                    deviceToApp[d.id] = u.substring('homey:app:'.length).split(':')[0];
+                }
+            });
 
             const cardSets = { trigger: {}, condition: {}, action: {} };
             const buildCardLookup = (cards, kind) => {
@@ -791,9 +798,36 @@ class FlowDoctor {
                 (flow.conditions || []).forEach(c => cards.push(c));
                 (flow.actions || []).forEach(c => cards.push(c));
                 if (flow.cards) Object.values(flow.cards).forEach(c => cards.push(c));
+
+                const collectFromValue = (val) => {
+                    if (!val) return;
+                    if (typeof val === 'string') {
+                        if (val.startsWith('homey:device:')) {
+                            const devId = val.substring('homey:device:'.length).split(':')[0];
+                            if (deviceToApp[devId]) seen.add(deviceToApp[devId]);
+                        }
+                    } else if (typeof val === 'object') {
+                        if (val.id && deviceToApp[val.id]) seen.add(deviceToApp[val.id]);
+                        if (val.driverUri && typeof val.driverUri === 'string' && val.driverUri.startsWith('homey:app:')) {
+                            seen.add(val.driverUri.substring('homey:app:'.length).split(':')[0]);
+                        }
+                    }
+                };
+
                 for (const c of cards) {
-                    const uri = (c && c.uri) || '';
-                    if (uri.startsWith('homey:app:')) seen.add(uri.substring('homey:app:'.length).split(':')[0]);
+                    if (!c) continue;
+                    const uri = c.uri || '';
+                    if (uri.startsWith('homey:app:')) {
+                        seen.add(uri.substring('homey:app:'.length).split(':')[0]);
+                    } else if (uri.startsWith('homey:device:')) {
+                        const devId = uri.substring('homey:device:'.length).split(':')[0];
+                        if (deviceToApp[devId]) seen.add(deviceToApp[devId]);
+                    }
+                    // Card args frequently carry device references (e.g. action "turn on" with device arg)
+                    if (c.args && typeof c.args === 'object') {
+                        Object.values(c.args).forEach(collectFromValue);
+                    }
+                    if (c.droptoken) collectFromValue(c.droptoken);
                 }
                 return [...seen];
             };
@@ -982,10 +1016,8 @@ class FlowDoctor {
             if (a.hasUpdate) {
                 statusBadge = `<span class="badge badge-warn">${this.t('apps.updateAvailable')}</span>`;
                 sevClass = 'sev-warn';
-            } else if (a.storeVersion) {
-                statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
             } else {
-                statusBadge = `<span class="badge badge-info">${this.t('apps.unknown')}</span>`;
+                statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
             }
             const unusedBadge = a.usage === 0 ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
             const crashedBadge = a.crashed ? `<span class="badge badge-err">${this.t('apps.crashed')}${a.crashedCount > 1 ? ' ×' + a.crashedCount : ''}</span>` : '';

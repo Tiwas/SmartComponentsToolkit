@@ -67,5 +67,11 @@
   },
   "1.10.6": {
     "en": "Fixed bug where app didn't respect onoff-state under certain conditions"
+  },
+  "1.10.7": {
+    "en": "Better timing (parallellization), better collision control++"
+  },
+  "1.10.8": {
+    "en": "Fixed persistency with timers"
   }
 }

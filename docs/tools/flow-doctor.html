@@ -161,6 +161,7 @@
                 <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
                     <input type="text" id="app-search" placeholder="Search app…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-updates"> <span data-i18n="apps.onlyUpdates">Only apps with updates</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-unused"> <span data-i18n="apps.onlyUnused">Only unused apps</span></label>
                 </div>
                 <div id="apps-list" class="space-y-2"></div>
             </div>
@@ -212,9 +213,11 @@ const I18N = {
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
         'apps.onlyUpdates': 'Only apps with updates',
+        'apps.onlyUnused': 'Only unused apps',
         'apps.upToDate': 'Up to date',
         'apps.updateAvailable': 'Update available',
         'apps.unknown': 'Store version unknown',
+        'apps.unused': 'Unused by any flow',
         'apps.usedBy': 'flows',
         'apps.installed': 'installed',
         'apps.store': 'store',
@@ -273,9 +276,11 @@ const I18N = {
         'tab.flows': 'Flows',
         'tab.apps': 'Apper',
         'apps.onlyUpdates': 'Bare apper med oppdateringer',
+        'apps.onlyUnused': 'Bare ubrukte apper',
         'apps.upToDate': 'Oppdatert',
         'apps.updateAvailable': 'Oppdatering tilgjengelig',
         'apps.unknown': 'Versjon i App Store ukjent',
+        'apps.unused': 'Ikke brukt av noen flow',
         'apps.usedBy': 'flows',
         'apps.installed': 'installert',
         'apps.store': 'butikk',
@@ -334,9 +339,11 @@ const I18N = {
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
         'apps.onlyUpdates': 'Nur Apps mit Updates',
+        'apps.onlyUnused': 'Nur ungenutzte Apps',
         'apps.upToDate': 'Aktuell',
         'apps.updateAvailable': 'Update verfügbar',
         'apps.unknown': 'Store-Version unbekannt',
+        'apps.unused': 'Von keinem Flow verwendet',
         'apps.usedBy': 'Flows',
         'apps.installed': 'installiert',
         'apps.store': 'Store',
@@ -395,9 +402,11 @@ const I18N = {
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
         'apps.onlyUpdates': 'Alleen apps met updates',
+        'apps.onlyUnused': 'Alleen ongebruikte apps',
         'apps.upToDate': 'Up-to-date',
         'apps.updateAvailable': 'Update beschikbaar',
         'apps.unknown': 'Store-versie onbekend',
+        'apps.unused': 'Door geen enkele flow gebruikt',
         'apps.usedBy': 'flows',
         'apps.installed': 'geïnstalleerd',
         'apps.store': 'store',
@@ -532,6 +541,7 @@ class FlowDoctor {
         document.querySelectorAll('.sev-toggle').forEach(cb => cb.addEventListener('change', () => this.renderFlows()));
         document.getElementById('app-search').addEventListener('input', () => this.renderApps());
         document.getElementById('app-only-updates').addEventListener('change', () => this.renderApps());
+        document.getElementById('app-only-unused').addEventListener('change', () => this.renderApps());
 
         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
             this.showScreen('api-setup-screen');
@@ -587,43 +597,70 @@ class FlowDoctor {
         }
     }
 
+    async getCloudToken() {
+        if (!this.cloudApi) return null;
+        const candidates = [this.cloudApi._token, this.cloudApi.token, this.cloudApi._accessToken];
+        for (const c of candidates) {
+            if (typeof c === 'string' && c) return c;
+            if (c && typeof c === 'object' && c.access_token) return c.access_token;
+        }
+        try {
+            if (typeof this.cloudApi.getToken === 'function') {
+                const t = await this.cloudApi.getToken();
+                if (typeof t === 'string') return t;
+                if (t && t.access_token) return t.access_token;
+            }
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
     async fetchAppStoreVersions(installedIds, apps) {
         const result = {};
 
-        // Strategy 1: try Homey's own app-store endpoint via the authenticated session.
-        // This is what the Homey app itself uses to render "update available" — no CORS issue
-        // because we're talking to the user's own Homey.
-        try {
-            if (this.api.apps && typeof this.api.apps.getAppStoreApps === 'function') {
-                const storeApps = await this.api.apps.getAppStoreApps();
-                Object.values(storeApps || {}).forEach(a => {
-                    if (a && a.id && a.version) result[a.id] = a.version;
-                });
-            }
-        } catch (e) { /* ignore */ }
+        // 1) Many installed-app payloads already carry latestVersion/update info.
+        if (apps) {
+            Object.values(apps).forEach(a => {
+                const v = a.latestVersion || a.updateVersion || (a.update && a.update.version);
+                if (v) result[a.id] = v;
+            });
+        }
+        if (installedIds.every(id => result[id])) return result;
 
-        // Strategy 2: per-app lookup via api.apps.getAppStoreApp / getApp
-        if (Object.keys(result).length === 0 && this.api.apps) {
+        // 2) api.athom.com is CORS-enabled and used by my.homey.app — query per app using
+        //    the cloud OAuth token we already hold.
+        const token = await this.getCloudToken();
+        if (token) {
             await Promise.all(installedIds.map(async (id) => {
-                for (const method of ['getAppStoreApp', 'getAppFromStore']) {
-                    if (typeof this.api.apps[method] !== 'function') continue;
+                if (result[id]) return;
+                for (const path of [
+                    `https://api.athom.com/app/${encodeURIComponent(id)}`,
+                    `https://api.athom.com/api/app/${encodeURIComponent(id)}`,
+                ]) {
                     try {
-                        const data = await this.api.apps[method]({ id });
-                        const v = data && (data.version || (data.versions && data.versions[0] && data.versions[0].version));
+                        const r = await fetch(path, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+                        if (!r.ok) continue;
+                        const data = await r.json();
+                        const v = data && (data.version
+                            || (data.versions && data.versions[0] && data.versions[0].version)
+                            || (data.latestVersion && data.latestVersion.version));
                         if (v) { result[id] = v; return; }
                     } catch (e) { /* try next */ }
                 }
             }));
         }
 
-        // Strategy 3: each installed app may carry an `updateAvailable` / `latestVersion` field
-        if (apps) {
-            Object.values(apps).forEach(a => {
-                if (result[a.id]) return;
-                const v = a.latestVersion || a.updateVersion || (a.update && a.update.version);
-                if (v) result[a.id] = v;
-            });
-        }
+        // 3) Last-resort: try the public app store endpoint (often blocked by CORS,
+        //    but cheap to attempt and works for some apps that set permissive headers).
+        await Promise.all(installedIds.map(async (id) => {
+            if (result[id]) return;
+            try {
+                const r = await fetch(`https://apps.athom.com/app/${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } });
+                if (!r.ok) return;
+                const data = await r.json();
+                const v = data && (data.version || (data.versions && data.versions[0] && data.versions[0].version));
+                if (v) result[id] = v;
+            } catch (e) { /* ignore */ }
+        }));
 
         return result;
     }
@@ -862,7 +899,7 @@ class FlowDoctor {
         document.getElementById('count-info').textContent = nInfo;
         document.getElementById('count-ok').textContent = nOk;
         document.getElementById('tab-flows-count').textContent = nErr + nWarn;
-        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate).length;
+        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate || a.usage === 0).length;
 
         const sevWanted = new Set([...document.querySelectorAll('.sev-toggle')].filter(cb => cb.checked).map(cb => cb.getAttribute('data-sev')));
         const search = (document.getElementById('flow-search').value || '').toLowerCase().trim();
@@ -923,13 +960,18 @@ class FlowDoctor {
         const list = document.getElementById('apps-list');
         const search = (document.getElementById('app-search').value || '').toLowerCase().trim();
         const onlyUpdates = document.getElementById('app-only-updates').checked;
+        const onlyUnused = document.getElementById('app-only-unused').checked;
         list.innerHTML = '';
         const apps = (this.appsList || []).filter(a => {
             if (onlyUpdates && !a.hasUpdate) return false;
+            if (onlyUnused && a.usage > 0) return false;
             if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
             return true;
         });
-        apps.sort((a, b) => (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0) || a.name.localeCompare(b.name));
+        apps.sort((a, b) =>
+            (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0)
+            || (a.usage === 0 ? 0 : 1) - (b.usage === 0 ? 0 : 1)
+            || a.name.localeCompare(b.name));
 
         if (apps.length === 0) {
             list.innerHTML = `<div class="text-center text-gray-500 py-12">${this.t('noIssues')}</div>`;
@@ -946,6 +988,8 @@ class FlowDoctor {
             } else {
                 statusBadge = `<span class="badge badge-info">${this.t('apps.unknown')}</span>`;
             }
+            const unusedBadge = a.usage === 0 ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
+            if (a.usage === 0 && !sevClass) sevClass = 'sev-info';
             const versionInfo = a.storeVersion
                 ? `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code> · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
                 : `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
@@ -963,6 +1007,7 @@ class FlowDoctor {
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-semibold text-gray-900">${this.escape(a.name)}</span>
                             ${statusBadge}
+                            ${unusedBadge}
                         </div>
                         <div class="text-xs text-gray-600 mt-1">${versionInfo}</div>
                         <div class="text-xs text-gray-400 mt-1 font-mono">${this.escape(a.id)}</div>

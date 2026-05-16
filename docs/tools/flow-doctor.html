@@ -751,10 +751,9 @@ class FlowDoctor {
                 // In homey-api 3.x, the full URI (e.g. "homey:app:com.foo:my_card") lives on card.id;
                 // card.uri is absent. Older code paths read card.uri and silently no-op'd every check.
                 const uri = card.id || card.uri || '';
-                if (!uri || uri === 'undefined:undefined') {
-                    issues.push({ severity: 'error', key: 'issue.broken' });
-                    return issues;
-                }
+                // Advanced-flow primitives (start, any, all, note, delay, AND/OR…) have id
+                // "undefined:undefined" — they're not homey-card references, skip URI checks.
+                if (!uri.startsWith('homey:')) return issues;
                 let appId = null;
                 if (uri.startsWith('homey:app:')) {
                     appId = uri.substring('homey:app:'.length).split(':')[0];
@@ -899,7 +898,9 @@ class FlowDoctor {
             this.appsList = appsList;
             this.populateAppFilter();
             this.showScreen('results-screen');
-            this.switchTab('flows');
+            // Preserve the active tab across rescans; default to flows on first scan.
+            const activeTab = (document.querySelector('.tab-btn.text-blue-600')?.getAttribute('data-tab')) || 'flows';
+            this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
         } catch (e) {
@@ -1018,8 +1019,8 @@ class FlowDoctor {
         const sortFns = {
             status: (a, b) =>
                 (b.crashed ? 1 : 0) - (a.crashed ? 1 : 0)
+                || (b.usage || 0) - (a.usage || 0)
                 || (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0)
-                || (a.usage === 0 ? 0 : 1) - (b.usage === 0 ? 0 : 1)
                 || a.name.localeCompare(b.name),
             mem: (a, b) => (b.mem || 0) - (a.mem || 0) || a.name.localeCompare(b.name),
             cpu: (a, b) => (b.cpu || 0) - (a.cpu || 0) || a.name.localeCompare(b.name),

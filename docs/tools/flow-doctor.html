@@ -226,7 +226,7 @@ const I18N = {
         'apps.unused': 'Unused by any flow',
         'apps.usedBy': 'flows',
         'apps.devices': 'devices',
-        'apps.installed': 'installed',
+        'apps.installed': 'Installed',
         'apps.store': 'store',
         'apps.crashed': 'Crashed',
         'apps.disabled': 'Disabled',
@@ -299,7 +299,7 @@ const I18N = {
         'apps.unused': 'Ikke brukt av noen flow',
         'apps.usedBy': 'flows',
         'apps.devices': 'enheter',
-        'apps.installed': 'installert',
+        'apps.installed': 'Installert',
         'apps.store': 'butikk',
         'apps.crashed': 'Krasjet',
         'apps.disabled': 'Deaktivert',
@@ -372,7 +372,7 @@ const I18N = {
         'apps.unused': 'Von keinem Flow verwendet',
         'apps.usedBy': 'Flows',
         'apps.devices': 'Geräte',
-        'apps.installed': 'installiert',
+        'apps.installed': 'Installiert',
         'apps.store': 'Store',
         'apps.crashed': 'Abgestürzt',
         'apps.disabled': 'Deaktiviert',
@@ -445,7 +445,7 @@ const I18N = {
         'apps.unused': 'Door geen enkele flow gebruikt',
         'apps.usedBy': 'flows',
         'apps.devices': 'apparaten',
-        'apps.installed': 'geïnstalleerd',
+        'apps.installed': 'Geïnstalleerd',
         'apps.store': 'store',
         'apps.crashed': 'Gecrasht',
         'apps.disabled': 'Uitgeschakeld',
@@ -682,6 +682,14 @@ class FlowDoctor {
         if (!this.homeyId) return null;
         const base = `https://my.homey.app/homeys/${this.homeyId}`;
         return type === 'advanced' ? `${base}/flows/advanced/${flow.id}` : `${base}/flows/${flow.id}`;
+    }
+
+    appUrl(appId) {
+        // my.homey.app has no /apps/<id> route — it silently falls back to the dashboard.
+        // The public App Store page is the only reliable target; it always shows an
+        // "Install" button regardless of whether the user already has the app, but the
+        // page is otherwise informative (description, version history, store version).
+        return `https://homey.app/a/${encodeURIComponent(appId)}`;
     }
 
     switchTab(name) {
@@ -1088,10 +1096,11 @@ class FlowDoctor {
             const resourceHtml = (memMb != null || cpuPct != null)
                 ? `<div class="text-xs text-gray-600 mt-1 flex gap-3">${memMb != null ? `<span>${this.t('apps.memory')}: <strong>${memMb} MB</strong></span>` : ''}${cpuPct != null ? `<span>${this.t('apps.cpu')}: <strong>${cpuPct}%</strong></span>` : ''}</div>`
                 : '';
+            const installedTag = `<span class="text-green-700 font-semibold">✓ ${this.t('apps.installed')}</span> <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
             const versionInfo = a.storeVersion
-                ? `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code> · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
-                : `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
-            const storeLink = `https://homey.app/a/${encodeURIComponent(a.id)}`;
+                ? `${installedTag} · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
+                : installedTag;
+            const storeLink = this.appUrl(a.id);
             const showUsageLink = a.usage > 0;
             const flowsHtml = showUsageLink
                 ? `<a href="#" data-app-id="${this.escape(a.id)}" class="filter-by-app text-xs text-blue-600 hover:underline">${a.usage} ${this.t('apps.usedBy')} →</a>`

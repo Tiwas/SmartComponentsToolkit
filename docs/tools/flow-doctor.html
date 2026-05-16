@@ -587,17 +587,44 @@ class FlowDoctor {
         }
     }
 
-    async fetchAppStoreVersions(installedIds) {
+    async fetchAppStoreVersions(installedIds, apps) {
         const result = {};
-        await Promise.all(installedIds.map(async (id) => {
-            try {
-                const r = await fetch(`https://apps.athom.com/app/${id}`, { headers: { 'Accept': 'application/json' } });
-                if (!r.ok) return;
-                const data = await r.json();
-                const v = (data && (data.version || (data.versions && data.versions[0] && data.versions[0].version))) || null;
-                if (v) result[id] = v;
-            } catch (e) { /* CORS or 404 — silently skip */ }
-        }));
+
+        // Strategy 1: try Homey's own app-store endpoint via the authenticated session.
+        // This is what the Homey app itself uses to render "update available" — no CORS issue
+        // because we're talking to the user's own Homey.
+        try {
+            if (this.api.apps && typeof this.api.apps.getAppStoreApps === 'function') {
+                const storeApps = await this.api.apps.getAppStoreApps();
+                Object.values(storeApps || {}).forEach(a => {
+                    if (a && a.id && a.version) result[a.id] = a.version;
+                });
+            }
+        } catch (e) { /* ignore */ }
+
+        // Strategy 2: per-app lookup via api.apps.getAppStoreApp / getApp
+        if (Object.keys(result).length === 0 && this.api.apps) {
+            await Promise.all(installedIds.map(async (id) => {
+                for (const method of ['getAppStoreApp', 'getAppFromStore']) {
+                    if (typeof this.api.apps[method] !== 'function') continue;
+                    try {
+                        const data = await this.api.apps[method]({ id });
+                        const v = data && (data.version || (data.versions && data.versions[0] && data.versions[0].version));
+                        if (v) { result[id] = v; return; }
+                    } catch (e) { /* try next */ }
+                }
+            }));
+        }
+
+        // Strategy 3: each installed app may carry an `updateAvailable` / `latestVersion` field
+        if (apps) {
+            Object.values(apps).forEach(a => {
+                if (result[a.id]) return;
+                const v = a.latestVersion || a.updateVersion || (a.update && a.update.version);
+                if (v) result[a.id] = v;
+            });
+        }
+
         return result;
     }
 
@@ -660,7 +687,7 @@ class FlowDoctor {
             buildCardLookup(conditions, 'condition');
             buildCardLookup(actions, 'action');
 
-            const appStoreVersions = await this.fetchAppStoreVersions([...installedAppIds]);
+            const appStoreVersions = await this.fetchAppStoreVersions([...installedAppIds], installedApps);
 
             const lookupCardDef = (card, kind) => {
                 if (!card || !card.id) return null;
@@ -708,13 +735,10 @@ class FlowDoctor {
                         if ((val === undefined || val === null) && argDef.required !== false) {
                             issues.push({ severity: 'warn', key: 'issue.missingArg', detail: argDef.name + ' (' + (card.id || '') + ')', appId });
                         }
-                        // Device reference check
-                        if (val && typeof val === 'object' && val.id && (argDef.type === 'device' || argDef.filter || argDef.type === 'autocomplete')) {
-                            if (deviceIds.size > 0 && !deviceIds.has(val.id) && !installedAppIds.has(val.id)) {
-                                // Only flag if it really looks like a device id (uuid-ish length)
-                                if (typeof val.id === 'string' && val.id.length >= 16) {
-                                    issues.push({ severity: 'error', key: 'issue.missingDevice', detail: argDef.name + ' → ' + (val.name || val.id), appId });
-                                }
+                        // Device reference check — only for actual device-typed args
+                        if (argDef.type === 'device' && val && typeof val === 'object' && val.id && typeof val.id === 'string') {
+                            if (deviceIds.size > 0 && !deviceIds.has(val.id) && val.id.length >= 16) {
+                                issues.push({ severity: 'error', key: 'issue.missingDevice', detail: argDef.name + ' → ' + (val.name || val.id), appId });
                             }
                         }
                     }

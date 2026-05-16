@@ -502,8 +502,22 @@ class FlowDoctor {
     }
 
     showError(msg) {
-        document.getElementById('error-message').textContent = msg;
+        const text = String(msg || '');
+        if (/refresh token|access token|unauthor|invalid.*token|401/i.test(text)) {
+            this.clearAuthAndShowLogin();
+            return;
+        }
+        document.getElementById('error-message').textContent = text;
         this.showScreen('error-screen');
+    }
+
+    async clearAuthAndShowLogin() {
+        try { if (this.cloudApi) await this.cloudApi.logout(); } catch (e) { /* ignore */ }
+        // AthomCloudAPI persists tokens under its own localStorage keys; clear known ones defensively
+        try {
+            ['homey-api', 'homey_api_key', 'homey_access_token', 'homey_refresh_token'].forEach(k => localStorage.removeItem(k));
+        } catch (e) { /* ignore */ }
+        this.showScreen('login-screen');
     }
 
     applyI18n() {
@@ -734,7 +748,13 @@ class FlowDoctor {
             const checkCard = (card, kind) => {
                 const issues = [];
                 if (!card) return issues;
-                const uri = card.uri || '';
+                // In homey-api 3.x, the full URI (e.g. "homey:app:com.foo:my_card") lives on card.id;
+                // card.uri is absent. Older code paths read card.uri and silently no-op'd every check.
+                const uri = card.id || card.uri || '';
+                if (!uri || uri === 'undefined:undefined') {
+                    issues.push({ severity: 'error', key: 'issue.broken' });
+                    return issues;
+                }
                 let appId = null;
                 if (uri.startsWith('homey:app:')) {
                     appId = uri.substring('homey:app:'.length).split(':')[0];
@@ -809,15 +829,15 @@ class FlowDoctor {
                         }
                     } else if (typeof val === 'object') {
                         if (val.id && deviceToApp[val.id]) seen.add(deviceToApp[val.id]);
-                        if (val.driverUri && typeof val.driverUri === 'string' && val.driverUri.startsWith('homey:app:')) {
-                            seen.add(val.driverUri.substring('homey:app:'.length).split(':')[0]);
+                        if (typeof val.driverId === 'string' && val.driverId.startsWith('homey:app:')) {
+                            seen.add(val.driverId.substring('homey:app:'.length).split(':')[0]);
                         }
                     }
                 };
 
                 for (const c of cards) {
                     if (!c) continue;
-                    const uri = c.uri || '';
+                    const uri = c.id || c.uri || '';
                     if (uri.startsWith('homey:app:')) {
                         seen.add(uri.substring('homey:app:'.length).split(':')[0]);
                     } else if (uri.startsWith('homey:device:')) {

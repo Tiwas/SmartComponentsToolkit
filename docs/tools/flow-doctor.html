@@ -244,6 +244,7 @@ const I18N = {
         'issue.unknownCard': 'Card no longer exists in installed app (likely removed/renamed)',
         'issue.disabled': 'Flow is disabled',
         'issue.missingDevice': 'References a device that no longer exists',
+        'issue.deviceMissingApp': 'Device exists but its owning app is not installed',
         'issue.unknownArg': 'Card argument no longer exists in the app manifest',
         'issue.missingArg': 'Required card argument is missing',
         'issue.appUpdate': 'App update available',
@@ -316,6 +317,7 @@ const I18N = {
         'issue.unknownCard': 'Kortet finnes ikke lenger i den installerte appen (sannsynligvis fjernet eller omdøpt)',
         'issue.disabled': 'Flowen er deaktivert',
         'issue.missingDevice': 'Refererer til en enhet som ikke lenger finnes',
+        'issue.deviceMissingApp': 'Enheten finnes, men app-en som eier den er ikke installert',
         'issue.unknownArg': 'Argumentet finnes ikke lenger i app-manifestet',
         'issue.missingArg': 'Påkrevd argument mangler',
         'issue.appUpdate': 'Oppdatering tilgjengelig for appen',
@@ -388,6 +390,7 @@ const I18N = {
         'issue.unknownCard': 'Die Karte existiert in der installierten App nicht mehr (vermutlich entfernt oder umbenannt)',
         'issue.disabled': 'Flow ist deaktiviert',
         'issue.missingDevice': 'Verweist auf ein nicht mehr vorhandenes Gerät',
+        'issue.deviceMissingApp': 'Gerät existiert, aber die zugehörige App ist nicht installiert',
         'issue.unknownArg': 'Argument existiert nicht mehr im App-Manifest',
         'issue.missingArg': 'Erforderliches Argument fehlt',
         'issue.appUpdate': 'App-Update verfügbar',
@@ -460,6 +463,7 @@ const I18N = {
         'issue.unknownCard': 'De kaart bestaat niet meer in de geïnstalleerde app (waarschijnlijk verwijderd of hernoemd)',
         'issue.disabled': 'Flow is uitgeschakeld',
         'issue.missingDevice': 'Verwijst naar een apparaat dat niet meer bestaat',
+        'issue.deviceMissingApp': 'Apparaat bestaat, maar de bijbehorende app is niet geïnstalleerd',
         'issue.unknownArg': 'Argument bestaat niet meer in het app-manifest',
         'issue.missingArg': 'Verplicht argument ontbreekt',
         'issue.appUpdate': 'App-update beschikbaar',
@@ -808,6 +812,9 @@ class FlowDoctor {
                     const devId = uri.substring('homey:device:'.length).split(':')[0];
                     if (deviceIds.size > 0 && devId && !deviceIds.has(devId)) {
                         issues.push({ severity: 'error', key: 'issue.missingDevice', detail: devId, appId });
+                    } else if (deviceToApp[devId] && !installedAppIds.has(deviceToApp[devId])) {
+                        // Device exists but its owning app isn't installed — orphan device.
+                        issues.push({ severity: 'warn', key: 'issue.deviceMissingApp', detail: deviceToApp[devId], appId: deviceToApp[devId] });
                     }
                 }
 

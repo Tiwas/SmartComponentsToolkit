@@ -195,6 +195,8 @@
             <button id="bug-modal-close" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
         </div>
         <p class="text-sm text-gray-700 mb-3" data-i18n="bug.intro">Describe what you observed, then click Copy. The data does not include device or flow names, your Homey ID, or any tokens.</p>
+        <label class="block text-xs font-semibold text-gray-700 mb-1" data-i18n="bug.titleLabel">Title</label>
+        <input id="bug-title" type="text" class="w-full text-sm border border-gray-300 rounded p-2 mb-3">
         <label class="block text-xs font-semibold text-gray-700 mb-1" data-i18n="bug.descriptionLabel">Description</label>
         <textarea id="bug-description" rows="5" class="w-full text-sm border border-gray-300 rounded p-2 mb-3" data-i18n-placeholder="bug.descriptionPlaceholder" placeholder="What did you see? What did you expect? Steps to reproduce…"></textarea>
         <div class="flex flex-col gap-3">
@@ -218,6 +220,8 @@ const I18N = {
         'bug.button': '🐞 Report bug',
         'bug.title': 'Report a bug',
         'bug.intro': 'Describe what you observed, then click Copy. The data does not include device or flow names, your Homey ID, or any tokens.',
+        'bug.titleLabel': 'Title',
+        'bug.titleDefault': '[Flow Doctor] Bug report',
         'bug.descriptionLabel': 'Description',
         'bug.descriptionPlaceholder': 'What did you see? What did you expect? Steps to reproduce…',
         'bug.descriptionMissing': '(no description provided)',
@@ -304,6 +308,8 @@ const I18N = {
         'bug.button': '🐞 Rapportér feil',
         'bug.title': 'Rapportér en feil',
         'bug.intro': 'Beskriv hva du observerte, og trykk Kopier. Dataene inneholder ikke device- eller flow-navn, Homey-ID, eller tokens.',
+        'bug.titleLabel': 'Tittel',
+        'bug.titleDefault': '[Flow Doctor] Bug report',
         'bug.descriptionLabel': 'Beskrivelse',
         'bug.descriptionPlaceholder': 'Hva så du? Hva forventet du? Hvordan reproduserer du det…',
         'bug.descriptionMissing': '(ingen beskrivelse oppgitt)',
@@ -390,6 +396,8 @@ const I18N = {
         'bug.button': '🐞 Fehler melden',
         'bug.title': 'Fehler melden',
         'bug.intro': 'Beschreiben Sie das beobachtete Problem und klicken Sie auf Kopieren. Die Daten enthalten weder Geräte- noch Flow-Namen, Ihre Homey-ID oder Tokens.',
+        'bug.titleLabel': 'Titel',
+        'bug.titleDefault': '[Flow Doctor] Bug report',
         'bug.descriptionLabel': 'Beschreibung',
         'bug.descriptionPlaceholder': 'Was haben Sie gesehen? Was haben Sie erwartet? Schritte zur Reproduktion…',
         'bug.descriptionMissing': '(keine Beschreibung angegeben)',
@@ -476,6 +484,8 @@ const I18N = {
         'bug.button': '🐞 Bug melden',
         'bug.title': 'Bug melden',
         'bug.intro': 'Beschrijf wat je hebt gezien en klik op Kopiëren. De gegevens bevatten geen apparaat- of flow-namen, je Homey-ID, of tokens.',
+        'bug.titleLabel': 'Titel',
+        'bug.titleDefault': '[Flow Doctor] Bug report',
         'bug.descriptionLabel': 'Beschrijving',
         'bug.descriptionPlaceholder': 'Wat zag je? Wat verwachtte je? Stappen om te reproduceren…',
         'bug.descriptionMissing': '(geen beschrijving opgegeven)',
@@ -679,6 +689,7 @@ class FlowDoctor {
         bugModal.addEventListener('click', (e) => { if (e.target === bugModal) bugModal.classList.add('hidden'); });
         document.getElementById('bug-copy-button').addEventListener('click', () => this.copyDebugInfo());
         document.getElementById('bug-description').addEventListener('input', () => this.refreshBugPreview());
+        document.getElementById('bug-title').addEventListener('input', () => this.refreshBugPreview());
         document.getElementById('rescan-button').addEventListener('click', () => this.scan());
 
         document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
@@ -837,10 +848,22 @@ class FlowDoctor {
     }
 
     refreshBugPreview() {
-        document.getElementById('bug-preview').textContent = this.composeBugReport();
+        const body = this.composeBugReport();
+        document.getElementById('bug-preview').textContent = body;
+        // Pre-fill the GitHub new-issue link with current title + body so clicking
+        // through lands the user on a ready-to-submit form. GitHub silently truncates
+        // bodies longer than ~8000 URL chars; the clipboard fallback covers that case.
+        const title = (document.getElementById('bug-title')?.value || '').trim() || this.t('bug.titleDefault');
+        const url = 'https://github.com/Tiwas/SmartComponentsToolkit/issues/new'
+            + '?title=' + encodeURIComponent(title)
+            + '&body=' + encodeURIComponent(body);
+        const link = document.getElementById('bug-github-link');
+        if (link) link.setAttribute('href', url);
     }
 
     openBugModal() {
+        const titleInput = document.getElementById('bug-title');
+        if (titleInput && !titleInput.value) titleInput.value = this.t('bug.titleDefault');
         this.refreshBugPreview();
         document.getElementById('bug-modal').classList.remove('hidden');
         document.getElementById('bug-description').focus();

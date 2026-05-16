@@ -989,8 +989,16 @@ class FlowDoctor {
         document.getElementById('count-warnings').textContent = nWarn;
         document.getElementById('count-info').textContent = nInfo;
         document.getElementById('count-ok').textContent = nOk;
-        document.getElementById('tab-flows-count').textContent = nErr + nWarn;
-        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate || (a.usage === 0 && (a.deviceCount || 0) === 0) || a.crashed).length;
+        const total = nErr + nWarn + nInfo + nOk;
+        document.getElementById('tab-flows-count').innerHTML =
+            `${total} (<span class="text-red-600">E:${nErr}</span> · <span class="text-amber-600">W:${nWarn}</span> · <span class="text-blue-600">I:${nInfo}</span> · <span class="text-green-700">OK:${nOk}</span>)`;
+        const allApps = this.appsList || [];
+        const nCrashed = allApps.filter(a => a.crashed).length;
+        const nUpdate = allApps.filter(a => a.hasUpdate && !a.crashed).length;
+        const nUnused = allApps.filter(a => !a.crashed && !a.hasUpdate && a.usage === 0 && (a.deviceCount || 0) === 0).length;
+        const nAppsOk = allApps.length - nCrashed - nUpdate - nUnused;
+        document.getElementById('tab-apps-count').innerHTML =
+            `${allApps.length} (<span class="text-red-600">X:${nCrashed}</span> · <span class="text-amber-600">U:${nUpdate}</span> · <span class="text-blue-600">!:${nUnused}</span> · <span class="text-green-700">OK:${nAppsOk}</span>)`;
 
         const sevWanted = new Set([...document.querySelectorAll('.sev-toggle')].filter(cb => cb.checked).map(cb => cb.getAttribute('data-sev')));
         const search = (document.getElementById('flow-search').value || '').toLowerCase().trim();

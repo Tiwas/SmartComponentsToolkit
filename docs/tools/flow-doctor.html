@@ -133,20 +133,37 @@
 
         <!-- Results Screen -->
         <div id="results-screen" class="screen">
-            <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div class="flex flex-wrap gap-2">
-                    <span class="badge badge-err"><span data-i18n="filter.errors">Errors</span>: <span id="count-errors">0</span></span>
-                    <span class="badge badge-warn"><span data-i18n="filter.warnings">Warnings</span>: <span id="count-warnings">0</span></span>
-                    <span class="badge badge-info"><span data-i18n="filter.info">Info</span>: <span id="count-info">0</span></span>
-                    <span class="badge badge-ok"><span data-i18n="filter.healthy">Healthy</span>: <span id="count-ok">0</span></span>
-                </div>
-                <div class="flex gap-2">
-                    <label class="text-sm flex items-center gap-1"><input type="checkbox" id="filter-onlyIssues" checked> <span data-i18n="filter.onlyIssues">Only show flows with issues</span></label>
-                    <button id="rescan-button" class="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300" data-i18n="rescan">Rescan</button>
-                </div>
+            <div class="border-b border-gray-200 mb-6 flex items-end justify-between gap-4 flex-wrap">
+                <nav class="flex gap-1" id="tab-nav">
+                    <button data-tab="flows" class="tab-btn px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-semibold text-sm"><span data-i18n="tab.flows">Flows</span> <span class="ml-1 text-xs text-gray-500" id="tab-flows-count">0</span></button>
+                    <button data-tab="apps" class="tab-btn px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-800 text-sm"><span data-i18n="tab.apps">Apps</span> <span class="ml-1 text-xs text-gray-400" id="tab-apps-count">0</span></button>
+                </nav>
+                <button id="rescan-button" class="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 mb-2" data-i18n="rescan">Rescan</button>
             </div>
 
-            <div id="results-list" class="space-y-3"></div>
+            <!-- Flows tab -->
+            <div id="tab-flows" class="tab-pane">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
+                    <input type="text" id="flow-search" placeholder="Search flow name…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
+                    <select id="flow-app-filter" class="text-sm border border-gray-300 rounded px-2 py-1">
+                        <option value="" data-i18n="filter.allApps">All apps</option>
+                    </select>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="error" checked> <span class="badge badge-err">Errors</span> <span id="count-errors">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="warn" checked> <span class="badge badge-warn">Warnings</span> <span id="count-warnings">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="info"> <span class="badge badge-info">Info</span> <span id="count-info">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="ok"> <span class="badge badge-ok">Healthy</span> <span id="count-ok">0</span></label>
+                </div>
+                <div id="results-list" class="space-y-3"></div>
+            </div>
+
+            <!-- Apps tab -->
+            <div id="tab-apps" class="tab-pane hidden">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
+                    <input type="text" id="app-search" placeholder="Search app…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-updates"> <span data-i18n="apps.onlyUpdates">Only apps with updates</span></label>
+                </div>
+                <div id="apps-list" class="space-y-2"></div>
+            </div>
         </div>
 
         <!-- Error -->
@@ -191,6 +208,16 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'Healthy',
         'filter.onlyIssues': 'Only show flows with issues',
+        'filter.allApps': 'All apps',
+        'tab.flows': 'Flows',
+        'tab.apps': 'Apps',
+        'apps.onlyUpdates': 'Only apps with updates',
+        'apps.upToDate': 'Up to date',
+        'apps.updateAvailable': 'Update available',
+        'apps.unknown': 'Store version unknown',
+        'apps.usedBy': 'flows',
+        'apps.installed': 'installed',
+        'apps.store': 'store',
         rescan: 'Rescan',
         'error.title': 'Something went wrong',
         'error.reload': 'Reload',
@@ -202,6 +229,7 @@ const I18N = {
         'issue.unknownArg': 'Card argument no longer exists in the app manifest',
         'issue.missingArg': 'Required card argument is missing',
         'issue.appUpdate': 'App update available',
+        'issue.deprecatedCard': 'Card is marked deprecated by the app (still works)',
         'openInHomey': 'Open in Homey',
         'flowType.standard': 'Standard flow',
         'flowType.advanced': 'Advanced flow',
@@ -241,6 +269,16 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'OK',
         'filter.onlyIssues': 'Vis kun flows med problemer',
+        'filter.allApps': 'Alle apper',
+        'tab.flows': 'Flows',
+        'tab.apps': 'Apper',
+        'apps.onlyUpdates': 'Bare apper med oppdateringer',
+        'apps.upToDate': 'Oppdatert',
+        'apps.updateAvailable': 'Oppdatering tilgjengelig',
+        'apps.unknown': 'Versjon i App Store ukjent',
+        'apps.usedBy': 'flows',
+        'apps.installed': 'installert',
+        'apps.store': 'butikk',
         rescan: 'Skann på nytt',
         'error.title': 'Noe gikk galt',
         'error.reload': 'Last på nytt',
@@ -252,6 +290,7 @@ const I18N = {
         'issue.unknownArg': 'Argumentet finnes ikke lenger i app-manifestet',
         'issue.missingArg': 'Påkrevd argument mangler',
         'issue.appUpdate': 'Oppdatering tilgjengelig for appen',
+        'issue.deprecatedCard': 'Kortet er merket som utfaset av appen (fungerer fortsatt)',
         'openInHomey': 'Åpne i Homey',
         'flowType.standard': 'Standard flow',
         'flowType.advanced': 'Advanced flow',
@@ -291,6 +330,16 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'OK',
         'filter.onlyIssues': 'Nur Flows mit Problemen anzeigen',
+        'filter.allApps': 'Alle Apps',
+        'tab.flows': 'Flows',
+        'tab.apps': 'Apps',
+        'apps.onlyUpdates': 'Nur Apps mit Updates',
+        'apps.upToDate': 'Aktuell',
+        'apps.updateAvailable': 'Update verfügbar',
+        'apps.unknown': 'Store-Version unbekannt',
+        'apps.usedBy': 'Flows',
+        'apps.installed': 'installiert',
+        'apps.store': 'Store',
         rescan: 'Erneut scannen',
         'error.title': 'Etwas ist schiefgelaufen',
         'error.reload': 'Neu laden',
@@ -302,6 +351,7 @@ const I18N = {
         'issue.unknownArg': 'Argument existiert nicht mehr im App-Manifest',
         'issue.missingArg': 'Erforderliches Argument fehlt',
         'issue.appUpdate': 'App-Update verfügbar',
+        'issue.deprecatedCard': 'Karte ist von der App als veraltet markiert (funktioniert noch)',
         'openInHomey': 'In Homey öffnen',
         'flowType.standard': 'Standard-Flow',
         'flowType.advanced': 'Advanced Flow',
@@ -341,6 +391,16 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'OK',
         'filter.onlyIssues': 'Toon alleen flows met problemen',
+        'filter.allApps': 'Alle apps',
+        'tab.flows': 'Flows',
+        'tab.apps': 'Apps',
+        'apps.onlyUpdates': 'Alleen apps met updates',
+        'apps.upToDate': 'Up-to-date',
+        'apps.updateAvailable': 'Update beschikbaar',
+        'apps.unknown': 'Store-versie onbekend',
+        'apps.usedBy': 'flows',
+        'apps.installed': 'geïnstalleerd',
+        'apps.store': 'store',
         rescan: 'Opnieuw scannen',
         'error.title': 'Er ging iets mis',
         'error.reload': 'Opnieuw laden',
@@ -352,6 +412,7 @@ const I18N = {
         'issue.unknownArg': 'Argument bestaat niet meer in het app-manifest',
         'issue.missingArg': 'Verplicht argument ontbreekt',
         'issue.appUpdate': 'App-update beschikbaar',
+        'issue.deprecatedCard': 'Kaart is door de app als verouderd gemarkeerd (werkt nog)',
         'openInHomey': 'Openen in Homey',
         'flowType.standard': 'Standaard flow',
         'flowType.advanced': 'Geavanceerde flow',
@@ -419,7 +480,7 @@ class FlowDoctor {
                 localStorage.setItem('language', this.lang);
                 this.applyI18n();
                 document.getElementById('language-dropdown').classList.remove('active');
-                if (this.results.length) this.renderResults();
+                if (this.results.length) { this.populateAppFilter(); this.renderFlows(); this.renderApps(); }
             });
         });
         document.addEventListener('click', () => document.getElementById('language-dropdown').classList.remove('active'));
@@ -462,7 +523,15 @@ class FlowDoctor {
         document.getElementById('login-button').addEventListener('click', () => this.login());
         document.getElementById('logout-button').addEventListener('click', () => this.logout());
         document.getElementById('rescan-button').addEventListener('click', () => this.scan());
-        document.getElementById('filter-onlyIssues').addEventListener('change', () => this.renderResults());
+
+        document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.getAttribute('data-tab')));
+        });
+        document.getElementById('flow-search').addEventListener('input', () => this.renderFlows());
+        document.getElementById('flow-app-filter').addEventListener('change', () => this.renderFlows());
+        document.querySelectorAll('.sev-toggle').forEach(cb => cb.addEventListener('change', () => this.renderFlows()));
+        document.getElementById('app-search').addEventListener('input', () => this.renderApps());
+        document.getElementById('app-only-updates').addEventListener('change', () => this.renderApps());
 
         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
             this.showScreen('api-setup-screen');
@@ -548,6 +617,19 @@ class FlowDoctor {
         return type === 'advanced' ? `${base}/flows/advanced/${flow.id}` : `${base}/flows/${flow.id}`;
     }
 
+    switchTab(name) {
+        document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
+            const active = btn.getAttribute('data-tab') === name;
+            btn.classList.toggle('border-blue-600', active);
+            btn.classList.toggle('text-blue-600', active);
+            btn.classList.toggle('font-semibold', active);
+            btn.classList.toggle('border-transparent', !active);
+            btn.classList.toggle('text-gray-500', !active);
+        });
+        document.getElementById('tab-flows').classList.toggle('hidden', name !== 'flows');
+        document.getElementById('tab-apps').classList.toggle('hidden', name !== 'apps');
+    }
+
     async scan() {
         try {
             this.showLoader(this.t('scanning'));
@@ -600,7 +682,7 @@ class FlowDoctor {
                 if (uri.startsWith('homey:app:')) {
                     appId = uri.substring('homey:app:'.length).split(':')[0];
                     if (appId && !installedAppIds.has(appId)) {
-                        issues.push({ severity: 'error', key: 'issue.missingApp', detail: appId + ' · ' + (card.id || '') });
+                        issues.push({ severity: 'error', key: 'issue.missingApp', detail: appId + ' · ' + (card.id || ''), appId });
                         return issues;
                     }
                 }
@@ -609,8 +691,11 @@ class FlowDoctor {
                 if (uri.startsWith('homey:app:') || uri.startsWith('homey:manager:') || uri.startsWith('homey:device:')) {
                     def = lookupCardDef(card, kind);
                     if (!def) {
-                        issues.push({ severity: 'error', key: 'issue.unknownCard', detail: (card.id || '') + ' (' + uri + ')' });
+                        issues.push({ severity: 'error', key: 'issue.unknownCard', detail: (card.id || '') + ' (' + uri + ')', appId });
                         return issues;
+                    }
+                    if (def.deprecated) {
+                        issues.push({ severity: 'warn', key: 'issue.deprecatedCard', detail: (card.id || ''), appId });
                     }
                 }
 
@@ -621,14 +706,14 @@ class FlowDoctor {
                     for (const argDef of def.args) {
                         const val = provided[argDef.name];
                         if ((val === undefined || val === null) && argDef.required !== false) {
-                            issues.push({ severity: 'warn', key: 'issue.missingArg', detail: argDef.name + ' (' + (card.id || '') + ')' });
+                            issues.push({ severity: 'warn', key: 'issue.missingArg', detail: argDef.name + ' (' + (card.id || '') + ')', appId });
                         }
                         // Device reference check
                         if (val && typeof val === 'object' && val.id && (argDef.type === 'device' || argDef.filter || argDef.type === 'autocomplete')) {
                             if (deviceIds.size > 0 && !deviceIds.has(val.id) && !installedAppIds.has(val.id)) {
                                 // Only flag if it really looks like a device id (uuid-ish length)
                                 if (typeof val.id === 'string' && val.id.length >= 16) {
-                                    issues.push({ severity: 'error', key: 'issue.missingDevice', detail: argDef.name + ' → ' + (val.name || val.id) });
+                                    issues.push({ severity: 'error', key: 'issue.missingDevice', detail: argDef.name + ' → ' + (val.name || val.id), appId });
                                 }
                             }
                         }
@@ -636,7 +721,7 @@ class FlowDoctor {
                     // Unknown args (args present in flow but not in manifest)
                     for (const argName of Object.keys(provided)) {
                         if (!defArgNames.has(argName)) {
-                            issues.push({ severity: 'warn', key: 'issue.unknownArg', detail: argName + ' (' + (card.id || '') + ')' });
+                            issues.push({ severity: 'warn', key: 'issue.unknownArg', detail: argName + ' (' + (card.id || '') + ')', appId });
                         }
                     }
                 }
@@ -645,7 +730,7 @@ class FlowDoctor {
                 if (uri.startsWith('homey:device:')) {
                     const devId = uri.substring('homey:device:'.length).split(':')[0];
                     if (deviceIds.size > 0 && devId && !deviceIds.has(devId)) {
-                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: devId });
+                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: devId, appId });
                     }
                 }
 
@@ -653,25 +738,18 @@ class FlowDoctor {
             };
 
             const results = [];
-            const flagAppUpdates = (flow, issues) => {
+            const collectAppIds = (flow) => {
                 const seen = new Set();
-                const collectCards = [];
-                if (flow.trigger) collectCards.push(flow.trigger);
-                (flow.conditions || []).forEach(c => collectCards.push(c));
-                (flow.actions || []).forEach(c => collectCards.push(c));
-                if (flow.cards) Object.values(flow.cards).forEach(c => collectCards.push(c));
-                for (const c of collectCards) {
-                    const uri = c && c.uri || '';
-                    if (!uri.startsWith('homey:app:')) continue;
-                    const appId = uri.substring('homey:app:'.length).split(':')[0];
-                    if (!appId || seen.has(appId)) continue;
-                    seen.add(appId);
-                    const installed = installedApps[appId];
-                    const store = appStoreVersions[appId];
-                    if (installed && store && this.compareVersions(installed.version, store) < 0) {
-                        issues.push({ severity: 'info', key: 'issue.appUpdate', detail: appId + ' ' + installed.version + ' → ' + store });
-                    }
+                const cards = [];
+                if (flow.trigger) cards.push(flow.trigger);
+                (flow.conditions || []).forEach(c => cards.push(c));
+                (flow.actions || []).forEach(c => cards.push(c));
+                if (flow.cards) Object.values(flow.cards).forEach(c => cards.push(c));
+                for (const c of cards) {
+                    const uri = (c && c.uri) || '';
+                    if (uri.startsWith('homey:app:')) seen.add(uri.substring('homey:app:'.length).split(':')[0]);
                 }
+                return [...seen];
             };
 
             for (const flow of Object.values(flows)) {
@@ -681,8 +759,7 @@ class FlowDoctor {
                 if (flow.trigger) issues.push(...checkCard(flow.trigger, 'trigger'));
                 (flow.conditions || []).forEach(c => issues.push(...checkCard(c, 'condition')));
                 (flow.actions || []).forEach(a => issues.push(...checkCard(a, 'action')));
-                flagAppUpdates(flow, issues);
-                results.push({ type: 'standard', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, raw: flow });
+                results.push({ type: 'standard', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, apps: collectAppIds(flow), raw: flow });
             }
 
             for (const flow of Object.values(advFlows)) {
@@ -696,23 +773,61 @@ class FlowDoctor {
                     else if (card.type === 'condition' || card.type === 'logic-condition') kind = 'condition';
                     issues.push(...checkCard(card, kind));
                 }
-                flagAppUpdates(flow, issues);
-                results.push({ type: 'advanced', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, raw: flow });
+                results.push({ type: 'advanced', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, apps: collectAppIds(flow), raw: flow });
             }
 
+            // Build apps aggregation
+            const appUsage = {};
+            results.forEach(r => r.apps.forEach(a => { appUsage[a] = (appUsage[a] || 0) + 1; }));
+            const appsList = Object.values(installedApps).map(a => ({
+                id: a.id,
+                name: a.name || a.id,
+                version: a.version || '',
+                storeVersion: appStoreVersions[a.id] || null,
+                hasUpdate: appStoreVersions[a.id] ? this.compareVersions(a.version, appStoreVersions[a.id]) < 0 : false,
+                usage: appUsage[a.id] || 0,
+            }));
+
             this.results = results;
+            this.appsList = appsList;
+            this.populateAppFilter();
             this.showScreen('results-screen');
-            this.renderResults();
+            this.switchTab('flows');
+            this.renderFlows();
+            this.renderApps();
         } catch (e) {
             this.showError(e.message || String(e));
         }
     }
 
-    renderResults() {
-        const onlyIssues = document.getElementById('filter-onlyIssues').checked;
+    populateAppFilter() {
+        const sel = document.getElementById('flow-app-filter');
+        const cur = sel.value;
+        sel.innerHTML = `<option value="">${this.t('filter.allApps')}</option>`;
+        const appsInFlows = new Set();
+        this.results.forEach(r => r.apps.forEach(a => appsInFlows.add(a)));
+        const installedNames = {};
+        (this.appsList || []).forEach(a => { installedNames[a.id] = a.name; });
+        [...appsInFlows].sort((a, b) => (installedNames[a] || a).localeCompare(installedNames[b] || b)).forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = (installedNames[id] || id);
+            sel.appendChild(opt);
+        });
+        sel.value = cur || '';
+    }
+
+    flowSeverity(r) {
+        if (r.issues.some(i => i.severity === 'error')) return 'error';
+        if (r.issues.some(i => i.severity === 'warn')) return 'warn';
+        if (r.issues.some(i => i.severity === 'info')) return 'info';
+        return 'ok';
+    }
+
+    renderFlows() {
         let nErr = 0, nWarn = 0, nInfo = 0, nOk = 0;
         for (const r of this.results) {
-            const sev = r.issues.reduce((m, i) => i.severity === 'error' ? 'error' : (i.severity === 'warn' && m !== 'error' ? 'warn' : (m === 'error' || m === 'warn') ? m : i.severity), null);
+            const sev = this.flowSeverity(r);
             if (sev === 'error') nErr++;
             else if (sev === 'warn') nWarn++;
             else if (sev === 'info') nInfo++;
@@ -722,23 +837,36 @@ class FlowDoctor {
         document.getElementById('count-warnings').textContent = nWarn;
         document.getElementById('count-info').textContent = nInfo;
         document.getElementById('count-ok').textContent = nOk;
+        document.getElementById('tab-flows-count').textContent = nErr + nWarn;
+        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate).length;
+
+        const sevWanted = new Set([...document.querySelectorAll('.sev-toggle')].filter(cb => cb.checked).map(cb => cb.getAttribute('data-sev')));
+        const search = (document.getElementById('flow-search').value || '').toLowerCase().trim();
+        const appFilter = document.getElementById('flow-app-filter').value;
 
         const list = document.getElementById('results-list');
         list.innerHTML = '';
 
-        const filtered = this.results.filter(r => onlyIssues ? r.issues.some(i => i.severity === 'error' || i.severity === 'warn') : true);
+        const filtered = this.results.filter(r => {
+            if (!sevWanted.has(this.flowSeverity(r))) return false;
+            if (search && !(r.name || '').toLowerCase().includes(search)) return false;
+            if (appFilter && !r.apps.includes(appFilter)) return false;
+            return true;
+        });
+
         if (filtered.length === 0) {
             list.innerHTML = `<div class="text-center text-gray-500 py-12">${this.t('noIssues')}</div>`;
             return;
         }
 
         filtered.sort((a, b) => {
-            const sev = r => r.issues.some(i => i.severity === 'error') ? 0 : r.issues.some(i => i.severity === 'warn') ? 1 : r.issues.some(i => i.severity === 'info') ? 2 : 3;
-            return sev(a) - sev(b) || (a.name || '').localeCompare(b.name || '');
+            const ord = { error: 0, warn: 1, info: 2, ok: 3 };
+            return ord[this.flowSeverity(a)] - ord[this.flowSeverity(b)] || (a.name || '').localeCompare(b.name || '');
         });
 
         for (const r of filtered) {
-            const sevClass = r.issues.some(i => i.severity === 'error') ? 'sev-error' : r.issues.some(i => i.severity === 'warn') ? 'sev-warn' : r.issues.some(i => i.severity === 'info') ? 'sev-info' : '';
+            const sev = this.flowSeverity(r);
+            const sevClass = sev === 'error' ? 'sev-error' : sev === 'warn' ? 'sev-warn' : sev === 'info' ? 'sev-info' : '';
             const typeLabel = r.type === 'advanced' ? this.t('flowType.advanced') : this.t('flowType.standard');
             const issuesHtml = r.issues.map(i => {
                 const cls = i.severity === 'error' ? 'badge-err' : i.severity === 'warn' ? 'badge-warn' : 'badge-info';
@@ -765,6 +893,73 @@ class FlowDoctor {
             `;
             list.appendChild(div);
         }
+    }
+
+    renderApps() {
+        const list = document.getElementById('apps-list');
+        const search = (document.getElementById('app-search').value || '').toLowerCase().trim();
+        const onlyUpdates = document.getElementById('app-only-updates').checked;
+        list.innerHTML = '';
+        const apps = (this.appsList || []).filter(a => {
+            if (onlyUpdates && !a.hasUpdate) return false;
+            if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
+            return true;
+        });
+        apps.sort((a, b) => (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0) || a.name.localeCompare(b.name));
+
+        if (apps.length === 0) {
+            list.innerHTML = `<div class="text-center text-gray-500 py-12">${this.t('noIssues')}</div>`;
+            return;
+        }
+
+        for (const a of apps) {
+            let statusBadge, sevClass = '';
+            if (a.hasUpdate) {
+                statusBadge = `<span class="badge badge-warn">${this.t('apps.updateAvailable')}</span>`;
+                sevClass = 'sev-warn';
+            } else if (a.storeVersion) {
+                statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
+            } else {
+                statusBadge = `<span class="badge badge-info">${this.t('apps.unknown')}</span>`;
+            }
+            const versionInfo = a.storeVersion
+                ? `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code> · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
+                : `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
+            const storeLink = `https://homey.app/a/${encodeURIComponent(a.id)}`;
+            const showUsageLink = a.usage > 0;
+            const usageHtml = showUsageLink
+                ? `<a href="#" data-app-id="${this.escape(a.id)}" class="filter-by-app text-xs text-blue-600 hover:underline">${a.usage} ${this.t('apps.usedBy')} →</a>`
+                : `<span class="text-xs text-gray-400">0 ${this.t('apps.usedBy')}</span>`;
+
+            const div = document.createElement('div');
+            div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4`;
+            div.innerHTML = `
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-grow">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-semibold text-gray-900">${this.escape(a.name)}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="text-xs text-gray-600 mt-1">${versionInfo}</div>
+                        <div class="text-xs text-gray-400 mt-1 font-mono">${this.escape(a.id)}</div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        ${usageHtml}
+                        <a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">App Store ↗</a>
+                    </div>
+                </div>
+            `;
+            list.appendChild(div);
+        }
+
+        list.querySelectorAll('.filter-by-app').forEach(a => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('flow-app-filter').value = a.getAttribute('data-app-id');
+                this.switchTab('flows');
+                this.renderFlows();
+            });
+        });
     }
 
     escape(s) {

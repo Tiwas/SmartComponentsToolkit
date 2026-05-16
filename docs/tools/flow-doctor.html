@@ -226,6 +226,7 @@ const I18N = {
         'apps.unused': 'Unused by any flow',
         'apps.usedBy': 'flows',
         'apps.devices': 'devices',
+        'apps.extends': 'Extends',
         'apps.installed': 'Installed',
         'apps.store': 'store',
         'apps.crashed': 'Crashed',
@@ -299,6 +300,7 @@ const I18N = {
         'apps.unused': 'Ikke brukt av noen flow',
         'apps.usedBy': 'flows',
         'apps.devices': 'enheter',
+        'apps.extends': 'Utvider',
         'apps.installed': 'Installert',
         'apps.store': 'butikk',
         'apps.crashed': 'Krasjet',
@@ -372,6 +374,7 @@ const I18N = {
         'apps.unused': 'Von keinem Flow verwendet',
         'apps.usedBy': 'Flows',
         'apps.devices': 'Geräte',
+        'apps.extends': 'Erweitert',
         'apps.installed': 'Installiert',
         'apps.store': 'Store',
         'apps.crashed': 'Abgestürzt',
@@ -445,6 +448,7 @@ const I18N = {
         'apps.unused': 'Door geen enkele flow gebruikt',
         'apps.usedBy': 'flows',
         'apps.devices': 'apparaten',
+        'apps.extends': 'Breidt uit',
         'apps.installed': 'Geïnstalleerd',
         'apps.store': 'store',
         'apps.crashed': 'Gecrasht',
@@ -692,6 +696,15 @@ class FlowDoctor {
         return `https://homey.app/a/${encodeURIComponent(appId)}`;
     }
 
+    isAppUnused(app) {
+        if (app.usage > 0 || (app.deviceCount || 0) > 0) return false;
+        if (app.parentAppId) {
+            const parent = (this.appsList || []).find(p => p.id === app.parentAppId);
+            if (parent && (parent.usage > 0 || (parent.deviceCount || 0) > 0)) return false;
+        }
+        return true;
+    }
+
     switchTab(name) {
         document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
             const active = btn.getAttribute('data-tab') === name;
@@ -936,7 +949,21 @@ class FlowDoctor {
                 mem: a.usage && typeof a.usage.mem === 'number' ? a.usage.mem : null,
                 usage: appUsage[a.id] || 0,
                 deviceCount: appDeviceCount[a.id] || 0,
+                parentAppId: null,
+                parentAppName: null,
             }));
+            // Heuristic: if an installed app's id starts with another installed app's id + '.',
+            // treat it as an extension of that parent (e.g. com.mecloud.extension → com.mecloud).
+            // Extensions inherit their parent's usage/device signal for the "unused" check,
+            // since Homey's API doesn't expose runtime app-to-app dependencies.
+            appsList.forEach(app => {
+                const candidates = appsList.filter(p => p.id !== app.id && app.id.startsWith(p.id + '.'));
+                if (candidates.length) {
+                    const parent = candidates.sort((x, y) => y.id.length - x.id.length)[0];
+                    app.parentAppId = parent.id;
+                    app.parentAppName = parent.name;
+                }
+            });
 
             this.results = results;
             this.appsList = appsList;
@@ -995,7 +1022,7 @@ class FlowDoctor {
         const allApps = this.appsList || [];
         const nCrashed = allApps.filter(a => a.crashed).length;
         const nUpdate = allApps.filter(a => a.hasUpdate && !a.crashed).length;
-        const nUnused = allApps.filter(a => !a.crashed && !a.hasUpdate && a.usage === 0 && (a.deviceCount || 0) === 0).length;
+        const nUnused = allApps.filter(a => !a.crashed && !a.hasUpdate && this.isAppUnused(a)).length;
         const nAppsOk = allApps.length - nCrashed - nUpdate - nUnused;
         document.getElementById('tab-apps-count').innerHTML =
             `${allApps.length} (<span class="text-red-600">X:${nCrashed}</span> · <span class="text-amber-600">U:${nUpdate}</span> · <span class="text-blue-600">!:${nUnused}</span> · <span class="text-green-700">OK:${nAppsOk}</span>)`;
@@ -1064,7 +1091,7 @@ class FlowDoctor {
         list.innerHTML = '';
         const apps = (this.appsList || []).filter(a => {
             if (onlyUpdates && !a.hasUpdate) return false;
-            if (onlyUnused && (a.usage > 0 || (a.deviceCount || 0) > 0)) return false;
+            if (onlyUnused && !this.isAppUnused(a)) return false;
             if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
             return true;
         });
@@ -1094,11 +1121,11 @@ class FlowDoctor {
             } else {
                 statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
             }
-            const unusedBadge = (a.usage === 0 && (a.deviceCount || 0) === 0) ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
+            const unusedBadge = this.isAppUnused(a) ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
             const crashedBadge = a.crashed ? `<span class="badge badge-err">${this.t('apps.crashed')}${a.crashedCount > 1 ? ' ×' + a.crashedCount : ''}</span>` : '';
             const disabledBadge = !a.enabled ? `<span class="badge badge-info">${this.t('apps.disabled')}</span>` : '';
             if (a.crashed) sevClass = 'sev-error';
-            else if (a.usage === 0 && (a.deviceCount || 0) === 0 && !sevClass) sevClass = 'sev-info';
+            else if (this.isAppUnused(a) && !sevClass) sevClass = 'sev-info';
             const memMb = a.mem != null ? (a.mem / 1048576).toFixed(0) : null;
             const cpuPct = a.cpu != null ? a.cpu.toFixed(1) : null;
             const resourceHtml = (memMb != null || cpuPct != null)
@@ -1116,6 +1143,9 @@ class FlowDoctor {
             const devicesText = `${a.deviceCount || 0} ${this.t('apps.devices')}`;
             const devicesHtml = `<span class="text-xs ${(a.deviceCount || 0) > 0 ? 'text-gray-600' : 'text-gray-400'}">${devicesText}</span>`;
             const usageHtml = `${devicesHtml}${flowsHtml}`;
+            const extendsHtml = a.parentAppId
+                ? `<div class="text-xs text-gray-500 mt-1 italic">${this.t('apps.extends')} ${this.escape(a.parentAppName || a.parentAppId)}</div>`
+                : '';
 
             const div = document.createElement('div');
             div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4`;
@@ -1130,6 +1160,7 @@ class FlowDoctor {
                             ${disabledBadge}
                         </div>
                         <div class="text-xs text-gray-600 mt-1">${versionInfo}</div>
+                        ${extendsHtml}
                         ${resourceHtml}
                         <div class="text-xs text-gray-400 mt-1 font-mono">${this.escape(a.id)}</div>
                     </div>

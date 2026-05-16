@@ -695,7 +695,8 @@ class FlowDoctor {
             const deviceIds = new Set(Object.values(devices).map(d => d.id));
             const deviceToApp = {};
             Object.values(devices).forEach(d => {
-                const u = d.driverUri || d.driver || '';
+                // driverId is the new field; driverUri is deprecated but still present on older Homey versions
+                const u = d.driverId || d.driver || '';
                 if (typeof u === 'string' && u.startsWith('homey:app:')) {
                     deviceToApp[d.id] = u.substring('homey:app:'.length).split(':')[0];
                 }

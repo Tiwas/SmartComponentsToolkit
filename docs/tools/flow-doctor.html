@@ -162,6 +162,7 @@
                     <input type="text" id="app-search" placeholder="Search app…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-updates"> <span data-i18n="apps.onlyUpdates">Only apps with updates</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-unused"> <span data-i18n="apps.onlyUnused">Only unused apps</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-hide-extensions" checked> <span data-i18n="apps.hideExtensions">Hide extensions</span></label>
                     <select id="app-sort" class="text-sm border border-gray-300 rounded px-2 py-1">
                         <option value="status" data-i18n="apps.sortStatus">Sort: status</option>
                         <option value="mem" data-i18n="apps.sortMem">Sort: memory</option>
@@ -220,6 +221,7 @@ const I18N = {
         'tab.apps': 'Apps',
         'apps.onlyUpdates': 'Only apps with updates',
         'apps.onlyUnused': 'Only unused apps',
+        'apps.hideExtensions': 'Hide extensions',
         'apps.upToDate': 'Up to date',
         'apps.updateAvailable': 'Update available',
         'apps.unknown': 'Store version unknown',
@@ -294,6 +296,7 @@ const I18N = {
         'tab.apps': 'Apper',
         'apps.onlyUpdates': 'Bare apper med oppdateringer',
         'apps.onlyUnused': 'Bare ubrukte apper',
+        'apps.hideExtensions': 'Skjul utvidelser',
         'apps.upToDate': 'Oppdatert',
         'apps.updateAvailable': 'Oppdatering tilgjengelig',
         'apps.unknown': 'Versjon i App Store ukjent',
@@ -368,6 +371,7 @@ const I18N = {
         'tab.apps': 'Apps',
         'apps.onlyUpdates': 'Nur Apps mit Updates',
         'apps.onlyUnused': 'Nur ungenutzte Apps',
+        'apps.hideExtensions': 'Erweiterungen ausblenden',
         'apps.upToDate': 'Aktuell',
         'apps.updateAvailable': 'Update verfügbar',
         'apps.unknown': 'Store-Version unbekannt',
@@ -442,6 +446,7 @@ const I18N = {
         'tab.apps': 'Apps',
         'apps.onlyUpdates': 'Alleen apps met updates',
         'apps.onlyUnused': 'Alleen ongebruikte apps',
+        'apps.hideExtensions': 'Uitbreidingen verbergen',
         'apps.upToDate': 'Up-to-date',
         'apps.updateAvailable': 'Update beschikbaar',
         'apps.unknown': 'Store-versie onbekend',
@@ -606,6 +611,7 @@ class FlowDoctor {
         document.getElementById('app-search').addEventListener('input', () => this.renderApps());
         document.getElementById('app-only-updates').addEventListener('change', () => this.renderApps());
         document.getElementById('app-only-unused').addEventListener('change', () => this.renderApps());
+        document.getElementById('app-hide-extensions').addEventListener('change', () => this.renderApps());
         document.getElementById('app-sort').addEventListener('change', () => this.renderApps());
 
         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
@@ -1087,11 +1093,13 @@ class FlowDoctor {
         const search = (document.getElementById('app-search').value || '').toLowerCase().trim();
         const onlyUpdates = document.getElementById('app-only-updates').checked;
         const onlyUnused = document.getElementById('app-only-unused').checked;
+        const hideExtensions = document.getElementById('app-hide-extensions').checked;
         const sortBy = document.getElementById('app-sort').value || 'status';
         list.innerHTML = '';
         const apps = (this.appsList || []).filter(a => {
             if (onlyUpdates && !a.hasUpdate) return false;
             if (onlyUnused && !this.isAppUnused(a)) return false;
+            if (hideExtensions && a.parentAppId) return false;
             if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
             return true;
         });
@@ -1107,6 +1115,27 @@ class FlowDoctor {
             name: (a, b) => a.name.localeCompare(b.name),
         };
         apps.sort(sortFns[sortBy] || sortFns.status);
+
+        // When extensions are visible, place each extension directly under its parent
+        // (preserving relative sort among siblings). Orphan extensions whose parent
+        // was filtered out keep their natural sorted position.
+        if (!hideExtensions) {
+            const idSet = new Set(apps.map(x => x.id));
+            const placed = new Set();
+            const ordered = [];
+            for (const app of apps) {
+                if (placed.has(app.id)) continue;
+                if (app.parentAppId && idSet.has(app.parentAppId)) continue;
+                ordered.push(app);
+                placed.add(app.id);
+                for (const ext of apps.filter(x => x.parentAppId === app.id && !placed.has(x.id))) {
+                    ordered.push(ext);
+                    placed.add(ext.id);
+                }
+            }
+            apps.length = 0;
+            apps.push(...ordered);
+        }
 
         if (apps.length === 0) {
             list.innerHTML = `<div class="text-center text-gray-500 py-12">${this.t('noIssues')}</div>`;
@@ -1148,7 +1177,8 @@ class FlowDoctor {
                 : '';
 
             const div = document.createElement('div');
-            div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4`;
+            const isExt = !!a.parentAppId;
+            div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4 ${isExt ? 'ml-8 border-l-4 border-l-gray-300' : ''}`;
             div.innerHTML = `
                 <div class="flex items-start justify-between gap-4">
                     <div class="flex-grow">

@@ -1,5 +1,6 @@
 {
   "id": "clg_turn_on_all_members",
+  "deprecated": true,
   "title": {
     "en": "Turn on all lights at current circadian level",
     "no": "Slå på alle lys med gjeldende dognrytmeniva"

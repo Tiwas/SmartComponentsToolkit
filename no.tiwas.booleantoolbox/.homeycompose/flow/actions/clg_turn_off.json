@@ -1,5 +1,6 @@
 {
   "id": "clg_turn_off",
+  "deprecated": true,
   "title": {
     "en": "Turn off",
     "no": "Slå av",

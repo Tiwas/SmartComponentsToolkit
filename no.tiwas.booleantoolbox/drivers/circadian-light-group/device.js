@@ -13,6 +13,8 @@ const DEVICE_TASK_CONCURRENCY = 5;
 const DEVICE_TASK_MAX_RETRIES = 1;
 const CLG_ONOFF_STORE_KEY = 'clg_onoff_state';
 const CLG_ONOFF_LEGACY_STORE_KEY = 'clg_onoff';
+const CLG_PAUSE_STORE_KEY = 'clg_pause_state';
+const MAX_TIMEOUT_MS = 2147483647;
 
 const TRANSIENT_ERROR_PATTERNS = [
   /TRANSMIT_COMPLETE_NO_ACK/i,
@@ -56,14 +58,26 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.tempOverride = null; // { dim?, temperature?, saturation?, forceRed?, forceColor?, expiresAt? }
     this.redModeOverride = null; // { value: true|false, expiresAt? }
     this.redOverrideTimer = null;
+    this.pauseTimer = null;
 
     this.registerCapabilityListener('onoff', async (value) => {
       await this.setOnoffState(value);
       await this.fireOnoffTrigger(value);
-      await this.applyCurrentProfile({ reason: 'onoff-change' });
+      if (value === true) {
+        await this.onFlowTurnOnAllMembers();
+      } else {
+        await this.onFlowTurnOffAllMembers();
+      }
     });
 
     this.registerCapabilityListener('clg_paused', async (value) => {
+      this.pauseDebug(`capability changed value=${value}`);
+      this.clearPauseTimer();
+      if (value === true) {
+        await this.persistPauseState(null);
+      } else {
+        await this.clearPersistedPauseState();
+      }
       await this.firePauseTrigger(value);
       await this.applyCurrentProfile({ reason: 'paused-change' });
     });
@@ -73,6 +87,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     await this.ensureDefaultCapabilityValues();
     await this.restorePersistedOnoffState();
+    await this.restorePersistedPauseState();
 
     await this.setupLuxWatchers();
     await this.setupMemberOnoffWatchers();
@@ -287,6 +302,10 @@ class CircadianLightGroupDevice extends Homey.Device {
     }
   }
 
+  pauseDebug(message) {
+    this.debug('[CLG pause]', message);
+  }
+
   getGeo() {
     try {
       const geo = this.homey.geolocation;
@@ -357,6 +376,121 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     this.debug(`CLG onoff restore: stored=${JSON.stringify(storedState)} legacy=${legacyStored} desired=${desired}`);
     await this.setOnoffState(desired);
+  }
+
+  normalizePauseUnit(unit) {
+    const value = typeof unit === 'object' && unit !== null ? unit.id : unit;
+    const normalized = String(value || 'minutes').trim().toLowerCase();
+    if (['second', 'seconds', 's', 'sec', 'secs', 'sekund', 'sekunder'].includes(normalized)) return 'seconds';
+    if (['hour', 'hours', 'h', 'hr', 'hrs', 'time', 'timer'].includes(normalized)) return 'hours';
+    return 'minutes';
+  }
+
+  getPauseDurationMs(args = {}) {
+    if (args.amount !== undefined || args.unit !== undefined) {
+      const amount = Math.max(0, Number(args.amount) || 0);
+      const unit = this.normalizePauseUnit(args.unit);
+      const factor = unit === 'seconds' ? 1000 : unit === 'hours' ? 3600000 : 60000;
+      return amount * factor;
+    }
+
+    return Math.max(0, Number(args.minutes) || 0) * 60000;
+  }
+
+  describePauseArgs(args = {}) {
+    const unit = typeof args.unit === 'object' && args.unit !== null ? args.unit.id : args.unit;
+    return JSON.stringify({
+      amount: args.amount,
+      unit,
+      minutes: args.minutes,
+    });
+  }
+
+  clearPauseTimer() {
+    if (this.pauseTimer) {
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = null;
+    }
+  }
+
+  async persistPauseState(expiresAt) {
+    this.pauseDebug(`persist paused=true expiresAt=${Number.isFinite(expiresAt) ? new Date(expiresAt).toISOString() : 'manual'}`);
+    await this.setStoreValue(CLG_PAUSE_STORE_KEY, {
+      paused: true,
+      expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
+      updatedAt: new Date().toISOString(),
+    }).catch(this.error);
+  }
+
+  async clearPersistedPauseState() {
+    this.pauseDebug('persist paused=false');
+    await this.setStoreValue(CLG_PAUSE_STORE_KEY, {
+      paused: false,
+      expiresAt: null,
+      updatedAt: new Date().toISOString(),
+    }).catch(this.error);
+  }
+
+  schedulePauseResume(expiresAt) {
+    this.clearPauseTimer();
+
+    const remainingMs = Number(expiresAt) - Date.now();
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) return;
+
+    const delay = Math.min(remainingMs, MAX_TIMEOUT_MS);
+    this.pauseDebug(`schedule resume in ${Math.round(remainingMs / 1000)}s at ${new Date(Number(expiresAt)).toISOString()}`);
+    this.pauseTimer = setTimeout(() => {
+      this.pauseTimer = null;
+      if (remainingMs > MAX_TIMEOUT_MS) {
+        this.pauseDebug('timer chunk elapsed; rescheduling remaining pause');
+        this.restorePersistedPauseState().catch(this.error);
+        return;
+      }
+      this.pauseDebug('timer elapsed; resuming');
+      this.onFlowResume({}).catch(this.error);
+    }, delay);
+  }
+
+  async restorePersistedPauseState() {
+    let storedState = null;
+    try {
+      storedState = await this.getStoreValue(CLG_PAUSE_STORE_KEY);
+    } catch (error) {
+      storedState = null;
+    }
+
+    const isPaused = this.getCapabilityValue('clg_paused') === true;
+    this.pauseDebug(`restore stored=${JSON.stringify(storedState)} capability=${isPaused}`);
+    if (!storedState || storedState.paused !== true) {
+      this.clearPauseTimer();
+      if (isPaused) {
+        this.pauseDebug('restore found paused capability without stored expiry; treating as manual pause');
+        await this.persistPauseState(null);
+      }
+      return;
+    }
+
+    const expiresAt = Number(storedState.expiresAt);
+    if (Number.isFinite(expiresAt)) {
+      if (expiresAt <= Date.now()) {
+        this.pauseDebug(`restore found expired pause (${new Date(expiresAt).toISOString()}); resuming now`);
+        await this.onFlowResume();
+        return;
+      }
+      if (!isPaused) {
+        this.pauseDebug('restore found future pause while capability was false; setting paused=true');
+        await this.setCapabilityValue('clg_paused', true);
+      }
+      this.schedulePauseResume(expiresAt);
+      return;
+    }
+
+    if (!isPaused) {
+      this.pauseDebug('restore found manual pause while capability was false; setting paused=true');
+      await this.setCapabilityValue('clg_paused', true);
+    }
+    this.clearPauseTimer();
+    await this.persistPauseState(null);
   }
 
   getConfig() {
@@ -1071,22 +1205,24 @@ class CircadianLightGroupDevice extends Homey.Device {
   }
 
   async onFlowTurnOn() {
-    if (this.getCapabilityValue('onoff') !== true) {
+    const wasOn = this.getCapabilityValue('onoff') === true;
+    if (!wasOn) {
       await this.setCapabilityValue('onoff', true);
       await this.persistOnoffState(true);
       await this.fireOnoffTrigger(true);
-      await this.applyCurrentProfile({ reason: 'flow-turn-on' });
     }
+    await this.onFlowTurnOnAllMembers();
     return true;
   }
 
   async onFlowTurnOff() {
-    if (this.getCapabilityValue('onoff') !== false) {
+    const wasOn = this.getCapabilityValue('onoff') === true;
+    if (wasOn) {
       await this.setCapabilityValue('onoff', false);
       await this.persistOnoffState(false);
       await this.fireOnoffTrigger(false);
-      await this.applyCurrentProfile({ reason: 'flow-turn-off' });
     }
+    await this.onFlowTurnOffAllMembers();
     return true;
   }
 
@@ -1095,7 +1231,11 @@ class CircadianLightGroupDevice extends Homey.Device {
     await this.setCapabilityValue('onoff', next);
     await this.persistOnoffState(next);
     await this.fireOnoffTrigger(next);
-    await this.applyCurrentProfile({ reason: 'flow-toggle' });
+    if (next) {
+      await this.onFlowTurnOnAllMembers();
+    } else {
+      await this.onFlowTurnOffAllMembers();
+    }
     return true;
   }
 
@@ -1191,39 +1331,30 @@ class CircadianLightGroupDevice extends Homey.Device {
   }
 
   async onFlowPause(args) {
-    // Backwards compatibility: old card used { minutes }, new card uses { amount, unit }.
-    let ms = 0;
-    if (args && (args.amount !== undefined || args.unit !== undefined)) {
-      const amount = Number(args.amount) || 0;
-      const unit = args.unit || 'minutes';
-      const factor = unit === 'seconds' ? 1000 : unit === 'hours' ? 3600000 : 60000;
-      ms = amount * factor;
-    } else {
-      ms = (Number(args.minutes) || 0) * 60000;
-    }
+    const ms = this.getPauseDurationMs(args);
+    const expiresAt = ms > 0 ? Date.now() + ms : null;
 
     const wasPaused = this.getCapabilityValue('clg_paused') === true;
+    this.pauseDebug(`flow pause args=${this.describePauseArgs(args)} durationMs=${ms} expiresAt=${expiresAt ? new Date(expiresAt).toISOString() : 'manual'} wasPaused=${wasPaused}`);
+    this.clearPauseTimer();
     await this.setCapabilityValue('clg_paused', true);
+    await this.persistPauseState(expiresAt);
     if (!wasPaused) await this.firePauseTrigger(true);
 
     if (ms > 0) {
-      if (this.pauseTimer) clearTimeout(this.pauseTimer);
-      this.pauseTimer = setTimeout(() => {
-        this.onFlowResume({}).catch(this.error);
-      }, ms);
+      this.schedulePauseResume(expiresAt);
     }
 
     return true;
   }
 
   async onFlowResume() {
-    if (this.pauseTimer) {
-      clearTimeout(this.pauseTimer);
-      this.pauseTimer = null;
-    }
+    this.clearPauseTimer();
 
     const wasPaused = this.getCapabilityValue('clg_paused') === true;
+    this.pauseDebug(`flow resume wasPaused=${wasPaused}`);
     await this.setCapabilityValue('clg_paused', false);
+    await this.clearPersistedPauseState();
     if (wasPaused) await this.firePauseTrigger(false);
     await this.applyCurrentProfile({ reason: 'flow-resume' });
     return true;
@@ -1260,7 +1391,7 @@ class CircadianLightGroupDevice extends Homey.Device {
   async onDeleted() {
     this.deleted = true;
     this.stopScheduler();
-    if (this.pauseTimer) clearTimeout(this.pauseTimer);
+    this.clearPauseTimer();
     await this.teardownLuxWatchers();
     await this.teardownMemberOnoffWatchers();
   }

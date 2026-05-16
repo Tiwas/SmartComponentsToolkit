@@ -1,5 +1,6 @@
 {
   "id": "clg_turn_on",
+  "deprecated": true,
   "title": {
     "en": "Turn on",
     "no": "Slå på",

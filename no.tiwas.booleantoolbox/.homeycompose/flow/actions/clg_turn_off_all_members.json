@@ -1,5 +1,6 @@
 {
   "id": "clg_turn_off_all_members",
+  "deprecated": true,
   "title": {
     "en": "Turn off all lights in the group",
     "no": "Slå av alle lys i gruppen"

@@ -1,5 +1,6 @@
 {
   "id": "clg_toggle",
+  "deprecated": true,
   "title": {
     "en": "Toggle",
     "no": "Veksle",

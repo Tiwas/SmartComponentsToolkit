@@ -225,7 +225,7 @@ const I18N = {
         'bug.descriptionPlaceholder': 'What did you see? What did you expect? Steps to reproduce…',
         'bug.descriptionMissing': '(no description provided)',
         'bug.submit': '📋 Copy and open GitHub issue',
-        'bug.copiedAndOpened': 'Copied — GitHub opened in a new tab',
+        'bug.copiedAndOpened': 'Copied — paste into the GitHub issue body',
         'bug.copyFailed': 'Copy failed',
         'bug.preview': 'Preview what will be copied',
         'apiSetup.title': '🔧 API Setup Required',
@@ -313,7 +313,7 @@ const I18N = {
         'bug.descriptionPlaceholder': 'Hva så du? Hva forventet du? Hvordan reproduserer du det…',
         'bug.descriptionMissing': '(ingen beskrivelse oppgitt)',
         'bug.submit': '📋 Kopier og åpne GitHub-issue',
-        'bug.copiedAndOpened': 'Kopiert — GitHub åpnet i ny fane',
+        'bug.copiedAndOpened': 'Kopiert — lim inn i GitHub-issue-teksten',
         'bug.copyFailed': 'Kopiering feilet',
         'bug.preview': 'Forhåndsvis hva som kopieres',
         'apiSetup.title': '🔧 API-oppsett kreves',
@@ -401,7 +401,7 @@ const I18N = {
         'bug.descriptionPlaceholder': 'Was haben Sie gesehen? Was haben Sie erwartet? Schritte zur Reproduktion…',
         'bug.descriptionMissing': '(keine Beschreibung angegeben)',
         'bug.submit': '📋 Kopieren und GitHub-Issue öffnen',
-        'bug.copiedAndOpened': 'Kopiert — GitHub in neuem Tab geöffnet',
+        'bug.copiedAndOpened': 'Kopiert — in den GitHub-Issue-Text einfügen',
         'bug.copyFailed': 'Kopieren fehlgeschlagen',
         'bug.preview': 'Vorschau, was kopiert wird',
         'apiSetup.title': '🔧 API-Einrichtung erforderlich',
@@ -489,7 +489,7 @@ const I18N = {
         'bug.descriptionPlaceholder': 'Wat zag je? Wat verwachtte je? Stappen om te reproduceren…',
         'bug.descriptionMissing': '(geen beschrijving opgegeven)',
         'bug.submit': '📋 Kopiëren en GitHub-issue openen',
-        'bug.copiedAndOpened': 'Gekopieerd — GitHub geopend in nieuw tabblad',
+        'bug.copiedAndOpened': 'Gekopieerd — plak in de GitHub-issue-tekst',
         'bug.copyFailed': 'Kopiëren mislukt',
         'bug.preview': 'Bekijk wat er gekopieerd wordt',
         'apiSetup.title': '🔧 API-installatie vereist',
@@ -849,11 +849,13 @@ class FlowDoctor {
         document.getElementById('bug-preview').textContent = this.composeBugReport();
     }
 
-    bugReportGithubUrl(body) {
+    bugReportGithubUrl() {
+        // Only the title goes into the URL — the body is on the clipboard for the user
+        // to paste. GitHub rejects new-issue URLs longer than ~8 kB, and our debug body
+        // (full app list) easily exceeds that.
         const title = (document.getElementById('bug-title')?.value || '').trim() || this.t('bug.titleDefault');
         return 'https://github.com/Tiwas/SmartComponentsToolkit/issues/new'
-            + '?title=' + encodeURIComponent(title)
-            + '&body=' + encodeURIComponent(body);
+            + '?title=' + encodeURIComponent(title);
     }
 
     openBugModal() {
@@ -868,7 +870,7 @@ class FlowDoctor {
         const text = this.composeBugReport();
         // Open GitHub synchronously inside the click handler so popup blockers
         // recognize this as user-initiated. The clipboard write happens after.
-        window.open(this.bugReportGithubUrl(text), '_blank', 'noopener');
+        window.open(this.bugReportGithubUrl(), '_blank', 'noopener');
         const btn = document.getElementById('bug-copy-button');
         const original = btn.textContent;
         try {

@@ -104,14 +104,14 @@
                     </div>
                 </div>
 
-                <form id="api-setup-form" class="space-y-4">
+                <form id="api-setup-form" class="space-y-4" autocomplete="off">
                     <div>
                         <label for="client-id-input" class="block text-sm font-medium mb-2 text-gray-700" data-i18n="apiSetup.clientIdLabel">Client ID</label>
-                        <input type="text" id="client-id-input" required class="w-full p-3 bg-white border-2 border-gray-300 rounded-lg focus:border-blue-500">
+                        <input type="text" id="client-id-input" required autocomplete="off" spellcheck="false" class="w-full p-3 bg-white border-2 border-gray-300 rounded-lg focus:border-blue-500">
                     </div>
                     <div>
                         <label for="client-secret-input" class="block text-sm font-medium mb-2 text-gray-700" data-i18n="apiSetup.clientSecretLabel">Client Secret</label>
-                        <input type="password" id="client-secret-input" required class="w-full p-3 bg-white border-2 border-gray-300 rounded-lg focus:border-blue-500">
+                        <input type="password" id="client-secret-input" required autocomplete="off" spellcheck="false" class="w-full p-3 bg-white border-2 border-gray-300 rounded-lg focus:border-blue-500">
                     </div>
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg" data-i18n="apiSetup.saveButton">Save and Continue</button>
                 </form>
@@ -198,6 +198,11 @@ const I18N = {
         'issue.missingApp': 'References an app that is not installed',
         'issue.unknownCard': 'Card no longer exists in installed app (likely removed/renamed)',
         'issue.disabled': 'Flow is disabled',
+        'issue.missingDevice': 'References a device that no longer exists',
+        'issue.unknownArg': 'Card argument no longer exists in the app manifest',
+        'issue.missingArg': 'Required card argument is missing',
+        'issue.appUpdate': 'App update available',
+        'openInHomey': 'Open in Homey',
         'flowType.standard': 'Standard flow',
         'flowType.advanced': 'Advanced flow',
         'card.trigger': 'When',
@@ -243,6 +248,11 @@ const I18N = {
         'issue.missingApp': 'Refererer til en app som ikke er installert',
         'issue.unknownCard': 'Kortet finnes ikke lenger i den installerte appen (sannsynligvis fjernet eller omdøpt)',
         'issue.disabled': 'Flowen er deaktivert',
+        'issue.missingDevice': 'Refererer til en enhet som ikke lenger finnes',
+        'issue.unknownArg': 'Argumentet finnes ikke lenger i app-manifestet',
+        'issue.missingArg': 'Påkrevd argument mangler',
+        'issue.appUpdate': 'Oppdatering tilgjengelig for appen',
+        'openInHomey': 'Åpne i Homey',
         'flowType.standard': 'Standard flow',
         'flowType.advanced': 'Advanced flow',
         'card.trigger': 'Når',
@@ -288,6 +298,11 @@ const I18N = {
         'issue.missingApp': 'Verweist auf eine nicht installierte App',
         'issue.unknownCard': 'Die Karte existiert in der installierten App nicht mehr (vermutlich entfernt oder umbenannt)',
         'issue.disabled': 'Flow ist deaktiviert',
+        'issue.missingDevice': 'Verweist auf ein nicht mehr vorhandenes Gerät',
+        'issue.unknownArg': 'Argument existiert nicht mehr im App-Manifest',
+        'issue.missingArg': 'Erforderliches Argument fehlt',
+        'issue.appUpdate': 'App-Update verfügbar',
+        'openInHomey': 'In Homey öffnen',
         'flowType.standard': 'Standard-Flow',
         'flowType.advanced': 'Advanced Flow',
         'card.trigger': 'Wenn',
@@ -333,6 +348,11 @@ const I18N = {
         'issue.missingApp': 'Verwijst naar een niet-geïnstalleerde app',
         'issue.unknownCard': 'De kaart bestaat niet meer in de geïnstalleerde app (waarschijnlijk verwijderd of hernoemd)',
         'issue.disabled': 'Flow is uitgeschakeld',
+        'issue.missingDevice': 'Verwijst naar een apparaat dat niet meer bestaat',
+        'issue.unknownArg': 'Argument bestaat niet meer in het app-manifest',
+        'issue.missingArg': 'Verplicht argument ontbreekt',
+        'issue.appUpdate': 'App-update beschikbaar',
+        'openInHomey': 'Openen in Homey',
         'flowType.standard': 'Standaard flow',
         'flowType.advanced': 'Geavanceerde flow',
         'card.trigger': 'Wanneer',
@@ -487,6 +507,7 @@ class FlowDoctor {
             const homeys = await user.getHomeys();
             const homey = homeys[0];
             if (!homey) throw new Error('No Homey found on this account.');
+            this.homeyId = homey.id;
             this.api = await homey.authenticate();
             document.getElementById('user-name').textContent = user.nickname || user.firstname || '';
             document.getElementById('homey-name').textContent = 'Homey: ' + homey.name;
@@ -497,47 +518,160 @@ class FlowDoctor {
         }
     }
 
+    async fetchAppStoreVersions(installedIds) {
+        const result = {};
+        await Promise.all(installedIds.map(async (id) => {
+            try {
+                const r = await fetch(`https://apps.athom.com/app/${id}`, { headers: { 'Accept': 'application/json' } });
+                if (!r.ok) return;
+                const data = await r.json();
+                const v = (data && (data.version || (data.versions && data.versions[0] && data.versions[0].version))) || null;
+                if (v) result[id] = v;
+            } catch (e) { /* CORS or 404 — silently skip */ }
+        }));
+        return result;
+    }
+
+    compareVersions(a, b) {
+        const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+        const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const x = pa[i] || 0, y = pb[i] || 0;
+            if (x !== y) return x - y;
+        }
+        return 0;
+    }
+
+    flowUrl(flow, type) {
+        if (!this.homeyId) return null;
+        const base = `https://my.homey.app/homeys/${this.homeyId}`;
+        return type === 'advanced' ? `${base}/flows/advanced/${flow.id}` : `${base}/flows/${flow.id}`;
+    }
+
     async scan() {
         try {
             this.showLoader(this.t('scanning'));
 
-            const [flows, advFlows, apps, triggers, conditions, actions] = await Promise.all([
+            const [flows, advFlows, apps, triggers, conditions, actions, devices] = await Promise.all([
                 this.api.flow.getFlows().catch(() => ({})),
                 (this.api.flow.getAdvancedFlows ? this.api.flow.getAdvancedFlows() : Promise.resolve({})).catch(() => ({})),
                 this.api.apps.getApps().catch(() => ({})),
                 this.api.flow.getFlowCardTriggers ? this.api.flow.getFlowCardTriggers().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardConditions ? this.api.flow.getFlowCardConditions().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardActions ? this.api.flow.getFlowCardActions().catch(() => ({})) : Promise.resolve({}),
+                this.api.devices ? this.api.devices.getDevices().catch(() => ({})) : Promise.resolve({}),
             ]);
 
-            const installedAppIds = new Set(Object.values(apps).map(a => a.id));
-            const cardIdSets = {
-                trigger: new Set(Object.values(triggers).map(c => c.id)),
-                condition: new Set(Object.values(conditions).map(c => c.id)),
-                action: new Set(Object.values(actions).map(c => c.id)),
-            };
+            const installedApps = {};
+            Object.values(apps).forEach(a => { installedApps[a.id] = a; });
+            const installedAppIds = new Set(Object.keys(installedApps));
+            const deviceIds = new Set(Object.values(devices).map(d => d.id));
 
-            const results = [];
+            const cardSets = { trigger: {}, condition: {}, action: {} };
+            const buildCardLookup = (cards, kind) => {
+                Object.values(cards).forEach(c => {
+                    if (c.id) cardSets[kind][c.id] = c;
+                    if (c.uri && c.id) cardSets[kind][c.uri + ':' + c.id.split(':').pop()] = c;
+                });
+            };
+            buildCardLookup(triggers, 'trigger');
+            buildCardLookup(conditions, 'condition');
+            buildCardLookup(actions, 'action');
+
+            const appStoreVersions = await this.fetchAppStoreVersions([...installedAppIds]);
+
+            const lookupCardDef = (card, kind) => {
+                if (!card || !card.id) return null;
+                const set = cardSets[kind];
+                if (set[card.id]) return set[card.id];
+                const composite = (card.uri || '') + ':' + card.id;
+                if (set[composite]) return set[composite];
+                // Also try id without uri prefix
+                const tail = card.id.split(':').pop();
+                if (set[tail]) return set[tail];
+                return null;
+            };
 
             const checkCard = (card, kind) => {
                 const issues = [];
                 if (!card) return issues;
                 const uri = card.uri || '';
+                let appId = null;
                 if (uri.startsWith('homey:app:')) {
-                    const appId = uri.substring('homey:app:'.length).split(':')[0];
+                    appId = uri.substring('homey:app:'.length).split(':')[0];
                     if (appId && !installedAppIds.has(appId)) {
                         issues.push({ severity: 'error', key: 'issue.missingApp', detail: appId + ' · ' + (card.id || '') });
                         return issues;
                     }
                 }
+
+                let def = null;
                 if (uri.startsWith('homey:app:') || uri.startsWith('homey:manager:') || uri.startsWith('homey:device:')) {
-                    const fullId = (card.id && card.id.includes(':')) ? card.id : (uri + ':' + card.id);
-                    const setForKind = cardIdSets[kind];
-                    if (setForKind && setForKind.size > 0 && !setForKind.has(fullId) && !setForKind.has(card.id)) {
+                    def = lookupCardDef(card, kind);
+                    if (!def) {
                         issues.push({ severity: 'error', key: 'issue.unknownCard', detail: (card.id || '') + ' (' + uri + ')' });
+                        return issues;
                     }
                 }
+
+                // Argument validation
+                if (def && def.args && Array.isArray(def.args)) {
+                    const provided = card.args || {};
+                    const defArgNames = new Set(def.args.map(a => a.name));
+                    for (const argDef of def.args) {
+                        const val = provided[argDef.name];
+                        if ((val === undefined || val === null) && argDef.required !== false) {
+                            issues.push({ severity: 'warn', key: 'issue.missingArg', detail: argDef.name + ' (' + (card.id || '') + ')' });
+                        }
+                        // Device reference check
+                        if (val && typeof val === 'object' && val.id && (argDef.type === 'device' || argDef.filter || argDef.type === 'autocomplete')) {
+                            if (deviceIds.size > 0 && !deviceIds.has(val.id) && !installedAppIds.has(val.id)) {
+                                // Only flag if it really looks like a device id (uuid-ish length)
+                                if (typeof val.id === 'string' && val.id.length >= 16) {
+                                    issues.push({ severity: 'error', key: 'issue.missingDevice', detail: argDef.name + ' → ' + (val.name || val.id) });
+                                }
+                            }
+                        }
+                    }
+                    // Unknown args (args present in flow but not in manifest)
+                    for (const argName of Object.keys(provided)) {
+                        if (!defArgNames.has(argName)) {
+                            issues.push({ severity: 'warn', key: 'issue.unknownArg', detail: argName + ' (' + (card.id || '') + ')' });
+                        }
+                    }
+                }
+
+                // Device-card reference (homey:device:<id>)
+                if (uri.startsWith('homey:device:')) {
+                    const devId = uri.substring('homey:device:'.length).split(':')[0];
+                    if (deviceIds.size > 0 && devId && !deviceIds.has(devId)) {
+                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: devId });
+                    }
+                }
+
                 return issues;
+            };
+
+            const results = [];
+            const flagAppUpdates = (flow, issues) => {
+                const seen = new Set();
+                const collectCards = [];
+                if (flow.trigger) collectCards.push(flow.trigger);
+                (flow.conditions || []).forEach(c => collectCards.push(c));
+                (flow.actions || []).forEach(c => collectCards.push(c));
+                if (flow.cards) Object.values(flow.cards).forEach(c => collectCards.push(c));
+                for (const c of collectCards) {
+                    const uri = c && c.uri || '';
+                    if (!uri.startsWith('homey:app:')) continue;
+                    const appId = uri.substring('homey:app:'.length).split(':')[0];
+                    if (!appId || seen.has(appId)) continue;
+                    seen.add(appId);
+                    const installed = installedApps[appId];
+                    const store = appStoreVersions[appId];
+                    if (installed && store && this.compareVersions(installed.version, store) < 0) {
+                        issues.push({ severity: 'info', key: 'issue.appUpdate', detail: appId + ' ' + installed.version + ' → ' + store });
+                    }
+                }
             };
 
             for (const flow of Object.values(flows)) {
@@ -547,6 +681,7 @@ class FlowDoctor {
                 if (flow.trigger) issues.push(...checkCard(flow.trigger, 'trigger'));
                 (flow.conditions || []).forEach(c => issues.push(...checkCard(c, 'condition')));
                 (flow.actions || []).forEach(a => issues.push(...checkCard(a, 'action')));
+                flagAppUpdates(flow, issues);
                 results.push({ type: 'standard', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, raw: flow });
             }
 
@@ -561,6 +696,7 @@ class FlowDoctor {
                     else if (card.type === 'condition' || card.type === 'logic-condition') kind = 'condition';
                     issues.push(...checkCard(card, kind));
                 }
+                flagAppUpdates(flow, issues);
                 results.push({ type: 'advanced', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, raw: flow });
             }
 
@@ -609,6 +745,9 @@ class FlowDoctor {
                 return `<div class="text-sm py-1"><span class="badge ${cls}">${i.severity.toUpperCase()}</span> ${this.t(i.key)}${i.detail ? `<code class="ml-2 text-xs bg-white px-1 rounded border border-gray-200">${this.escape(i.detail)}</code>` : ''}</div>`;
             }).join('');
 
+            const url = this.flowUrl(r, r.type);
+            const linkHtml = url ? `<a href="${url}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap">${this.t('openInHomey')} ↗</a>` : '';
+
             const div = document.createElement('div');
             div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4`;
             div.innerHTML = `
@@ -617,7 +756,10 @@ class FlowDoctor {
                         <div class="font-semibold text-gray-900">${this.escape(r.name || '(unnamed)')}</div>
                         <div class="text-xs text-gray-500">${typeLabel}${r.enabled ? '' : ' · disabled'}</div>
                     </div>
-                    <div class="text-xs text-gray-400 font-mono">${this.escape(r.id || '')}</div>
+                    <div class="flex items-center gap-3">
+                        ${linkHtml}
+                        <div class="text-xs text-gray-400 font-mono">${this.escape(r.id || '')}</div>
+                    </div>
                 </div>
                 ${issuesHtml ? `<div class="mt-3 space-y-1">${issuesHtml}</div>` : ''}
             `;

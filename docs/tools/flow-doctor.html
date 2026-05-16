@@ -225,6 +225,7 @@ const I18N = {
         'apps.unknown': 'Store version unknown',
         'apps.unused': 'Unused by any flow',
         'apps.usedBy': 'flows',
+        'apps.devices': 'devices',
         'apps.installed': 'installed',
         'apps.store': 'store',
         'apps.crashed': 'Crashed',
@@ -296,6 +297,7 @@ const I18N = {
         'apps.unknown': 'Versjon i App Store ukjent',
         'apps.unused': 'Ikke brukt av noen flow',
         'apps.usedBy': 'flows',
+        'apps.devices': 'enheter',
         'apps.installed': 'installert',
         'apps.store': 'butikk',
         'apps.crashed': 'Krasjet',
@@ -367,6 +369,7 @@ const I18N = {
         'apps.unknown': 'Store-Version unbekannt',
         'apps.unused': 'Von keinem Flow verwendet',
         'apps.usedBy': 'Flows',
+        'apps.devices': 'Geräte',
         'apps.installed': 'installiert',
         'apps.store': 'Store',
         'apps.crashed': 'Abgestürzt',
@@ -438,6 +441,7 @@ const I18N = {
         'apps.unknown': 'Store-versie onbekend',
         'apps.unused': 'Door geen enkele flow gebruikt',
         'apps.usedBy': 'flows',
+        'apps.devices': 'apparaten',
         'apps.installed': 'geïnstalleerd',
         'apps.store': 'store',
         'apps.crashed': 'Gecrasht',
@@ -879,6 +883,8 @@ class FlowDoctor {
             // Build apps aggregation
             const appUsage = {};
             results.forEach(r => r.apps.forEach(a => { appUsage[a] = (appUsage[a] || 0) + 1; }));
+            const appDeviceCount = {};
+            Object.values(deviceToApp).forEach(appId => { appDeviceCount[appId] = (appDeviceCount[appId] || 0) + 1; });
             const appsList = Object.values(installedApps).map(a => ({
                 id: a.id,
                 name: a.name || a.id,
@@ -892,6 +898,7 @@ class FlowDoctor {
                 cpu: a.usage && typeof a.usage.cpu === 'number' ? a.usage.cpu : null,
                 mem: a.usage && typeof a.usage.mem === 'number' ? a.usage.mem : null,
                 usage: appUsage[a.id] || 0,
+                deviceCount: appDeviceCount[a.id] || 0,
             }));
 
             this.results = results;
@@ -946,7 +953,7 @@ class FlowDoctor {
         document.getElementById('count-info').textContent = nInfo;
         document.getElementById('count-ok').textContent = nOk;
         document.getElementById('tab-flows-count').textContent = nErr + nWarn;
-        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate || a.usage === 0 || a.crashed).length;
+        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate || (a.usage === 0 && (a.deviceCount || 0) === 0) || a.crashed).length;
 
         const sevWanted = new Set([...document.querySelectorAll('.sev-toggle')].filter(cb => cb.checked).map(cb => cb.getAttribute('data-sev')));
         const search = (document.getElementById('flow-search').value || '').toLowerCase().trim();
@@ -1012,7 +1019,7 @@ class FlowDoctor {
         list.innerHTML = '';
         const apps = (this.appsList || []).filter(a => {
             if (onlyUpdates && !a.hasUpdate) return false;
-            if (onlyUnused && a.usage > 0) return false;
+            if (onlyUnused && (a.usage > 0 || (a.deviceCount || 0) > 0)) return false;
             if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
             return true;
         });
@@ -1020,6 +1027,7 @@ class FlowDoctor {
             status: (a, b) =>
                 (b.crashed ? 1 : 0) - (a.crashed ? 1 : 0)
                 || (b.usage || 0) - (a.usage || 0)
+                || (b.deviceCount || 0) - (a.deviceCount || 0)
                 || (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0)
                 || a.name.localeCompare(b.name),
             mem: (a, b) => (b.mem || 0) - (a.mem || 0) || a.name.localeCompare(b.name),
@@ -1041,11 +1049,11 @@ class FlowDoctor {
             } else {
                 statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
             }
-            const unusedBadge = a.usage === 0 ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
+            const unusedBadge = (a.usage === 0 && (a.deviceCount || 0) === 0) ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
             const crashedBadge = a.crashed ? `<span class="badge badge-err">${this.t('apps.crashed')}${a.crashedCount > 1 ? ' ×' + a.crashedCount : ''}</span>` : '';
             const disabledBadge = !a.enabled ? `<span class="badge badge-info">${this.t('apps.disabled')}</span>` : '';
             if (a.crashed) sevClass = 'sev-error';
-            else if (a.usage === 0 && !sevClass) sevClass = 'sev-info';
+            else if (a.usage === 0 && (a.deviceCount || 0) === 0 && !sevClass) sevClass = 'sev-info';
             const memMb = a.mem != null ? (a.mem / 1048576).toFixed(0) : null;
             const cpuPct = a.cpu != null ? a.cpu.toFixed(1) : null;
             const resourceHtml = (memMb != null || cpuPct != null)
@@ -1056,9 +1064,12 @@ class FlowDoctor {
                 : `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
             const storeLink = `https://homey.app/a/${encodeURIComponent(a.id)}`;
             const showUsageLink = a.usage > 0;
-            const usageHtml = showUsageLink
+            const flowsHtml = showUsageLink
                 ? `<a href="#" data-app-id="${this.escape(a.id)}" class="filter-by-app text-xs text-blue-600 hover:underline">${a.usage} ${this.t('apps.usedBy')} →</a>`
                 : `<span class="text-xs text-gray-400">0 ${this.t('apps.usedBy')}</span>`;
+            const devicesText = `${a.deviceCount || 0} ${this.t('apps.devices')}`;
+            const devicesHtml = `<span class="text-xs ${(a.deviceCount || 0) > 0 ? 'text-gray-600' : 'text-gray-400'}">${devicesText}</span>`;
+            const usageHtml = `${devicesHtml}${flowsHtml}`;
 
             const div = document.createElement('div');
             div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4`;

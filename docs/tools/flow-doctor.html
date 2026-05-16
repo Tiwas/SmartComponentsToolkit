@@ -753,6 +753,27 @@ class FlowDoctor {
                 return null;
             };
 
+            const describeCard = (card, def) => {
+                const id = card.id || card.uri || '';
+                const titleRaw = def && (def.title || def.titleFormatted);
+                const title = typeof titleRaw === 'object' ? (titleRaw.en || Object.values(titleRaw)[0]) : titleRaw;
+                if (id.startsWith('homey:device:')) {
+                    const devId = id.substring('homey:device:'.length).split(':')[0];
+                    const devName = devices[devId]?.name || devId;
+                    return title ? `${devName} → ${title}` : `${devName} → ${id.split(':').pop()}`;
+                }
+                if (id.startsWith('homey:app:')) {
+                    const aid = id.substring('homey:app:'.length).split(':')[0];
+                    const appName = installedApps[aid]?.name || aid;
+                    return title ? `${appName} → ${title}` : `${appName} → ${id.split(':').pop()}`;
+                }
+                if (id.startsWith('homey:manager:')) {
+                    const mgr = id.substring('homey:manager:'.length).split(':')[0];
+                    return title ? `${mgr} → ${title}` : id;
+                }
+                return title || id;
+            };
+
             const checkCard = (card, kind) => {
                 const issues = [];
                 if (!card) return issues;
@@ -766,7 +787,7 @@ class FlowDoctor {
                 if (uri.startsWith('homey:app:')) {
                     appId = uri.substring('homey:app:'.length).split(':')[0];
                     if (appId && !installedAppIds.has(appId)) {
-                        issues.push({ severity: 'error', key: 'issue.missingApp', detail: appId + ' · ' + (card.id || ''), appId });
+                        issues.push({ severity: 'error', key: 'issue.missingApp', detail: describeCard(card, null), appId });
                         return issues;
                     }
                 }
@@ -775,11 +796,11 @@ class FlowDoctor {
                 if (uri.startsWith('homey:app:') || uri.startsWith('homey:manager:') || uri.startsWith('homey:device:')) {
                     def = lookupCardDef(card, kind);
                     if (!def) {
-                        issues.push({ severity: 'error', key: 'issue.unknownCard', detail: (card.id || '') + ' (' + uri + ')', appId });
+                        issues.push({ severity: 'error', key: 'issue.unknownCard', detail: describeCard(card, null), appId });
                         return issues;
                     }
                     if (def.deprecated) {
-                        issues.push({ severity: 'warn', key: 'issue.deprecatedCard', detail: (card.id || ''), appId });
+                        issues.push({ severity: 'warn', key: 'issue.deprecatedCard', detail: describeCard(card, def), appId });
                     }
                 }
 
@@ -790,19 +811,19 @@ class FlowDoctor {
                     for (const argDef of def.args) {
                         const val = provided[argDef.name];
                         if ((val === undefined || val === null) && argDef.required !== false) {
-                            issues.push({ severity: 'warn', key: 'issue.missingArg', detail: argDef.name + ' (' + (card.id || '') + ')', appId });
+                            issues.push({ severity: 'warn', key: 'issue.missingArg', detail: describeCard(card, def) + ' · arg "' + argDef.name + '"', appId });
                         }
                         // Device reference check — only for actual device-typed args
                         if (argDef.type === 'device' && val && typeof val === 'object' && val.id && typeof val.id === 'string') {
                             if (deviceIds.size > 0 && !deviceIds.has(val.id) && val.id.length >= 16) {
-                                issues.push({ severity: 'error', key: 'issue.missingDevice', detail: argDef.name + ' → ' + (val.name || val.id), appId });
+                                issues.push({ severity: 'error', key: 'issue.missingDevice', detail: describeCard(card, def) + ' · arg "' + argDef.name + '" → ' + (val.name || val.id), appId });
                             }
                         }
                     }
                     // Unknown args (args present in flow but not in manifest)
                     for (const argName of Object.keys(provided)) {
                         if (!defArgNames.has(argName)) {
-                            issues.push({ severity: 'warn', key: 'issue.unknownArg', detail: argName + ' (' + (card.id || '') + ')', appId });
+                            issues.push({ severity: 'warn', key: 'issue.unknownArg', detail: describeCard(card, def) + ' · unknown arg "' + argName + '"', appId });
                         }
                     }
                 }
@@ -811,10 +832,11 @@ class FlowDoctor {
                 if (uri.startsWith('homey:device:')) {
                     const devId = uri.substring('homey:device:'.length).split(':')[0];
                     if (deviceIds.size > 0 && devId && !deviceIds.has(devId)) {
-                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: devId, appId });
+                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: describeCard(card, def), appId });
                     } else if (deviceToApp[devId] && !installedAppIds.has(deviceToApp[devId])) {
                         // Device exists but its owning app isn't installed — orphan device.
-                        issues.push({ severity: 'warn', key: 'issue.deviceMissingApp', detail: deviceToApp[devId], appId: deviceToApp[devId] });
+                        const missingApp = deviceToApp[devId];
+                        issues.push({ severity: 'warn', key: 'issue.deviceMissingApp', detail: describeCard(card, def) + ' · app: ' + missingApp, appId: missingApp });
                     }
                 }
 

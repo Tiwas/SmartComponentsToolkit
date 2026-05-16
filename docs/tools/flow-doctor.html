@@ -194,14 +194,16 @@
             <h2 class="text-xl font-bold text-gray-900" data-i18n="bug.title">Report a bug</h2>
             <button id="bug-modal-close" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
         </div>
-        <p class="text-sm text-gray-700 mb-4" data-i18n="bug.intro">Found a problem with Flow Doctor? Click the button below to copy diagnostic information, then open a new GitHub issue and paste it into the issue body. The data does not include device or flow names, your Homey ID, or any tokens.</p>
+        <p class="text-sm text-gray-700 mb-3" data-i18n="bug.intro">Describe what you observed, then click Copy. The data does not include device or flow names, your Homey ID, or any tokens.</p>
+        <label class="block text-xs font-semibold text-gray-700 mb-1" data-i18n="bug.descriptionLabel">Description</label>
+        <textarea id="bug-description" rows="5" class="w-full text-sm border border-gray-300 rounded p-2 mb-3" data-i18n-placeholder="bug.descriptionPlaceholder" placeholder="What did you see? What did you expect? Steps to reproduce…"></textarea>
         <div class="flex flex-col gap-3">
-            <button id="bug-copy-button" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm" data-i18n="bug.copy">📋 Copy debug info</button>
+            <button id="bug-copy-button" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm" data-i18n="bug.copy">📋 Copy bug report</button>
             <a id="bug-github-link" href="https://github.com/Tiwas/SmartComponentsToolkit/issues/new" target="_blank" rel="noopener" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded font-semibold text-sm text-center border border-gray-300" data-i18n="bug.openGithub">🌐 Open GitHub issues ↗</a>
         </div>
         <details class="mt-4">
             <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700" data-i18n="bug.preview">Preview what will be copied</summary>
-            <pre id="bug-preview" class="mt-2 text-xs bg-gray-50 border border-gray-200 rounded p-3 max-h-64 overflow-auto font-mono"></pre>
+            <pre id="bug-preview" class="mt-2 text-xs bg-gray-50 border border-gray-200 rounded p-3 max-h-64 overflow-auto font-mono whitespace-pre-wrap"></pre>
         </details>
     </div>
 </div>
@@ -215,8 +217,11 @@ const I18N = {
         logout: 'Log out',
         'bug.button': '🐞 Report bug',
         'bug.title': 'Report a bug',
-        'bug.intro': 'Found a problem with Flow Doctor? Click the button below to copy diagnostic information, then open a new GitHub issue and paste it into the issue body. The data does not include device or flow names, your Homey ID, or any tokens.',
-        'bug.copy': '📋 Copy debug info',
+        'bug.intro': 'Describe what you observed, then click Copy. The data does not include device or flow names, your Homey ID, or any tokens.',
+        'bug.descriptionLabel': 'Description',
+        'bug.descriptionPlaceholder': 'What did you see? What did you expect? Steps to reproduce…',
+        'bug.descriptionMissing': '(no description provided)',
+        'bug.copy': '📋 Copy bug report',
         'bug.copied': 'Copied to clipboard',
         'bug.copyFailed': 'Copy failed',
         'bug.openGithub': '🌐 Open GitHub issues ↗',
@@ -298,8 +303,11 @@ const I18N = {
         logout: 'Logg ut',
         'bug.button': '🐞 Rapportér feil',
         'bug.title': 'Rapportér en feil',
-        'bug.intro': 'Funnet et problem med Flow Doctor? Trykk på knappen under for å kopiere diagnoseinformasjon, åpne en ny GitHub-issue og lim inn i issue-teksten. Dataene inneholder ikke device- eller flow-navn, Homey-ID, eller tokens.',
-        'bug.copy': '📋 Kopier debug-info',
+        'bug.intro': 'Beskriv hva du observerte, og trykk Kopier. Dataene inneholder ikke device- eller flow-navn, Homey-ID, eller tokens.',
+        'bug.descriptionLabel': 'Beskrivelse',
+        'bug.descriptionPlaceholder': 'Hva så du? Hva forventet du? Hvordan reproduserer du det…',
+        'bug.descriptionMissing': '(ingen beskrivelse oppgitt)',
+        'bug.copy': '📋 Kopier feilrapport',
         'bug.copied': 'Kopiert til utklippstavle',
         'bug.copyFailed': 'Kopiering feilet',
         'bug.openGithub': '🌐 Åpne GitHub issues ↗',
@@ -381,8 +389,11 @@ const I18N = {
         logout: 'Abmelden',
         'bug.button': '🐞 Fehler melden',
         'bug.title': 'Fehler melden',
-        'bug.intro': 'Problem mit Flow Doctor entdeckt? Klicken Sie unten, um Diagnoseinformationen zu kopieren, öffnen Sie ein neues GitHub-Issue und fügen Sie sie in den Issue-Text ein. Die Daten enthalten weder Geräte- noch Flow-Namen, Ihre Homey-ID oder Tokens.',
-        'bug.copy': '📋 Debug-Info kopieren',
+        'bug.intro': 'Beschreiben Sie das beobachtete Problem und klicken Sie auf Kopieren. Die Daten enthalten weder Geräte- noch Flow-Namen, Ihre Homey-ID oder Tokens.',
+        'bug.descriptionLabel': 'Beschreibung',
+        'bug.descriptionPlaceholder': 'Was haben Sie gesehen? Was haben Sie erwartet? Schritte zur Reproduktion…',
+        'bug.descriptionMissing': '(keine Beschreibung angegeben)',
+        'bug.copy': '📋 Fehlerbericht kopieren',
         'bug.copied': 'In Zwischenablage kopiert',
         'bug.copyFailed': 'Kopieren fehlgeschlagen',
         'bug.openGithub': '🌐 GitHub Issues öffnen ↗',
@@ -464,8 +475,11 @@ const I18N = {
         logout: 'Uitloggen',
         'bug.button': '🐞 Bug melden',
         'bug.title': 'Bug melden',
-        'bug.intro': 'Een probleem gevonden met Flow Doctor? Klik op de knop hieronder om diagnostische informatie te kopiëren, open een nieuw GitHub-issue en plak het in de issue-tekst. De gegevens bevatten geen apparaat- of flow-namen, je Homey-ID, of tokens.',
-        'bug.copy': '📋 Debug-info kopiëren',
+        'bug.intro': 'Beschrijf wat je hebt gezien en klik op Kopiëren. De gegevens bevatten geen apparaat- of flow-namen, je Homey-ID, of tokens.',
+        'bug.descriptionLabel': 'Beschrijving',
+        'bug.descriptionPlaceholder': 'Wat zag je? Wat verwachtte je? Stappen om te reproduceren…',
+        'bug.descriptionMissing': '(geen beschrijving opgegeven)',
+        'bug.copy': '📋 Bugrapport kopiëren',
         'bug.copied': 'Gekopieerd naar klembord',
         'bug.copyFailed': 'Kopiëren mislukt',
         'bug.openGithub': '🌐 Open GitHub issues ↗',
@@ -597,6 +611,11 @@ class FlowDoctor {
             const v = this.t(key);
             if (v) el.textContent = v;
         });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            const v = this.t(key);
+            if (v) el.setAttribute('placeholder', v);
+        });
     }
 
     initLanguage() {
@@ -659,6 +678,7 @@ class FlowDoctor {
         document.getElementById('bug-modal-close').addEventListener('click', () => bugModal.classList.add('hidden'));
         bugModal.addEventListener('click', (e) => { if (e.target === bugModal) bugModal.classList.add('hidden'); });
         document.getElementById('bug-copy-button').addEventListener('click', () => this.copyDebugInfo());
+        document.getElementById('bug-description').addEventListener('input', () => this.refreshBugPreview());
         document.getElementById('rescan-button').addEventListener('click', () => this.scan());
 
         document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
@@ -809,15 +829,25 @@ class FlowDoctor {
         };
     }
 
-    openBugModal() {
+    composeBugReport() {
+        const description = (document.getElementById('bug-description')?.value || '').trim();
         const info = this.buildDebugInfo();
-        document.getElementById('bug-preview').textContent = JSON.stringify(info, null, 2);
+        const descSection = description || `_${this.t('bug.descriptionMissing')}_`;
+        return `## Description\n\n${descSection}\n\n## Debug info\n\n\`\`\`json\n${JSON.stringify(info, null, 2)}\n\`\`\`\n`;
+    }
+
+    refreshBugPreview() {
+        document.getElementById('bug-preview').textContent = this.composeBugReport();
+    }
+
+    openBugModal() {
+        this.refreshBugPreview();
         document.getElementById('bug-modal').classList.remove('hidden');
+        document.getElementById('bug-description').focus();
     }
 
     async copyDebugInfo() {
-        const info = this.buildDebugInfo();
-        const text = JSON.stringify(info, null, 2);
+        const text = this.composeBugReport();
         const btn = document.getElementById('bug-copy-button');
         const original = btn.textContent;
         try {

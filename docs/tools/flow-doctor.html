@@ -57,6 +57,7 @@
         </div>
         <div class="flex items-center gap-4 mt-4 md:mt-0">
             <button id="api-settings-button" class="hidden px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm border border-gray-300" data-i18n="apiSettings">⚙️ API Settings</button>
+            <button id="bug-report-button" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm border border-gray-300" data-i18n="bug.button">🐞 Report bug</button>
             <div class="language-selector">
                 <button id="language-button" class="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300">
                     <span id="current-flag" class="text-xl">🇬🇧</span>
@@ -186,6 +187,25 @@
     </main>
 </div>
 
+<!-- Bug report modal -->
+<div id="bug-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+        <div class="flex items-start justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900" data-i18n="bug.title">Report a bug</h2>
+            <button id="bug-modal-close" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <p class="text-sm text-gray-700 mb-4" data-i18n="bug.intro">Found a problem with Flow Doctor? Click the button below to copy diagnostic information, then open a new GitHub issue and paste it into the issue body. The data does not include device or flow names, your Homey ID, or any tokens.</p>
+        <div class="flex flex-col gap-3">
+            <button id="bug-copy-button" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm" data-i18n="bug.copy">📋 Copy debug info</button>
+            <a id="bug-github-link" href="https://github.com/Tiwas/SmartComponentsToolkit/issues/new" target="_blank" rel="noopener" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded font-semibold text-sm text-center border border-gray-300" data-i18n="bug.openGithub">🌐 Open GitHub issues ↗</a>
+        </div>
+        <details class="mt-4">
+            <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700" data-i18n="bug.preview">Preview what will be copied</summary>
+            <pre id="bug-preview" class="mt-2 text-xs bg-gray-50 border border-gray-200 rounded p-3 max-h-64 overflow-auto font-mono"></pre>
+        </details>
+    </div>
+</div>
+
 <script>
 const I18N = {
     en: {
@@ -193,6 +213,14 @@ const I18N = {
         subtitle: 'Diagnose flows: broken, deprecated cards, missing apps',
         apiSettings: '⚙️ API Settings',
         logout: 'Log out',
+        'bug.button': '🐞 Report bug',
+        'bug.title': 'Report a bug',
+        'bug.intro': 'Found a problem with Flow Doctor? Click the button below to copy diagnostic information, then open a new GitHub issue and paste it into the issue body. The data does not include device or flow names, your Homey ID, or any tokens.',
+        'bug.copy': '📋 Copy debug info',
+        'bug.copied': 'Copied to clipboard',
+        'bug.copyFailed': 'Copy failed',
+        'bug.openGithub': '🌐 Open GitHub issues ↗',
+        'bug.preview': 'Preview what will be copied',
         'apiSetup.title': '🔧 API Setup Required',
         'apiSetup.instructionsTitle': '📋 How to get your API credentials',
         'apiSetup.step1': 'Go to',
@@ -268,6 +296,14 @@ const I18N = {
         subtitle: 'Diagnoser flows: ødelagte, deprecated kort, manglende apper',
         apiSettings: '⚙️ API-innstillinger',
         logout: 'Logg ut',
+        'bug.button': '🐞 Rapportér feil',
+        'bug.title': 'Rapportér en feil',
+        'bug.intro': 'Funnet et problem med Flow Doctor? Trykk på knappen under for å kopiere diagnoseinformasjon, åpne en ny GitHub-issue og lim inn i issue-teksten. Dataene inneholder ikke device- eller flow-navn, Homey-ID, eller tokens.',
+        'bug.copy': '📋 Kopier debug-info',
+        'bug.copied': 'Kopiert til utklippstavle',
+        'bug.copyFailed': 'Kopiering feilet',
+        'bug.openGithub': '🌐 Åpne GitHub issues ↗',
+        'bug.preview': 'Forhåndsvis hva som kopieres',
         'apiSetup.title': '🔧 API-oppsett kreves',
         'apiSetup.instructionsTitle': '📋 Slik henter du API-credentials',
         'apiSetup.step1': 'Gå til',
@@ -343,6 +379,14 @@ const I18N = {
         subtitle: 'Diagnose von Flows: defekt, veraltete Karten, fehlende Apps',
         apiSettings: '⚙️ API-Einstellungen',
         logout: 'Abmelden',
+        'bug.button': '🐞 Fehler melden',
+        'bug.title': 'Fehler melden',
+        'bug.intro': 'Problem mit Flow Doctor entdeckt? Klicken Sie unten, um Diagnoseinformationen zu kopieren, öffnen Sie ein neues GitHub-Issue und fügen Sie sie in den Issue-Text ein. Die Daten enthalten weder Geräte- noch Flow-Namen, Ihre Homey-ID oder Tokens.',
+        'bug.copy': '📋 Debug-Info kopieren',
+        'bug.copied': 'In Zwischenablage kopiert',
+        'bug.copyFailed': 'Kopieren fehlgeschlagen',
+        'bug.openGithub': '🌐 GitHub Issues öffnen ↗',
+        'bug.preview': 'Vorschau, was kopiert wird',
         'apiSetup.title': '🔧 API-Einrichtung erforderlich',
         'apiSetup.instructionsTitle': '📋 So erhalten Sie Ihre API-Zugangsdaten',
         'apiSetup.step1': 'Öffnen Sie',
@@ -418,6 +462,14 @@ const I18N = {
         subtitle: 'Diagnose van flows: kapot, verouderde kaarten, ontbrekende apps',
         apiSettings: '⚙️ API-instellingen',
         logout: 'Uitloggen',
+        'bug.button': '🐞 Bug melden',
+        'bug.title': 'Bug melden',
+        'bug.intro': 'Een probleem gevonden met Flow Doctor? Klik op de knop hieronder om diagnostische informatie te kopiëren, open een nieuw GitHub-issue en plak het in de issue-tekst. De gegevens bevatten geen apparaat- of flow-namen, je Homey-ID, of tokens.',
+        'bug.copy': '📋 Debug-info kopiëren',
+        'bug.copied': 'Gekopieerd naar klembord',
+        'bug.copyFailed': 'Kopiëren mislukt',
+        'bug.openGithub': '🌐 Open GitHub issues ↗',
+        'bug.preview': 'Bekijk wat er gekopieerd wordt',
         'apiSetup.title': '🔧 API-installatie vereist',
         'apiSetup.instructionsTitle': '📋 Zo verkrijg je je API-gegevens',
         'apiSetup.step1': 'Ga naar',
@@ -600,6 +652,13 @@ class FlowDoctor {
 
         document.getElementById('login-button').addEventListener('click', () => this.login());
         document.getElementById('logout-button').addEventListener('click', () => this.logout());
+
+        // Bug-report modal wiring
+        const bugModal = document.getElementById('bug-modal');
+        document.getElementById('bug-report-button').addEventListener('click', () => this.openBugModal());
+        document.getElementById('bug-modal-close').addEventListener('click', () => bugModal.classList.add('hidden'));
+        bugModal.addEventListener('click', (e) => { if (e.target === bugModal) bugModal.classList.add('hidden'); });
+        document.getElementById('bug-copy-button').addEventListener('click', () => this.copyDebugInfo());
         document.getElementById('rescan-button').addEventListener('click', () => this.scan());
 
         document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
@@ -709,6 +768,66 @@ class FlowDoctor {
             if (parent && (parent.usage > 0 || (parent.deviceCount || 0) > 0)) return false;
         }
         return true;
+    }
+
+    buildDebugInfo() {
+        // Privacy: no device names, flow names, homey-id, tokens, or any field that
+        // could correlate to a specific user. App names are kept (public marketing names).
+        const results = this.results || [];
+        const sevCount = { error: 0, warn: 0, info: 0, ok: 0 };
+        const issueKeyCount = {};
+        for (const r of results) {
+            sevCount[this.flowSeverity(r)] = (sevCount[this.flowSeverity(r)] || 0) + 1;
+            for (const i of (r.issues || [])) {
+                issueKeyCount[i.key] = (issueKeyCount[i.key] || 0) + 1;
+            }
+        }
+        const apps = (this.appsList || []).map(a => ({
+            id: a.id, name: a.name, version: a.version,
+            storeVersion: a.storeVersion || null,
+            hasUpdate: !!a.hasUpdate, enabled: !!a.enabled,
+            crashed: !!a.crashed, state: a.state,
+            usage: a.usage, deviceCount: a.deviceCount || 0,
+            parentAppId: a.parentAppId || null,
+        }));
+        const nCrashed = apps.filter(a => a.crashed).length;
+        const nUpdate = apps.filter(a => a.hasUpdate && !a.crashed).length;
+        const nUnused = apps.filter(a => !a.crashed && !a.hasUpdate && this.isAppUnused(a)).length;
+        const nAppsOk = apps.length - nCrashed - nUpdate - nUnused;
+        return {
+            tool: 'flow-doctor',
+            scannedAt: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            language: this.lang,
+            homeyApiCdnVersion: '3.14.8',
+            counts: {
+                flows: { total: results.length, error: sevCount.error || 0, warn: sevCount.warn || 0, info: sevCount.info || 0, ok: sevCount.ok || 0 },
+                apps: { total: apps.length, crashed: nCrashed, update: nUpdate, unused: nUnused, ok: nAppsOk },
+            },
+            issuesByKey: issueKeyCount,
+            apps,
+        };
+    }
+
+    openBugModal() {
+        const info = this.buildDebugInfo();
+        document.getElementById('bug-preview').textContent = JSON.stringify(info, null, 2);
+        document.getElementById('bug-modal').classList.remove('hidden');
+    }
+
+    async copyDebugInfo() {
+        const info = this.buildDebugInfo();
+        const text = JSON.stringify(info, null, 2);
+        const btn = document.getElementById('bug-copy-button');
+        const original = btn.textContent;
+        try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = '✓ ' + this.t('bug.copied');
+            setTimeout(() => { btn.textContent = original; }, 2000);
+        } catch (e) {
+            btn.textContent = '✗ ' + this.t('bug.copyFailed');
+            setTimeout(() => { btn.textContent = original; }, 2000);
+        }
     }
 
     switchTab(name) {

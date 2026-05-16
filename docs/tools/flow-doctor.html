@@ -162,6 +162,12 @@
                     <input type="text" id="app-search" placeholder="Search app…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-updates"> <span data-i18n="apps.onlyUpdates">Only apps with updates</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-unused"> <span data-i18n="apps.onlyUnused">Only unused apps</span></label>
+                    <select id="app-sort" class="text-sm border border-gray-300 rounded px-2 py-1">
+                        <option value="status" data-i18n="apps.sortStatus">Sort: status</option>
+                        <option value="mem" data-i18n="apps.sortMem">Sort: memory</option>
+                        <option value="cpu" data-i18n="apps.sortCpu">Sort: CPU</option>
+                        <option value="name" data-i18n="apps.sortName">Sort: name</option>
+                    </select>
                 </div>
                 <div id="apps-list" class="space-y-2"></div>
             </div>
@@ -221,6 +227,14 @@ const I18N = {
         'apps.usedBy': 'flows',
         'apps.installed': 'installed',
         'apps.store': 'store',
+        'apps.crashed': 'Crashed',
+        'apps.disabled': 'Disabled',
+        'apps.memory': 'Memory',
+        'apps.cpu': 'CPU',
+        'apps.sortStatus': 'Sort: status',
+        'apps.sortMem': 'Sort: memory',
+        'apps.sortCpu': 'Sort: CPU',
+        'apps.sortName': 'Sort: name',
         rescan: 'Rescan',
         'error.title': 'Something went wrong',
         'error.reload': 'Reload',
@@ -284,6 +298,14 @@ const I18N = {
         'apps.usedBy': 'flows',
         'apps.installed': 'installert',
         'apps.store': 'butikk',
+        'apps.crashed': 'Krasjet',
+        'apps.disabled': 'Deaktivert',
+        'apps.memory': 'Minne',
+        'apps.cpu': 'CPU',
+        'apps.sortStatus': 'Sortér: status',
+        'apps.sortMem': 'Sortér: minne',
+        'apps.sortCpu': 'Sortér: CPU',
+        'apps.sortName': 'Sortér: navn',
         rescan: 'Skann på nytt',
         'error.title': 'Noe gikk galt',
         'error.reload': 'Last på nytt',
@@ -347,6 +369,14 @@ const I18N = {
         'apps.usedBy': 'Flows',
         'apps.installed': 'installiert',
         'apps.store': 'Store',
+        'apps.crashed': 'Abgestürzt',
+        'apps.disabled': 'Deaktiviert',
+        'apps.memory': 'Speicher',
+        'apps.cpu': 'CPU',
+        'apps.sortStatus': 'Sortieren: Status',
+        'apps.sortMem': 'Sortieren: Speicher',
+        'apps.sortCpu': 'Sortieren: CPU',
+        'apps.sortName': 'Sortieren: Name',
         rescan: 'Erneut scannen',
         'error.title': 'Etwas ist schiefgelaufen',
         'error.reload': 'Neu laden',
@@ -410,6 +440,14 @@ const I18N = {
         'apps.usedBy': 'flows',
         'apps.installed': 'geïnstalleerd',
         'apps.store': 'store',
+        'apps.crashed': 'Gecrasht',
+        'apps.disabled': 'Uitgeschakeld',
+        'apps.memory': 'Geheugen',
+        'apps.cpu': 'CPU',
+        'apps.sortStatus': 'Sorteren: status',
+        'apps.sortMem': 'Sorteren: geheugen',
+        'apps.sortCpu': 'Sorteren: CPU',
+        'apps.sortName': 'Sorteren: naam',
         rescan: 'Opnieuw scannen',
         'error.title': 'Er ging iets mis',
         'error.reload': 'Opnieuw laden',
@@ -542,6 +580,7 @@ class FlowDoctor {
         document.getElementById('app-search').addEventListener('input', () => this.renderApps());
         document.getElementById('app-only-updates').addEventListener('change', () => this.renderApps());
         document.getElementById('app-only-unused').addEventListener('change', () => this.renderApps());
+        document.getElementById('app-sort').addEventListener('change', () => this.renderApps());
 
         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
             this.showScreen('api-setup-screen');
@@ -597,72 +636,14 @@ class FlowDoctor {
         }
     }
 
-    async getCloudToken() {
-        if (!this.cloudApi) return null;
-        const candidates = [this.cloudApi._token, this.cloudApi.token, this.cloudApi._accessToken];
-        for (const c of candidates) {
-            if (typeof c === 'string' && c) return c;
-            if (c && typeof c === 'object' && c.access_token) return c.access_token;
-        }
-        try {
-            if (typeof this.cloudApi.getToken === 'function') {
-                const t = await this.cloudApi.getToken();
-                if (typeof t === 'string') return t;
-                if (t && t.access_token) return t.access_token;
-            }
-        } catch (e) { /* ignore */ }
+    extractStoreVersion(app) {
+        // Homey itself sets `updateAvailable` on the app payload when a newer version
+        // is in the App Store. The shape varies: sometimes a string, sometimes an object.
+        const u = app.updateAvailable;
+        if (!u) return null;
+        if (typeof u === 'string') return u;
+        if (typeof u === 'object') return u.version || u.latestVersion || null;
         return null;
-    }
-
-    async fetchAppStoreVersions(installedIds, apps) {
-        const result = {};
-
-        // 1) Many installed-app payloads already carry latestVersion/update info.
-        if (apps) {
-            Object.values(apps).forEach(a => {
-                const v = a.latestVersion || a.updateVersion || (a.update && a.update.version);
-                if (v) result[a.id] = v;
-            });
-        }
-        if (installedIds.every(id => result[id])) return result;
-
-        // 2) api.athom.com is CORS-enabled and used by my.homey.app — query per app using
-        //    the cloud OAuth token we already hold.
-        const token = await this.getCloudToken();
-        if (token) {
-            await Promise.all(installedIds.map(async (id) => {
-                if (result[id]) return;
-                for (const path of [
-                    `https://api.athom.com/app/${encodeURIComponent(id)}`,
-                    `https://api.athom.com/api/app/${encodeURIComponent(id)}`,
-                ]) {
-                    try {
-                        const r = await fetch(path, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-                        if (!r.ok) continue;
-                        const data = await r.json();
-                        const v = data && (data.version
-                            || (data.versions && data.versions[0] && data.versions[0].version)
-                            || (data.latestVersion && data.latestVersion.version));
-                        if (v) { result[id] = v; return; }
-                    } catch (e) { /* try next */ }
-                }
-            }));
-        }
-
-        // 3) Last-resort: try the public app store endpoint (often blocked by CORS,
-        //    but cheap to attempt and works for some apps that set permissive headers).
-        await Promise.all(installedIds.map(async (id) => {
-            if (result[id]) return;
-            try {
-                const r = await fetch(`https://apps.athom.com/app/${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } });
-                if (!r.ok) return;
-                const data = await r.json();
-                const v = data && (data.version || (data.versions && data.versions[0] && data.versions[0].version));
-                if (v) result[id] = v;
-            } catch (e) { /* ignore */ }
-        }));
-
-        return result;
     }
 
     compareVersions(a, b) {
@@ -724,7 +705,11 @@ class FlowDoctor {
             buildCardLookup(conditions, 'condition');
             buildCardLookup(actions, 'action');
 
-            const appStoreVersions = await this.fetchAppStoreVersions([...installedAppIds], installedApps);
+            const appStoreVersions = {};
+            Object.values(installedApps).forEach(a => {
+                const v = this.extractStoreVersion(a);
+                if (v) appStoreVersions[a.id] = v;
+            });
 
             const lookupCardDef = (card, kind) => {
                 if (!card || !card.id) return null;
@@ -845,7 +830,13 @@ class FlowDoctor {
                 name: a.name || a.id,
                 version: a.version || '',
                 storeVersion: appStoreVersions[a.id] || null,
-                hasUpdate: appStoreVersions[a.id] ? this.compareVersions(a.version, appStoreVersions[a.id]) < 0 : false,
+                hasUpdate: !!a.updateAvailable,
+                enabled: a.enabled !== false,
+                state: a.state || null,
+                crashed: !!a.crashed,
+                crashedCount: a.crashedCount || 0,
+                cpu: a.usage && typeof a.usage.cpu === 'number' ? a.usage.cpu : null,
+                mem: a.usage && typeof a.usage.mem === 'number' ? a.usage.mem : null,
                 usage: appUsage[a.id] || 0,
             }));
 
@@ -899,7 +890,7 @@ class FlowDoctor {
         document.getElementById('count-info').textContent = nInfo;
         document.getElementById('count-ok').textContent = nOk;
         document.getElementById('tab-flows-count').textContent = nErr + nWarn;
-        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate || a.usage === 0).length;
+        document.getElementById('tab-apps-count').textContent = (this.appsList || []).filter(a => a.hasUpdate || a.usage === 0 || a.crashed).length;
 
         const sevWanted = new Set([...document.querySelectorAll('.sev-toggle')].filter(cb => cb.checked).map(cb => cb.getAttribute('data-sev')));
         const search = (document.getElementById('flow-search').value || '').toLowerCase().trim();
@@ -961,6 +952,7 @@ class FlowDoctor {
         const search = (document.getElementById('app-search').value || '').toLowerCase().trim();
         const onlyUpdates = document.getElementById('app-only-updates').checked;
         const onlyUnused = document.getElementById('app-only-unused').checked;
+        const sortBy = document.getElementById('app-sort').value || 'status';
         list.innerHTML = '';
         const apps = (this.appsList || []).filter(a => {
             if (onlyUpdates && !a.hasUpdate) return false;
@@ -968,10 +960,17 @@ class FlowDoctor {
             if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
             return true;
         });
-        apps.sort((a, b) =>
-            (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0)
-            || (a.usage === 0 ? 0 : 1) - (b.usage === 0 ? 0 : 1)
-            || a.name.localeCompare(b.name));
+        const sortFns = {
+            status: (a, b) =>
+                (b.crashed ? 1 : 0) - (a.crashed ? 1 : 0)
+                || (b.hasUpdate ? 1 : 0) - (a.hasUpdate ? 1 : 0)
+                || (a.usage === 0 ? 0 : 1) - (b.usage === 0 ? 0 : 1)
+                || a.name.localeCompare(b.name),
+            mem: (a, b) => (b.mem || 0) - (a.mem || 0) || a.name.localeCompare(b.name),
+            cpu: (a, b) => (b.cpu || 0) - (a.cpu || 0) || a.name.localeCompare(b.name),
+            name: (a, b) => a.name.localeCompare(b.name),
+        };
+        apps.sort(sortFns[sortBy] || sortFns.status);
 
         if (apps.length === 0) {
             list.innerHTML = `<div class="text-center text-gray-500 py-12">${this.t('noIssues')}</div>`;
@@ -989,7 +988,15 @@ class FlowDoctor {
                 statusBadge = `<span class="badge badge-info">${this.t('apps.unknown')}</span>`;
             }
             const unusedBadge = a.usage === 0 ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
-            if (a.usage === 0 && !sevClass) sevClass = 'sev-info';
+            const crashedBadge = a.crashed ? `<span class="badge badge-err">${this.t('apps.crashed')}${a.crashedCount > 1 ? ' ×' + a.crashedCount : ''}</span>` : '';
+            const disabledBadge = !a.enabled ? `<span class="badge badge-info">${this.t('apps.disabled')}</span>` : '';
+            if (a.crashed) sevClass = 'sev-error';
+            else if (a.usage === 0 && !sevClass) sevClass = 'sev-info';
+            const memMb = a.mem != null ? (a.mem / 1048576).toFixed(0) : null;
+            const cpuPct = a.cpu != null ? a.cpu.toFixed(1) : null;
+            const resourceHtml = (memMb != null || cpuPct != null)
+                ? `<div class="text-xs text-gray-600 mt-1 flex gap-3">${memMb != null ? `<span>${this.t('apps.memory')}: <strong>${memMb} MB</strong></span>` : ''}${cpuPct != null ? `<span>${this.t('apps.cpu')}: <strong>${cpuPct}%</strong></span>` : ''}</div>`
+                : '';
             const versionInfo = a.storeVersion
                 ? `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code> · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
                 : `${this.t('apps.installed')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
@@ -1006,10 +1013,13 @@ class FlowDoctor {
                     <div class="flex-grow">
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-semibold text-gray-900">${this.escape(a.name)}</span>
+                            ${crashedBadge}
                             ${statusBadge}
                             ${unusedBadge}
+                            ${disabledBadge}
                         </div>
                         <div class="text-xs text-gray-600 mt-1">${versionInfo}</div>
+                        ${resourceHtml}
                         <div class="text-xs text-gray-400 mt-1 font-mono">${this.escape(a.id)}</div>
                     </div>
                     <div class="flex flex-col items-end gap-2">

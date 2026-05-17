@@ -26,6 +26,18 @@ Test and build your logic before deploying:
 
 ---
 
+## 🖥️ Desktop Dashboard *(experimental)*
+
+A floating, always-on-top desktop widget that lets you run Homey flows from any platform you're working on, with local favorites organized into folders and live Homey notifications surfaced as toasts.
+
+- Source: [`apps/dashboard-desktop/`](apps/dashboard-desktop/)
+- Built with [Tauri 2](https://v2.tauri.app/) + React + TypeScript; shared logic in [`apps/dashboard-shared/`](apps/dashboard-shared/)
+- Cross-platform: Windows, macOS, Linux (iOS planned via PWA)
+
+See [`apps/dashboard-desktop/README.md`](apps/dashboard-desktop/README.md) for setup, OAuth scopes and build instructions.
+
+---
+
 ## 📦 Device Types
 
 ### Logic Device

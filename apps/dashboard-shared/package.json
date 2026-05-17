@@ -1,0 +1,15 @@
+{
+  "name": "@homey-toolbox/dashboard-shared",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Framework-agnostic auth, Homey client and favorites store for the dashboard shells (Tauri desktop + PWA).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

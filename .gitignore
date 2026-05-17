@@ -37,3 +37,10 @@ codebase-manifest.*
 
 # Project Documentation (AI-generated, kept local)
 PROJECT_DOCUMENTATION.md
+
+# Dashboard apps
+apps/**/node_modules/
+apps/**/dist/
+apps/**/.vite/
+apps/dashboard-desktop/src-tauri/target/
+apps/dashboard-desktop/src-tauri/gen/

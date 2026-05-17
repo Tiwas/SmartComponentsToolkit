@@ -221,6 +221,13 @@
 
           <label>Floor pattern</label>
           <div class="pattern-list" id="pattern-list"></div>
+
+          <label>Shape</label>
+          <div style="display:flex;gap:4px;">
+            <button class="secondary" style="flex:1;" onclick="startAddPart()" title="Draw an extra rectangle that becomes part of this room">+ Add area</button>
+            <button class="secondary" style="flex:1;" onclick="startSubPart()" title="Draw a rectangle that cuts a hole in this room">− Subtract</button>
+          </div>
+          <div id="parts-list" style="margin-top:4px;font-size:11px;color:var(--fg-muted);"></div>
         </div>
 
         <label>
@@ -403,6 +410,79 @@
         return Math.max(1.5, Math.min(byWidth, byHeight, 6));
       }
 
+      /**
+       * Build an SVG path that combines the primary rect + add/sub parts of
+       * a compound room. Add parts use clockwise winding so they extend the
+       * filled area; sub parts use counter-clockwise so the nonzero fill
+       * rule punches a hole through any overlapping add area.
+       */
+      function rectCW(x, y, w, h) {
+        return `M${x} ${y}L${x + w} ${y}L${x + w} ${y + h}L${x} ${y + h}Z`;
+      }
+      function rectCCW(x, y, w, h) {
+        return `M${x} ${y}L${x} ${y + h}L${x + w} ${y + h}L${x + w} ${y}Z`;
+      }
+      function roomPath(r) {
+        let d = rectCW(r.x, r.y, r.w, r.h);
+        for (const p of r.parts || []) {
+          if (p.kind === "add") d += rectCW(p.x, p.y, p.w, p.h);
+          else d += rectCCW(p.x, p.y, p.w, p.h);
+        }
+        return d;
+      }
+      function roomBBox(r) {
+        let minX = r.x, minY = r.y;
+        let maxX = r.x + r.w, maxY = r.y + r.h;
+        for (const p of r.parts || []) {
+          if (p.kind !== "add") continue;
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x + p.w);
+          maxY = Math.max(maxY, p.y + p.h);
+        }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+      function hasParts(r) { return Array.isArray(r.parts) && r.parts.length > 0; }
+      function encodeParts(parts) {
+        return (parts || [])
+          .map((p) => `${p.kind}:${p.x},${p.y},${p.w},${p.h}`)
+          .join(";");
+      }
+      function decodeParts(s) {
+        if (!s) return [];
+        return s.split(";").map((piece) => {
+          const [kind, coords] = piece.split(":");
+          if (!coords) return null;
+          const [x, y, w, h] = coords.split(",").map(parseFloat);
+          if (![x, y, w, h].every(Number.isFinite)) return null;
+          if (kind !== "add" && kind !== "sub") return null;
+          return { kind, x, y, w, h };
+        }).filter(Boolean);
+      }
+
+      function startAddPart() { state.tool = "addPart"; canvas.style.cursor = "crosshair"; }
+      function startSubPart() { state.tool = "subPart"; canvas.style.cursor = "crosshair"; }
+
+      function renderPartsList() {
+        const wrap = document.getElementById("parts-list");
+        if (!wrap) return;
+        const r = findSelected();
+        if (!r || state.selected.kind !== "room") { wrap.innerHTML = ""; return; }
+        if (!hasParts(r)) { wrap.innerHTML = `<span style="opacity:0.6;">Simple rectangle. Use + Add or − Subtract above.</span>`; return; }
+        wrap.innerHTML = r.parts.map((p, i) =>
+          `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;">
+            <span>${p.kind === "add" ? "+" : "−"} ${p.w.toFixed(1)}×${p.h.toFixed(1)}</span>
+            <button style="background:transparent;border:none;color:#f28b82;cursor:pointer;" onclick="removePart(${i})">×</button>
+          </div>`
+        ).join("");
+      }
+      function removePart(idx) {
+        const r = findSelected();
+        if (!r) return;
+        r.parts.splice(idx, 1);
+        render();
+      }
+
       function currentRooms() { return state.rooms[state.activeFloorId] ??= []; }
       function currentFurniture() { return state.furniture[state.activeFloorId] ??= []; }
 
@@ -470,16 +550,32 @@
 
         for (const r of currentRooms()) {
           const fill = r.pattern && r.pattern !== "none" ? `url(#pat-${r.pattern})` : r.color;
-          const overlay = r.pattern && r.pattern !== "none" ? `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>` : "";
           const sel = state.selected && state.selected.kind === "room" && state.selected.id === r.id;
           const cls = sel ? "room selected" : "room";
-          const fs = fitFontSize(r.name, r.w, r.h);
-          roomsLayer.insertAdjacentHTML("beforeend",
-            `<g data-kind="room" data-id="${r.id}">
-              <rect class="${cls}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}"/>
-              ${overlay}
-              <text class="room-label" font-size="${fs}" x="${r.x + r.w / 2}" y="${r.y + r.h / 2}">${escapeAttr(r.name || "")}</text>
-            </g>`);
+          const bbox = roomBBox(r);
+          const fs = fitFontSize(r.name, bbox.w, bbox.h);
+          if (hasParts(r)) {
+            const d = roomPath(r);
+            const overlay = r.pattern && r.pattern !== "none"
+              ? `<path d="${d}" fill="${r.color}" fill-opacity="0.55" fill-rule="nonzero"/>`
+              : "";
+            roomsLayer.insertAdjacentHTML("beforeend",
+              `<g data-kind="room" data-id="${r.id}">
+                <path class="${cls}" d="${d}" fill="${fill}" fill-rule="nonzero"/>
+                ${overlay}
+                <text class="room-label" font-size="${fs}" x="${bbox.x + bbox.w / 2}" y="${bbox.y + bbox.h / 2}">${escapeAttr(r.name || "")}</text>
+              </g>`);
+          } else {
+            const overlay = r.pattern && r.pattern !== "none"
+              ? `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>`
+              : "";
+            roomsLayer.insertAdjacentHTML("beforeend",
+              `<g data-kind="room" data-id="${r.id}">
+                <rect class="${cls}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}"/>
+                ${overlay}
+                <text class="room-label" font-size="${fs}" x="${r.x + r.w / 2}" y="${r.y + r.h / 2}">${escapeAttr(r.name || "")}</text>
+              </g>`);
+          }
         }
 
         for (const f of currentFurniture()) {
@@ -496,6 +592,7 @@
           handlesLayer.insertAdjacentHTML("beforeend",
             `<rect class="handle" x="${selObj.x + selObj.w - 0.6}" y="${selObj.y + selObj.h - 0.6}" width="1.2" height="1.2" data-handle="resize"/>`);
         }
+        renderPartsList();
 
         const panel = document.getElementById("selection-panel");
         const roomFields = document.getElementById("room-fields");
@@ -538,6 +635,19 @@
       canvas.addEventListener("pointerdown", (e) => {
         canvas.setPointerCapture(e.pointerId);
         const p = svgPoint(e);
+
+        // Add/Subtract part to currently selected room.
+        if ((state.tool === "addPart" || state.tool === "subPart") && state.selected && state.selected.kind === "room") {
+          const r = findSelected();
+          if (!r) return;
+          if (!Array.isArray(r.parts)) r.parts = [];
+          const kind = state.tool === "addPart" ? "add" : "sub";
+          r.parts.push({ kind, x: p.x, y: p.y, w: 0, h: 0 });
+          drag = { type: "drawPart", startX: p.x, startY: p.y, partIdx: r.parts.length - 1 };
+          render();
+          return;
+        }
+
         const handle = e.target.closest("[data-handle]");
         if (handle && state.selected && state.selected.kind === "room") {
           const r = findSelected();
@@ -550,6 +660,7 @@
           currentRooms().push({
             id, name: "Room " + id, x: p.x, y: p.y, w: 0, h: 0,
             color: COLORS[(id - 1) % COLORS.length].value, pattern: "none", zone: "", locked: false,
+            parts: [],
           });
           state.selected = { kind: "room", id };
           drag = { type: "draw", startX: p.x, startY: p.y };
@@ -572,7 +683,11 @@
           state.selected = { kind: target.dataset.kind, id: +target.dataset.id };
           const obj = findSelected();
           if (obj && !obj.locked) {
-            drag = { type: "move", startX: p.x, startY: p.y, origX: obj.x, origY: obj.y };
+            // Snapshot all parts' origins too, so a compound room moves as a whole.
+            const partOrigins = state.selected.kind === "room" && Array.isArray(obj.parts)
+              ? obj.parts.map((p) => ({ x: p.x, y: p.y }))
+              : null;
+            drag = { type: "move", startX: p.x, startY: p.y, origX: obj.x, origY: obj.y, partOrigins };
           }
           render();
         } else {
@@ -592,11 +707,28 @@
           obj.w = Math.abs(p.x - drag.startX);
           obj.h = Math.abs(p.y - drag.startY);
         } else if (drag.type === "move") {
-          obj.x = drag.origX + (p.x - drag.startX);
-          obj.y = drag.origY + (p.y - drag.startY);
+          const dx = p.x - drag.startX;
+          const dy = p.y - drag.startY;
+          obj.x = drag.origX + dx;
+          obj.y = drag.origY + dy;
+          if (drag.partOrigins && Array.isArray(obj.parts)) {
+            obj.parts.forEach((part, i) => {
+              const o = drag.partOrigins[i];
+              if (!o) return;
+              part.x = o.x + dx;
+              part.y = o.y + dy;
+            });
+          }
         } else if (drag.type === "resize") {
           obj.w = Math.max(2, drag.origW + (p.x - drag.startX));
           obj.h = Math.max(2, drag.origH + (p.y - drag.startY));
+        } else if (drag.type === "drawPart") {
+          const part = obj.parts[drag.partIdx];
+          if (!part) return;
+          part.x = Math.min(drag.startX, p.x);
+          part.y = Math.min(drag.startY, p.y);
+          part.w = Math.abs(p.x - drag.startX);
+          part.h = Math.abs(p.y - drag.startY);
         }
         render();
       });
@@ -610,6 +742,19 @@
             if (idx >= 0) list.splice(idx, 1);
             state.selected = null;
           }
+        }
+        if (drag && drag.type === "drawPart") {
+          const obj = findSelected();
+          if (obj && Array.isArray(obj.parts)) {
+            const part = obj.parts[drag.partIdx];
+            if (part && (part.w < 1 || part.h < 1)) {
+              obj.parts.splice(drag.partIdx, 1);
+            }
+          }
+          // Return to select tool so subsequent clicks don't keep adding parts.
+          state.tool = "select";
+          document.querySelectorAll("[data-tool]").forEach((x) => x.classList.toggle("active", x.dataset.tool === "select"));
+          canvas.style.cursor = "default";
         }
         drag = null;
         render();
@@ -661,13 +806,30 @@
           const offsetX = i * (FLOOR_W + GAP);
           const rooms = (state.rooms[floor.id] ?? []).map((r) => {
             const fill = r.pattern && r.pattern !== "none" ? `url(#pat-${r.pattern})` : r.color;
+            const bbox = roomBBox(r);
+            const fs = fitFontSize(r.name, bbox.w, bbox.h);
+            const label = r.name
+              ? `\n      <text x="${bbox.x + bbox.w / 2}" y="${bbox.y + bbox.h / 2}" font-family="system-ui" font-size="${fs}" font-weight="600" fill="white" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="rgba(0,0,0,0.6)" stroke-width="0.5">${escapeAttr(r.name)}</text>`
+              : "";
+            // Attributes the app reads to find each room: data-zone, data-name,
+            // plus data-bbox so it can place devices in path-based compound
+            // rooms without parsing the path. data-room-parts is the editor's
+            // own roundtrip format.
+            const attrs = `data-zone="${escapeAttr(r.zone || "")}" data-name="${escapeAttr(r.name || "")}" data-bbox="${bbox.x},${bbox.y},${bbox.w},${bbox.h}"`
+              + (hasParts(r) ? ` data-room-parts="${escapeAttr(encodeParts(r.parts))}"` : "");
+            if (hasParts(r)) {
+              const d = roomPath(r);
+              const overlay = r.pattern && r.pattern !== "none"
+                ? `\n      <path d="${d}" fill="${r.color}" fill-opacity="0.55" fill-rule="nonzero"/>`
+                : "";
+              return `    <g ${attrs}>
+      <path d="${d}" fill="${fill}" stroke="rgba(0,0,0,0.35)" stroke-width="0.2" fill-rule="nonzero"/>${overlay}${label}
+    </g>`;
+            }
             const tint = r.pattern && r.pattern !== "none"
               ? `\n      <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>`
               : "";
-            const label = r.name
-              ? `\n      <text x="${r.x + r.w / 2}" y="${r.y + r.h / 2}" font-family="system-ui" font-size="${fitFontSize(r.name, r.w, r.h)}" font-weight="600" fill="white" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="rgba(0,0,0,0.6)" stroke-width="0.5">${escapeAttr(r.name)}</text>`
-              : "";
-            return `    <g data-zone="${escapeAttr(r.zone || "")}" data-name="${escapeAttr(r.name || "")}">
+            return `    <g ${attrs}>
       <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}" stroke="rgba(0,0,0,0.35)" stroke-width="0.2"/>${tint}${label}
     </g>`;
           }).join("\n");
@@ -794,30 +956,51 @@ ${groups}
             newFurn[fid] = [];
 
             floorNode.querySelectorAll("g[data-zone], g[data-name]").forEach((roomNode) => {
+              const partsAttr = roomNode.getAttribute("data-room-parts");
+              const parts = decodeParts(partsAttr);
+              const name = roomNode.getAttribute("data-name") || "";
+              const zone = roomNode.getAttribute("data-zone") || "";
+
+              // Primary geometry: either from the first <rect>, or from the
+              // first <path>'s starting M command (for compound rooms).
+              let x = 0, y = 0, w = 0, h = 0;
+              let fillAttr = "#3b82f6";
               const rect = roomNode.querySelector("rect");
-              if (!rect) return;
-              const x = parseFloat(rect.getAttribute("x") ?? "0");
-              const y = parseFloat(rect.getAttribute("y") ?? "0");
-              const w = parseFloat(rect.getAttribute("width") ?? "0");
-              const h = parseFloat(rect.getAttribute("height") ?? "0");
-              const fillAttr = rect.getAttribute("fill") ?? "#3b82f6";
+              const path = roomNode.querySelector("path");
+              if (rect) {
+                x = parseFloat(rect.getAttribute("x") ?? "0");
+                y = parseFloat(rect.getAttribute("y") ?? "0");
+                w = parseFloat(rect.getAttribute("width") ?? "0");
+                h = parseFloat(rect.getAttribute("height") ?? "0");
+                fillAttr = rect.getAttribute("fill") ?? "#3b82f6";
+              } else if (path) {
+                // Primary rect for compound rooms: parse "M x y L x+w y L x+w y+h L x y+h Z".
+                const d = path.getAttribute("d") ?? "";
+                const m = /M\s*(-?\d+\.?\d*)\s*(-?\d+\.?\d*)\s*L\s*(-?\d+\.?\d*)\s*(-?\d+\.?\d*)\s*L\s*(-?\d+\.?\d*)\s*(-?\d+\.?\d*)/.exec(d);
+                if (m) {
+                  x = parseFloat(m[1]); y = parseFloat(m[2]);
+                  w = parseFloat(m[3]) - x;
+                  h = parseFloat(m[6]) - y;
+                }
+                fillAttr = path.getAttribute("fill") ?? "#3b82f6";
+              }
+
               let color = "#3b82f6";
               let pattern = "none";
               if (fillAttr.startsWith("url(#pat-")) {
                 pattern = fillAttr.slice("url(#pat-".length, -1);
-                // Look for the tint overlay rect that has the actual color.
-                const rects = roomNode.querySelectorAll("rect");
-                if (rects.length > 1) {
-                  const tint = rects[1].getAttribute("fill");
+                // Tint is the second rect/path; its fill is the color.
+                const overlays = roomNode.querySelectorAll("rect, path");
+                if (overlays.length > 1) {
+                  const tint = overlays[1].getAttribute("fill");
                   if (tint && tint.startsWith("#")) color = tint;
                 }
               } else if (fillAttr.startsWith("#")) {
                 color = fillAttr;
               }
-              const name = roomNode.getAttribute("data-name") || "";
-              const zone = roomNode.getAttribute("data-zone") || "";
+
               const id = ++maxRoomId;
-              newRooms[fid].push({ id, name, zone, x, y, w, h, color, pattern, locked: false });
+              newRooms[fid].push({ id, name, zone, x, y, w, h, color, pattern, locked: false, parts });
             });
 
             floorNode.querySelectorAll("g[data-furniture]").forEach((furnNode) => {
@@ -857,10 +1040,10 @@ ${groups}
 
       // Seed example
       state.rooms.f1.push(
-        { id: 1, name: "Living room", x: 5, y: 5, w: 40, h: 30, color: "#3b82f6", pattern: "wood", zone: "", locked: false },
-        { id: 2, name: "Kitchen", x: 45, y: 5, w: 30, h: 20, color: "#22c55e", pattern: "tile", zone: "", locked: false },
-        { id: 3, name: "Bedroom", x: 5, y: 35, w: 35, h: 25, color: "#a855f7", pattern: "carpet", zone: "", locked: false },
-        { id: 4, name: "Bathroom", x: 45, y: 25, w: 25, h: 15, color: "#14b8a6", pattern: "stone", zone: "", locked: false },
+        { id: 1, name: "Living room", x: 5, y: 5, w: 40, h: 30, color: "#3b82f6", pattern: "wood", zone: "", locked: false, parts: [] },
+        { id: 2, name: "Kitchen", x: 45, y: 5, w: 30, h: 20, color: "#22c55e", pattern: "tile", zone: "", locked: false, parts: [] },
+        { id: 3, name: "Bedroom", x: 5, y: 35, w: 35, h: 25, color: "#a855f7", pattern: "carpet", zone: "", locked: false, parts: [] },
+        { id: 4, name: "Bathroom", x: 45, y: 25, w: 25, h: 15, color: "#14b8a6", pattern: "stone", zone: "", locked: false, parts: [] },
       );
       state.nextRoomId = 5;
       renderFloorTabs();

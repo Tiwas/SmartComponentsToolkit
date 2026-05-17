@@ -120,12 +120,26 @@ export function parseRooms(svg: string): RoomGeometry[] {
   doc.querySelectorAll("g[data-zone]").forEach((g) => {
     const zone = g.getAttribute("data-zone");
     if (!zone) return;
-    const rect = g.querySelector("rect");
-    if (!rect) return;
-    const x = parseFloat(rect.getAttribute("x") ?? "0");
-    const y = parseFloat(rect.getAttribute("y") ?? "0");
-    const w = parseFloat(rect.getAttribute("width") ?? "0");
-    const h = parseFloat(rect.getAttribute("height") ?? "0");
+
+    // Prefer data-bbox (editor's compound-room hint); fall back to the
+    // first <rect> for simple rectangular rooms.
+    let x = 0, y = 0, w = 0, h = 0;
+    const bboxAttr = g.getAttribute("data-bbox");
+    if (bboxAttr) {
+      const parts = bboxAttr.split(",").map(parseFloat);
+      if (parts.length === 4 && parts.every(Number.isFinite)) {
+        [x, y, w, h] = parts as [number, number, number, number];
+      }
+    } else {
+      const rect = g.querySelector("rect");
+      if (!rect) return;
+      x = parseFloat(rect.getAttribute("x") ?? "0");
+      y = parseFloat(rect.getAttribute("y") ?? "0");
+      w = parseFloat(rect.getAttribute("width") ?? "0");
+      h = parseFloat(rect.getAttribute("height") ?? "0");
+    }
+    if (w <= 0 || h <= 0) return;
+
     let offsetX = 0;
     let offsetY = 0;
     let floor: string | null = null;

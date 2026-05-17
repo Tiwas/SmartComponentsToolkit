@@ -119,11 +119,14 @@ export function Settings({
           <input
             id="autostart"
             type="checkbox"
-            checked={autostartActual ?? settings.autostart}
+            checked={!import.meta.env.DEV && (autostartActual ?? settings.autostart)}
+            disabled={import.meta.env.DEV}
             onChange={(e) => toggleAutostart(e.target.checked)}
           />
         </div>
-        <div className="settings-hint">{t.settings_autostart_hint}</div>
+        <div className="settings-hint">
+          {import.meta.env.DEV ? t.settings_autostart_dev_disabled : t.settings_autostart_hint}
+        </div>
       </div>
 
       <div className="settings-section">

@@ -63,6 +63,7 @@ export interface Strings {
   settings_back: string;
   settings_autostart: string;
   settings_autostart_hint: string;
+  settings_autostart_dev_disabled: string;
   settings_notifications: string;
   settings_show_toasts: string;
   settings_show_source: string;
@@ -134,6 +135,8 @@ const en: Strings = {
   settings_autostart: "Start with system",
   settings_autostart_hint:
     "When enabled, the widget launches automatically when you sign in to your computer.",
+  settings_autostart_dev_disabled:
+    "Disabled in development mode — the autostart link would point at the dev build, which opens a console window and breaks once you build a release. Enable this only after installing the release build.",
   settings_notifications: "Notifications",
   settings_show_toasts: "Show toasts",
   settings_show_source: "Show source (“Flow — …”)",
@@ -204,6 +207,8 @@ const no: Strings = {
   settings_autostart: "Start med systemet",
   settings_autostart_hint:
     "Når aktivert, starter widget-en automatisk når du logger inn på datamaskinen.",
+  settings_autostart_dev_disabled:
+    "Deaktivert i utviklingsmodus — autostart-lenken ville pekt på dev-bygget, som åpner et konsollvindu og slutter å fungere når du bygger en release. Aktiver dette først etter at du har installert release-bygget.",
   settings_notifications: "Varsler",
   settings_show_toasts: "Vis toasts",
   settings_show_source: "Vis kilde («Flow — …»)",
@@ -274,6 +279,8 @@ const de: Strings = {
   settings_autostart: "Mit System starten",
   settings_autostart_hint:
     "Wenn aktiviert, startet das Widget automatisch, wenn du dich bei deinem Computer anmeldest.",
+  settings_autostart_dev_disabled:
+    "Im Entwicklungsmodus deaktiviert — der Autostart-Eintrag würde auf das Dev-Build zeigen, das ein Konsolenfenster öffnet und nach einem Release-Build nicht mehr funktioniert. Aktiviere dies erst nach Installation des Release-Builds.",
   settings_notifications: "Benachrichtigungen",
   settings_show_toasts: "Toasts anzeigen",
   settings_show_source: "Quelle anzeigen („Flow — …“)",
@@ -344,6 +351,8 @@ const nl: Strings = {
   settings_autostart: "Starten met systeem",
   settings_autostart_hint:
     "Indien ingeschakeld start de widget automatisch bij het aanmelden op je computer.",
+  settings_autostart_dev_disabled:
+    "Uitgeschakeld in ontwikkelingsmodus — de autostart-link zou naar de dev-build wijzen, die een consolevenster opent en kapotgaat zodra je een release bouwt. Schakel dit pas in nadat je de release-build hebt geïnstalleerd.",
   settings_notifications: "Meldingen",
   settings_show_toasts: "Toasts tonen",
   settings_show_source: "Bron tonen (“Flow — …”)",

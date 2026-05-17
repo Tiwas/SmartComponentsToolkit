@@ -1,4 +1,5 @@
 import type { Flow } from "@homey-toolbox/dashboard-shared";
+import { useI18n } from "../i18n/context";
 
 export function FlowRow({
   flow,
@@ -13,6 +14,7 @@ export function FlowRow({
   onToggleFavorite: () => void;
   onContextMenu: (x: number, y: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="flow-row"
@@ -28,7 +30,7 @@ export function FlowRow({
           e.stopPropagation();
           onToggleFavorite();
         }}
-        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        title={isFavorite ? t.fr_remove_fav : t.fr_add_fav}
       >
         {isFavorite ? "★" : "☆"}
       </button>

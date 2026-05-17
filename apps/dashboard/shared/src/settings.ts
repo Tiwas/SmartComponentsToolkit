@@ -1,3 +1,19 @@
+export type Language = "en" | "no" | "de" | "nl";
+
+export const SUPPORTED_LANGUAGES: Language[] = ["en", "no", "de", "nl"];
+
+/**
+ * Pick a default language from a BCP-47 tag like "nb-NO" / "de-DE" / "nl".
+ * Falls back to English if no match. Norwegian Bokmål and Nynorsk both map to "no".
+ */
+export function defaultLanguage(navigatorLang: string | undefined): Language {
+  const tag = (navigatorLang ?? "en").toLowerCase();
+  if (tag.startsWith("nb") || tag.startsWith("nn") || tag.startsWith("no")) return "no";
+  if (tag.startsWith("de")) return "de";
+  if (tag.startsWith("nl")) return "nl";
+  return "en";
+}
+
 export interface NotificationSettings {
   enabled: boolean;
   durationMs: number;
@@ -8,11 +24,13 @@ export interface NotificationSettings {
 }
 
 export interface AppSettings {
+  language: Language;
   autostart: boolean;
   notifications: NotificationSettings;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  language: "en",
   autostart: false,
   notifications: {
     enabled: true,
@@ -26,7 +44,12 @@ export function normalizeSettings(raw: unknown): AppSettings {
   if (raw == null || typeof raw !== "object") return DEFAULT_SETTINGS;
   const obj = raw as Record<string, unknown>;
   const n = (obj.notifications ?? {}) as Record<string, unknown>;
+  const language =
+    typeof obj.language === "string" && SUPPORTED_LANGUAGES.includes(obj.language as Language)
+      ? (obj.language as Language)
+      : DEFAULT_SETTINGS.language;
   return {
+    language,
     autostart: typeof obj.autostart === "boolean" ? obj.autostart : DEFAULT_SETTINGS.autostart,
     notifications: {
       enabled:

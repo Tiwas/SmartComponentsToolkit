@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   AuthSession,
   DEFAULT_SETTINGS,
+  defaultLanguage,
   HomeyClient,
   type AppSettings,
   type AuthCredentials,
@@ -15,6 +16,7 @@ import { getAthomCloudAPI } from "./lib/cloud";
 import { performLoopbackOAuth, REDIRECT_URL } from "./lib/oauth";
 import { clearCredentials, loadCredentials } from "./lib/storage";
 import { loadSettings, saveSettings } from "./lib/settings-tauri";
+import { I18nProvider, useI18n } from "./i18n/context";
 
 type Screen =
   | { kind: "loading" }
@@ -24,20 +26,41 @@ type Screen =
   | { kind: "settings"; client: HomeyClient };
 
 export function App() {
-  const [screen, setScreen] = useState<Screen>({ kind: "loading" });
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  return (
+    <I18nProvider lang={settings.language}>
+      <AppInner settings={settings} setSettings={setSettings} />
+    </I18nProvider>
+  );
+}
+
+function AppInner({
+  settings,
+  setSettings,
+}: {
+  settings: AppSettings;
+  setSettings: (s: AppSettings) => void;
+}) {
+  const { t } = useI18n();
+  const [screen, setScreen] = useState<Screen>({ kind: "loading" });
   const [fatal, setFatal] = useState<string | null>(null);
 
   useEffect(() => {
     bootstrap().catch((e) => setFatal(e instanceof Error ? e.message : String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function bootstrap() {
     const [stored, loadedSettings] = await Promise.all([
       Promise.resolve(loadCredentials()),
-      loadSettings().catch(() => DEFAULT_SETTINGS),
+      loadSettings().catch(() => null),
     ]);
-    setSettings(loadedSettings);
+    // First run: pick language from OS instead of defaulting to English.
+    const effective = loadedSettings
+      ? loadedSettings
+      : { ...DEFAULT_SETTINGS, language: defaultLanguage(navigator.language) };
+    setSettings(effective);
+    if (!loadedSettings) saveSettings(effective).catch(() => {});
 
     if (!stored) {
       setScreen({ kind: "setup" });
@@ -119,12 +142,12 @@ export function App() {
   return (
     <>
       <div className="titlebar">
-        <span>Smart Toolkit Widget</span>
+        <span>Smart (Components) Toolkit Widget</span>
         <div className="actions">
           <button
             className="icon-btn close-btn"
             onClick={() => getCurrentWindow().close()}
-            title="Close"
+            title={t.tb_close}
           >
             ×
           </button>
@@ -133,7 +156,9 @@ export function App() {
 
       {fatal && <div className="screen-centered error">{fatal}</div>}
 
-      {!fatal && screen.kind === "loading" && <div className="screen-centered muted">Loading…</div>}
+      {!fatal && screen.kind === "loading" && (
+        <div className="screen-centered muted">{t.loading}</div>
+      )}
       {!fatal && screen.kind === "setup" && <Setup onSaved={() => bootstrap()} />}
       {!fatal && screen.kind === "login" && <Login onLogin={handleLogin} />}
       {!fatal && screen.kind === "dashboard" && (

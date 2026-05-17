@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../i18n/context";
 
 export function PromptModal({
   title,
   initialValue = "",
   placeholder,
-  confirmLabel = "OK",
+  confirmLabel,
   onConfirm,
   onCancel,
 }: {
   title: string;
   initialValue?: string;
   placeholder?: string;
-  confirmLabel?: string;
+  confirmLabel: string;
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const [value, setValue] = useState(initialValue);
   const ref = useRef<HTMLInputElement>(null);
 
@@ -44,7 +46,7 @@ export function PromptModal({
         />
         <div className="modal-actions">
           <button type="button" className="icon-btn" onClick={onCancel}>
-            Cancel
+            {t.modal_cancel}
           </button>
           <button type="submit" className="primary" disabled={!value.trim()}>
             {confirmLabel}

@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useI18n } from "../i18n/context";
 
 export function Login({ onLogin }: { onLogin: () => Promise<void> }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,10 +20,10 @@ export function Login({ onLogin }: { onLogin: () => Promise<void> }) {
 
   return (
     <div className="screen-centered">
-      <h3 style={{ margin: 0 }}>Sign in to Homey</h3>
-      <p className="muted">The system browser will open Athom’s OAuth page.</p>
+      <h3 style={{ margin: 0 }}>{t.login_title}</h3>
+      <p className="muted">{t.login_hint}</p>
       <button className="primary" onClick={go} disabled={busy}>
-        {busy ? "Waiting for browser…" : "Sign in"}
+        {busy ? t.login_waiting : t.login_button}
       </button>
       {error && <div className="error">{error}</div>}
     </div>

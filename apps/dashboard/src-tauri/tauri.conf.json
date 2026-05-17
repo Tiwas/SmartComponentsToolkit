@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Smart Toolkit Widget",
+        "title": "Smart (Components) Toolkit Widget",
         "width": 320,
         "height": 480,
         "minWidth": 260,

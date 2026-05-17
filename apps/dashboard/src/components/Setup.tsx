@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { saveCredentials } from "../lib/storage";
 import { REDIRECT_URL } from "../lib/oauth";
+import { useI18n } from "../i18n/context";
 
 export function Setup({ onSaved }: { onSaved: () => void }) {
+  const { t } = useI18n();
   const [id, setId] = useState("");
   const [secret, setSecret] = useState("");
 
@@ -15,27 +17,24 @@ export function Setup({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div className="screen-centered">
-      <h3 style={{ margin: 0 }}>Connect your Homey</h3>
-      <p className="muted">
-        Create an OAuth application at <code>developer.athom.com</code> and paste the credentials
-        here. Add this redirect URL to your app:
-      </p>
+      <h3 style={{ margin: 0 }}>{t.setup_title}</h3>
+      <p className="muted">{t.setup_intro}</p>
       <input type="text" readOnly value={REDIRECT_URL} onClick={(e) => e.currentTarget.select()} />
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input
           type="text"
-          placeholder="Client ID"
+          placeholder={t.setup_client_id}
           value={id}
           onChange={(e) => setId(e.target.value)}
         />
         <input
           type="password"
-          placeholder="Client Secret"
+          placeholder={t.setup_client_secret}
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
         />
         <button className="primary" type="submit">
-          Save
+          {t.setup_save}
         </button>
       </form>
     </div>

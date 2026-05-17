@@ -23,6 +23,7 @@ import { FlowRow } from "./FlowRow";
 import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
 import { PromptModal } from "./PromptModal";
 import { loadFavorites, saveFavorites } from "../lib/favorites-tauri";
+import { useI18n } from "../i18n/context";
 
 type Tab = "favorites" | "folders" | "all";
 type Toast = { id: number; text: string; kind?: "notification" };
@@ -40,6 +41,7 @@ export function Dashboard({
   onLogout: () => void;
   onOpenSettings: () => void;
 }) {
+  const { t, tf } = useI18n();
   const [tab, setTab] = useState<Tab>("favorites");
   const [flows, setFlows] = useState<Flow[]>([]);
   const [homeyFolders, setHomeyFolders] = useState<FlowFolder[]>([]);
@@ -146,8 +148,8 @@ export function Dashboard({
               })
             : null;
           const text = source
-            ? `${source} — ${n.excerpt ?? "Notification"}`
-            : (n.excerpt ?? "Notification");
+            ? `${source} — ${n.excerpt ?? t.fallback_notification}`
+            : (n.excerpt ?? t.fallback_notification);
           invoke("show_toast", {
             text,
             durationMs: settings.notifications.durationMs,
@@ -206,22 +208,22 @@ export function Dashboard({
 
   function buildFlowMenu(flow: Flow): ContextMenuEntry[] {
     const entries: ContextMenuEntry[] = [
-      { kind: "item", label: "Run flow", onClick: () => runFlow(flow) },
+      { kind: "item", label: t.ctx_run, onClick: () => runFlow(flow) },
       { kind: "divider" },
-      { kind: "header", label: "Favorites" },
+      { kind: "header", label: t.ctx_favorites_header },
     ];
     const fav = isFavorite(favorites, flow.id);
     const inQuick = favorites.flowIds.includes(flow.id);
     if (!fav) {
       entries.push({
         kind: "item",
-        label: "Add to ★ Quick",
+        label: t.ctx_add_to_quick,
         onClick: () => persist(addFavorite(favorites, flow.id)),
       });
     } else if (!inQuick) {
       entries.push({
         kind: "item",
-        label: "Move to ★ Quick",
+        label: t.ctx_move_to_quick,
         onClick: () => persist(moveFavorite(favorites, flow.id, null)),
       });
     }
@@ -229,19 +231,19 @@ export function Dashboard({
       if (folder.flowIds.includes(flow.id)) continue;
       entries.push({
         kind: "item",
-        label: `Move to ${folder.name}`,
+        label: tf("ctx_move_to", { name: folder.name }),
         onClick: () => persist(moveFavorite(favorites, flow.id, folder.id)),
       });
     }
     entries.push({
       kind: "item",
-      label: "+ New folder…",
+      label: t.ctx_new_folder,
       onClick: () => setModal({ kind: "newFolder", assignFlowId: flow.id }),
     });
     if (fav) {
       entries.push({
         kind: "item",
-        label: "Remove from favorites",
+        label: t.ctx_remove_favorite,
         onClick: () => persist(removeFavorite(favorites, flow.id)),
       });
     }
@@ -249,7 +251,7 @@ export function Dashboard({
       { kind: "divider" },
       {
         kind: "item",
-        label: "Edit in browser…",
+        label: t.ctx_edit_in_browser,
         onClick: () => openUrl(flowEditorUrl(client.homey.id, flow)),
       },
     );
@@ -262,13 +264,13 @@ export function Dashboard({
     return [
       {
         kind: "item",
-        label: "Rename folder",
+        label: t.ctx_rename_folder,
         onClick: () =>
           setModal({ kind: "renameFolder", folderId: folder.id, current: folder.name }),
       },
       {
         kind: "item",
-        label: "Delete folder",
+        label: t.ctx_delete_folder,
         onClick: () => persist(deleteFolder(favorites, folder.id)),
       },
     ];
@@ -285,20 +287,15 @@ export function Dashboard({
     return (
       <>
         <div className="fav-toolbar">
-          <button onClick={() => setModal({ kind: "newFolder" })}>+ Folder</button>
+          <button onClick={() => setModal({ kind: "newFolder" })}>{t.fav_new_folder}</button>
         </div>
-        {empty && (
-          <div className="muted">
-            No favorites yet. Right-click any flow → Add to ★ Quick, or create folders to organize them.
-            (Homey's API doesn't expose mobile-app favorites, so this list is dashboard-local.)
-          </div>
-        )}
+        {empty && <div className="muted">{t.fav_empty}</div>}
         {!empty && (
           <>
-            <div className="section-title">★ Quick</div>
+            <div className="section-title">{t.fav_quick_label}</div>
             {quickFlows.length === 0 ? (
               <div className="muted" style={{ padding: "4px 8px" }}>
-                (empty)
+                {t.fav_folder_empty_marker}
               </div>
             ) : (
               quickFlows.map((f) => renderFlowRow(f))
@@ -322,7 +319,7 @@ export function Dashboard({
                   </span>
                   <button
                     className="folder-action"
-                    title="Rename"
+                    title={t.rename_btn}
                     onClick={() =>
                       setModal({
                         kind: "renameFolder",
@@ -335,7 +332,7 @@ export function Dashboard({
                   </button>
                   <button
                     className="folder-action"
-                    title="Delete"
+                    title={t.delete_btn}
                     onClick={() => persist(deleteFolder(favorites, folder.id))}
                   >
                     ×
@@ -343,7 +340,7 @@ export function Dashboard({
                 </div>
                 {folder.flowIds.length === 0 ? (
                   <div className="muted" style={{ padding: "4px 8px" }}>
-                    (drag flows here via right-click → Move to {folder.name})
+                    {tf("fav_empty_folder", { name: folder.name })}
                   </div>
                 ) : (
                   folder.flowIds
@@ -389,7 +386,7 @@ export function Dashboard({
   }
 
   function renderAllTab() {
-    if (filteredAll.length === 0) return <div className="muted">No flows.</div>;
+    if (filteredAll.length === 0) return <div className="muted">{t.no_flows}</div>;
     return filteredAll.map((f) => renderFlowRow(f));
   }
 
@@ -400,27 +397,27 @@ export function Dashboard({
           className={`tab ${tab === "favorites" ? "active" : ""}`}
           onClick={() => setTab("favorites")}
         >
-          ★ Favorites
+          {t.tab_favorites}
         </button>
         <button
           className={`tab ${tab === "folders" ? "active" : ""}`}
           onClick={() => setTab("folders")}
         >
-          Folders
+          {t.tab_folders}
         </button>
         <button className={`tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>
-          All
+          {t.tab_all}
         </button>
         <div style={{ flex: 1 }} />
         <button
           className="tab"
           onClick={() => refresh(false)}
-          title="Refresh flows"
+          title={t.tab_refresh}
           disabled={refreshing}
         >
           {refreshing ? "…" : "↻"}
         </button>
-        <button className="tab" onClick={onOpenSettings} title="Settings">
+        <button className="tab" onClick={onOpenSettings} title={t.tab_settings}>
           ⚙
         </button>
       </div>
@@ -429,7 +426,7 @@ export function Dashboard({
         <input
           className="search"
           type="text"
-          placeholder="Search flows…"
+          placeholder={t.search_placeholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -460,13 +457,12 @@ export function Dashboard({
 
       {modal?.kind === "newFolder" && (
         <PromptModal
-          title="New folder"
-          placeholder="Folder name"
-          confirmLabel="Create"
+          title={t.modal_new_folder_title}
+          placeholder={t.modal_new_folder_placeholder}
+          confirmLabel={t.modal_new_folder_confirm}
           onCancel={() => setModal(null)}
           onConfirm={(name) => {
             let next = createFolder(favorites, name);
-            // Last folder is the one we just created; assign the flow to it.
             const created = next.folders[next.folders.length - 1];
             if (modal.assignFlowId && created) {
               next = moveFavorite(next, modal.assignFlowId, created.id);
@@ -478,9 +474,9 @@ export function Dashboard({
       )}
       {modal?.kind === "renameFolder" && (
         <PromptModal
-          title="Rename folder"
+          title={t.modal_rename_folder_title}
           initialValue={modal.current}
-          confirmLabel="Rename"
+          confirmLabel={t.modal_rename_folder_confirm}
           onCancel={() => setModal(null)}
           onConfirm={(name) => {
             persist(renameFolder(favorites, modal.folderId, name));

@@ -1,7 +1,24 @@
 import { useEffect, useState } from "react";
-import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
+import {
+  enable as enableAutostart,
+  disable as disableAutostart,
+  isEnabled as isAutostartEnabled,
+} from "@tauri-apps/plugin-autostart";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings } from "@homey-toolbox/dashboard-shared";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  SUPPORTED_LANGUAGES,
+  type AppSettings,
+  type Language,
+} from "@homey-toolbox/dashboard-shared";
+import { useI18n } from "../i18n/context";
+import { LANGUAGE_LABELS } from "../i18n/strings";
+
+const LINKS = {
+  github: "https://github.com/Tiwas/SmartComponentsToolkit",
+  docs: "https://tiwas.github.io/SmartComponentsToolkit/",
+  homeyStore: "https://homey.app/en-no/app/no.tiwas.booleantoolbox/",
+};
 
 export function Settings({
   settings,
@@ -16,6 +33,7 @@ export function Settings({
   onResetCredentials: () => void;
   onSignOut: () => void;
 }) {
+  const { t } = useI18n();
   const [autostartActual, setAutostartActual] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +43,9 @@ export function Settings({
       .catch((e) => setError(`autostart check failed: ${e}`));
   }, []);
 
-  async function update(patch: Partial<AppSettings> | { notifications: Partial<AppSettings["notifications"]> }) {
+  async function update(
+    patch: Partial<AppSettings> | { notifications: Partial<AppSettings["notifications"]> },
+  ) {
     const next: AppSettings = {
       ...settings,
       ...patch,
@@ -53,7 +73,7 @@ export function Settings({
   async function testToast() {
     try {
       await invoke("show_toast", {
-        text: "Test toast — this is what notifications will look like",
+        text: t.settings_test_toast_text,
         durationMs: settings.notifications.durationMs,
       });
     } catch (e) {
@@ -64,18 +84,37 @@ export function Settings({
   return (
     <div className="screen settings-screen">
       <div className="settings-header">
-        <button className="icon-btn" onClick={onBack} title="Back">
+        <button className="icon-btn" onClick={onBack} title={t.settings_back}>
           ←
         </button>
-        <h3>Settings</h3>
+        <h3>{t.settings_title}</h3>
       </div>
 
       {error && <div className="error">{error}</div>}
 
       <div className="settings-section">
         <div className="settings-row">
+          <label className="settings-label" htmlFor="language">
+            {t.settings_language}
+          </label>
+          <select
+            id="language"
+            value={settings.language}
+            onChange={(e) => update({ language: e.target.value as Language })}
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>
+                {LANGUAGE_LABELS[lang]}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-row">
           <label className="settings-label" htmlFor="autostart">
-            Start with system
+            {t.settings_autostart}
           </label>
           <input
             id="autostart"
@@ -84,16 +123,14 @@ export function Settings({
             onChange={(e) => toggleAutostart(e.target.checked)}
           />
         </div>
-        <div className="settings-hint">
-          When enabled, the widget launches automatically when you sign in to your computer.
-        </div>
+        <div className="settings-hint">{t.settings_autostart_hint}</div>
       </div>
 
       <div className="settings-section">
-        <div className="settings-section-title">Notifications</div>
+        <div className="settings-section-title">{t.settings_notifications}</div>
         <div className="settings-row">
           <label className="settings-label" htmlFor="notif-enabled">
-            Show toasts
+            {t.settings_show_toasts}
           </label>
           <input
             id="notif-enabled"
@@ -105,7 +142,7 @@ export function Settings({
 
         <div className="settings-row">
           <label className="settings-label" htmlFor="notif-source">
-            Show source ("Flow — …")
+            {t.settings_show_source}
           </label>
           <input
             id="notif-source"
@@ -117,7 +154,7 @@ export function Settings({
 
         <div className="settings-row">
           <label className="settings-label" htmlFor="notif-duration">
-            Toast duration (seconds)
+            {t.settings_toast_duration}
           </label>
           <input
             id="notif-duration"
@@ -136,7 +173,7 @@ export function Settings({
 
         <div className="settings-row">
           <label className="settings-label" htmlFor="notif-interval">
-            Poll interval (seconds)
+            {t.settings_poll_interval}
           </label>
           <input
             id="notif-interval"
@@ -154,18 +191,33 @@ export function Settings({
         </div>
 
         <button className="icon-btn" onClick={testToast} style={{ marginTop: 6 }}>
-          Send test toast
+          {t.settings_test_toast}
         </button>
       </div>
 
       <div className="settings-section">
-        <div className="settings-section-title">Account</div>
+        <div className="settings-section-title">{t.settings_account}</div>
         <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
           <button className="icon-btn" onClick={onSignOut}>
-            Sign out (keep credentials)
+            {t.settings_sign_out}
           </button>
           <button className="icon-btn" onClick={onResetCredentials}>
-            Reset OAuth credentials
+            {t.settings_reset_creds}
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-title">{t.settings_about}</div>
+        <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
+          <button className="link-btn" onClick={() => openUrl(LINKS.homeyStore)}>
+            {t.settings_homey_store}
+          </button>
+          <button className="link-btn" onClick={() => openUrl(LINKS.docs)}>
+            {t.settings_docs}
+          </button>
+          <button className="link-btn" onClick={() => openUrl(LINKS.github)}>
+            {t.settings_github}
           </button>
         </div>
       </div>

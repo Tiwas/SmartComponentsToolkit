@@ -33,7 +33,7 @@
         details > summary { cursor: pointer; list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
     </style>
-    <script src="https://cdn.athom.com/homey-api/3.14.8.js"></script>
+    <script src="https://cdn.athom.com/homey-api/3.19.0.js"></script>
     <script>
         window.HomeyLibrariesReady = Promise.all([
             new Promise((r) => { if (typeof AthomCloudAPI !== 'undefined') r(); else window.addEventListener('load', () => r()); }),
@@ -200,6 +200,8 @@
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="device" checked> <span class="badge" style="background:#cffafe;color:#155e75">Device</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="logic" checked> <span class="badge" style="background:#fef3c7;color:#92400e">Logic</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="app" checked> <span class="badge" style="background:#fee2e2;color:#991b1b">App</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="verbose"> <span class="badge" style="background:#e5e7eb;color:#374151">Verbose</span></label>
+                    <label class="text-xs flex items-center gap-1 ml-2 border-l pl-2"><input type="checkbox" id="trace-verbose-toggle"> <span data-i18n="trace.verboseLabel">Capture all events (debug)</span></label>
                 </div>
                 <div id="trace-log" class="bg-gray-900 text-gray-100 rounded-lg p-3 font-mono text-xs overflow-auto" style="height:60vh; min-height:300px;">
                     <div class="text-gray-500" data-i18n="trace.empty">No events yet. Press "Start tracing" and then trigger something on your Homey.</div>
@@ -309,6 +311,7 @@ const I18N = {
         'trace.deviceUpdate': 'Device update',
         'trace.logicUpdate': 'Logic variable',
         'trace.appUpdate': 'App update',
+        'trace.verboseLabel': 'Capture all events (debug)',
         'apps.onlyUpdates': 'Only apps with updates',
         'apps.onlyUnused': 'Only unused apps',
         'apps.hideExtensions': 'Hide extensions',
@@ -423,6 +426,7 @@ const I18N = {
         'trace.deviceUpdate': 'Enhetsoppdatering',
         'trace.logicUpdate': 'Logikkvariabel',
         'trace.appUpdate': 'Appoppdatering',
+        'trace.verboseLabel': 'Fang alle events (debug)',
         'apps.onlyUpdates': 'Bare apper med oppdateringer',
         'apps.onlyUnused': 'Bare ubrukte apper',
         'apps.hideExtensions': 'Skjul utvidelser',
@@ -684,6 +688,7 @@ class FlowDoctor {
         this.traceLastExec = new Map();
         this.traceFlowsById = new Map();
         this.traceDevicesById = new Map();
+        this.traceVerbosePatches = [];
     }
 
     t(key) { return (I18N[this.lang] && I18N[this.lang][key]) || I18N.en[key] || key; }
@@ -959,7 +964,7 @@ class FlowDoctor {
             scannedAt: new Date().toISOString(),
             userAgent: navigator.userAgent,
             language: this.lang,
-            homeyApiCdnVersion: '3.14.8',
+            homeyApiCdnVersion: '3.19.0',
             counts: {
                 flows: { total: results.length, error: sevCount.error || 0, warn: sevCount.warn || 0, info: sevCount.info || 0, ok: sevCount.ok || 0 },
                 apps: { total: apps.length, crashed: nCrashed, update: nUpdate, unused: nUnused, ok: nAppsOk },
@@ -1727,6 +1732,60 @@ class FlowDoctor {
                 });
             });
 
+            // Verbose mode: monkey-patch emit() on every manager so we capture EVERY event,
+            // including ones we don't know the names of. This is how we discover what
+            // realtime events the SDK actually dispatches on this particular Homey firmware.
+            const verbose = document.getElementById('trace-verbose-toggle')?.checked;
+            if (verbose) {
+                const managerNames = ['devices', 'flow', 'logic', 'apps', 'notifications', 'system',
+                    'presence', 'zones', 'geolocation', 'weather', 'energy', 'insights',
+                    'i18n', 'images', 'ledring', 'mobile', 'rf', 'sessions', 'speech', 'updates',
+                    'users', 'mood', 'cloud', 'experiments'];
+                for (const mgrName of managerNames) {
+                    try {
+                        const mgr = this.api[mgrName];
+                        if (!mgr || typeof mgr.emit !== 'function') continue;
+                        const origEmit = mgr.emit.bind(mgr);
+                        mgr.emit = (event, ...args) => {
+                            try {
+                                this.addTraceEvent({
+                                    cat: 'verbose',
+                                    title: `${mgrName}.${event}`,
+                                    subject: '',
+                                    detail: this.fmtVal(args[0] !== undefined ? args[0] : '').substring(0, 200),
+                                    raw: { manager: mgrName, event, args },
+                                });
+                                console.log(`[verbose] ${mgrName}.${event}`, ...args);
+                            } catch (e) { /* never block event delivery */ }
+                            return origEmit(event, ...args);
+                        };
+                        this.traceVerbosePatches.push({ mgr, origEmit });
+                        console.log(`[verbose] patched: ${mgrName}`);
+                    } catch (e) { /* manager unavailable */ }
+                }
+                // Also patch the api object itself if it's an EventEmitter
+                try {
+                    if (this.api && typeof this.api.emit === 'function') {
+                        const origEmit = this.api.emit.bind(this.api);
+                        this.api.emit = (event, ...args) => {
+                            try {
+                                this.addTraceEvent({
+                                    cat: 'verbose',
+                                    title: `api.${event}`,
+                                    subject: '',
+                                    detail: this.fmtVal(args[0] !== undefined ? args[0] : '').substring(0, 200),
+                                    raw: { manager: 'api', event, args },
+                                });
+                                console.log(`[verbose] api.${event}`, ...args);
+                            } catch (e) { /* */ }
+                            return origEmit(event, ...args);
+                        };
+                        this.traceVerbosePatches.push({ mgr: this.api, origEmit });
+                        console.log('[verbose] patched: api');
+                    }
+                } catch (e) { /* */ }
+            }
+
             // Polling fallback for flow executions — the WebSocket 'flow.update' event isn't
             // emitted on every run on every Homey firmware, so we diff lastExecuted ourselves.
             // 1.5s cadence is a compromise between responsiveness and load.
@@ -1820,6 +1879,11 @@ class FlowDoctor {
             try { if (typeof mgr.off === 'function') mgr.off(eventName, wrapped); else if (typeof mgr.removeListener === 'function') mgr.removeListener(eventName, wrapped); } catch (e) { /* ignore */ }
         }
         this.traceListeners = [];
+        // Restore original emit() on each manager we monkey-patched in verbose mode.
+        for (const { mgr, origEmit } of this.traceVerbosePatches) {
+            try { mgr.emit = origEmit; } catch (e) { /* ignore */ }
+        }
+        this.traceVerbosePatches = [];
         document.getElementById('trace-start-button').classList.remove('hidden');
         document.getElementById('trace-stop-button').classList.add('hidden');
         document.getElementById('trace-rec-dot').classList.add('hidden');
@@ -1860,11 +1924,12 @@ class FlowDoctor {
 
     traceCatColor(cat) {
         switch (cat) {
-            case 'flow':   return 'text-purple-300';
-            case 'device': return 'text-cyan-300';
-            case 'logic':  return 'text-amber-300';
-            case 'app':    return 'text-red-300';
-            default:       return 'text-gray-300';
+            case 'flow':    return 'text-purple-300';
+            case 'device':  return 'text-cyan-300';
+            case 'logic':   return 'text-amber-300';
+            case 'app':     return 'text-red-300';
+            case 'verbose': return 'text-gray-500';
+            default:        return 'text-gray-300';
         }
     }
 

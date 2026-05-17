@@ -70,6 +70,21 @@ export interface HomeyAPILike {
   apps?: {
     getApps(opts?: { $skipCache?: boolean }): Promise<Record<string, RawApp>>;
   };
+  zones?: {
+    getZones(opts?: { $skipCache?: boolean }): Promise<Record<string, RawZone>>;
+  };
+}
+
+export interface RawZone {
+  id: string;
+  name: string;
+  parent?: string | null;
+}
+
+export interface Zone {
+  id: string;
+  name: string;
+  parent: string | null;
 }
 
 export interface RawDevice {

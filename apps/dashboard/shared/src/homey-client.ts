@@ -8,6 +8,7 @@ import type {
   RawDevice,
   RawFlow,
   RawFlowFolder,
+  Zone,
 } from "./types.js";
 import type { AuthSession } from "./auth.js";
 
@@ -103,6 +104,17 @@ export class HomeyClient {
       if (a.id && a.name) out.set(a.id, a.name);
     }
     return out;
+  }
+
+  /** Homey zones (rooms), flat with parent links. */
+  async listZones(): Promise<Zone[]> {
+    if (!this.api.zones?.getZones) return [];
+    const map = await this.api.zones.getZones();
+    return Object.values(map).map((z) => ({
+      id: z.id,
+      name: z.name,
+      parent: z.parent ?? null,
+    }));
   }
 }
 

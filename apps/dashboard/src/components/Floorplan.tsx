@@ -10,7 +10,9 @@ import {
   validateSvg,
   type DevicePlacement,
   type FloorplanData,
+  type FlowFolder,
   type RoomGeometry,
+  type Zone,
 } from "@homey-toolbox/dashboard-shared";
 import { loadFloorplan, saveFloorplan } from "../lib/floorplan-tauri";
 import { useI18n } from "../i18n/context";
@@ -47,6 +49,8 @@ export function Floorplan({
   const [hiddenFloors, setHiddenFloors] = useState<Set<string>>(new Set());
   const [devices, setDevices] = useState<Device[]>([]);
   const [flows, setFlows] = useState<FlowLite[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [folders, setFolders] = useState<FlowFolder[]>([]);
   const overlayRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -54,11 +58,15 @@ export function Floorplan({
       loadFloorplan(),
       client.listDevices().catch(() => []),
       client.listFlows().catch(() => []),
+      client.listZones().catch(() => []),
+      client.listFolders().catch(() => []),
     ])
-      .then(([fp, devs, fls]) => {
+      .then(([fp, devs, fls, zns, fds]) => {
         setData(fp);
         setDevices(devs);
         setFlows(fls.map((f) => ({ id: f.id, name: f.name, kind: f.kind })));
+        setZones(zns);
+        setFolders(fds);
       })
       .catch((e) => console.warn("[dashboard] floorplan init failed:", e))
       .finally(() => setLoading(false));
@@ -170,6 +178,26 @@ export function Floorplan({
       ...data,
       placements: [...others, { kind, id, x: center.x, y: center.y }],
     });
+  }
+
+  async function addBulkPlacements(items: Array<{ kind: "device" | "flow"; id: string }>) {
+    const center = viewBoxCenter();
+    // Lay them out in a 3-column grid around the centre so they don't all
+    // overlap at one point. Spacing kept tight (~3 viewBox units).
+    const SPACING = 3.5;
+    const PER_ROW = 3;
+    const newOnes = items.map((it, i) => {
+      const col = i % PER_ROW;
+      const row = Math.floor(i / PER_ROW);
+      const offX = (col - (PER_ROW - 1) / 2) * SPACING;
+      const offY = row * SPACING;
+      return { kind: it.kind, id: it.id, x: center.x + offX, y: center.y + offY };
+    });
+    const existingKeys = new Set(newOnes.map((p) => `${p.kind}:${p.id}`));
+    const others = data.placements.filter(
+      (p) => !existingKeys.has(`${p.kind}:${p.id}`),
+    );
+    await persist({ ...data, placements: [...others, ...newOnes] });
   }
 
   async function removePlacement(kind: "device" | "flow", id: string) {
@@ -393,9 +421,15 @@ export function Floorplan({
         <AddPlacementModal
           devices={devices.filter((d) => !placedDeviceIds.has(d.id))}
           flows={flows.filter((f) => !placedFlowIds.has(f.id))}
+          zones={zones}
+          folders={folders}
           onClose={() => setShowAdd(false)}
           onPick={(kind, id) => {
             addPlacement(kind, id);
+            setShowAdd(false);
+          }}
+          onPickGroup={(items) => {
+            addBulkPlacements(items);
             setShowAdd(false);
           }}
         />
@@ -414,27 +448,211 @@ export function Floorplan({
   );
 }
 
+interface TreeNode<Item, Container> {
+  container: Container | null; // null = root
+  children: TreeNode<Item, Container>[];
+  items: Item[];
+}
+
+/** Generic tree builder used for both zone+device and folder+flow trees. */
+function buildTree<
+  Item extends { id: string; name: string },
+  Container extends { id: string; name: string; parent: string | null },
+>(
+  items: Item[],
+  containers: Container[],
+  itemContainer: (i: Item) => string | null,
+): TreeNode<Item, Container> {
+  const itemsByContainer = new Map<string | null, Item[]>();
+  for (const it of items) {
+    const k = itemContainer(it);
+    if (!itemsByContainer.has(k)) itemsByContainer.set(k, []);
+    itemsByContainer.get(k)!.push(it);
+  }
+  const nodeBy = new Map<string, TreeNode<Item, Container>>();
+  for (const c of containers) {
+    nodeBy.set(c.id, {
+      container: c,
+      children: [],
+      items: itemsByContainer.get(c.id) ?? [],
+    });
+  }
+  const root: TreeNode<Item, Container> = {
+    container: null,
+    children: [],
+    items: itemsByContainer.get(null) ?? [],
+  };
+  for (const c of containers) {
+    const node = nodeBy.get(c.id)!;
+    if (c.parent && nodeBy.has(c.parent)) nodeBy.get(c.parent)!.children.push(node);
+    else root.children.push(node);
+  }
+  function sortNode(n: TreeNode<Item, Container>) {
+    n.children.sort((a, b) =>
+      (a.container?.name ?? "").localeCompare(b.container?.name ?? ""),
+    );
+    n.items.sort((a, b) => a.name.localeCompare(b.name));
+    n.children.forEach(sortNode);
+  }
+  sortNode(root);
+  return root;
+}
+
+function countNode<I, C>(node: TreeNode<I, C>): number {
+  return (
+    node.items.length + node.children.reduce((sum, c) => sum + countNode(c), 0)
+  );
+}
+
+function nodeMatchesSearch<I extends { name: string }, C extends { name: string }>(
+  node: TreeNode<I, C>,
+  q: string,
+): boolean {
+  if (!q) return true;
+  if (node.container && node.container.name.toLowerCase().includes(q)) return true;
+  if (node.items.some((i) => i.name.toLowerCase().includes(q))) return true;
+  return node.children.some((c) => nodeMatchesSearch(c, q));
+}
+
 function AddPlacementModal({
   devices,
   flows,
+  zones,
+  folders,
   onClose,
   onPick,
+  onPickGroup,
 }: {
   devices: Device[];
   flows: FlowLite[];
+  zones: Zone[];
+  folders: FlowFolder[];
   onClose: () => void;
   onPick: (kind: "device" | "flow", id: string) => void;
+  onPickGroup: (items: Array<{ kind: "device" | "flow"; id: string }>) => void;
 }) {
   const [tab, setTab] = useState<"device" | "flow">("device");
   const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const q = search.trim().toLowerCase();
-  const visibleDevices = q
-    ? devices.filter((d) => d.name.toLowerCase().includes(q))
-    : devices;
-  const visibleFlows = q ? flows.filter((f) => f.name.toLowerCase().includes(q)) : flows;
+
+  const deviceTree = useMemo(
+    () => buildTree(devices, zones, (d) => d.zone),
+    [devices, zones],
+  );
+  const flowTree = useMemo(
+    () => buildTree(flows, folders, (f) => (f as unknown as { folder?: string | null }).folder ?? null),
+    [flows, folders],
+  );
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function collectAllItems<I extends { id: string; name: string }, C>(
+    node: TreeNode<I, C>,
+    kind: "device" | "flow",
+  ): Array<{ kind: "device" | "flow"; id: string }> {
+    const out: Array<{ kind: "device" | "flow"; id: string }> = [];
+    for (const i of node.items) out.push({ kind, id: i.id });
+    for (const c of node.children) out.push(...collectAllItems(c, kind));
+    return out;
+  }
+
+  function renderNode<I extends { id: string; name: string }, C extends { id: string; name: string; parent: string | null }>(
+    node: TreeNode<I, C>,
+    kind: "device" | "flow",
+    depth: number,
+    forceOpen: boolean,
+  ): React.ReactNode {
+    const ind = depth * 12;
+    return (
+      <>
+        {node.container && (() => {
+          const total = countNode(node);
+          const isOpen = forceOpen || expanded.has(node.container.id);
+          return (
+            <div
+              key={`c-${node.container.id}`}
+              className="folder-header"
+              style={{ marginLeft: ind }}
+            >
+              <button
+                className="folder-chevron"
+                onClick={() => toggle(node.container!.id)}
+              >
+                {isOpen ? "▼" : "▶"}
+              </button>
+              <span
+                className="name"
+                onClick={() => toggle(node.container!.id)}
+                style={{ flex: 1 }}
+              >
+                {node.container.name}
+                {!isOpen && total > 0 && (
+                  <span className="folder-count"> ({total})</span>
+                )}
+              </span>
+              {total > 0 && (
+                <button
+                  className="folder-action"
+                  title={`Add all ${total} item(s) in ${node.container.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPickGroup(collectAllItems(node, kind));
+                  }}
+                  style={{ opacity: 1, fontSize: 11, padding: "2px 6px" }}
+                >
+                  + all
+                </button>
+              )}
+            </div>
+          );
+        })()}
+        {(node.container == null || forceOpen || expanded.has(node.container.id)) && (
+          <>
+            {node.items
+              .filter((i) => !q || i.name.toLowerCase().includes(q))
+              .map((i) => (
+                <div
+                  key={`${kind}-${i.id}`}
+                  className="flow-row"
+                  onClick={() => onPick(kind, i.id)}
+                  style={{
+                    cursor: "pointer",
+                    marginLeft: (depth + (node.container ? 1 : 0)) * 12,
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>
+                    {kind === "device" ? "●" : "▢"} {i.name}
+                  </span>
+                </div>
+              ))}
+            {node.children
+              .filter((c) => nodeMatchesSearch(c, q))
+              .map((c) => (
+                <div key={`cc-${c.container?.id}`}>
+                  {renderNode(c, kind, depth + (node.container ? 1 : 0), forceOpen)}
+                </div>
+              ))}
+          </>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ minWidth: 380, maxHeight: "80vh" }}>
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ minWidth: 380, maxHeight: "80vh" }}
+      >
         <div className="modal-title">Add to floorplan</div>
         <div className="tabs" style={{ marginBottom: 8 }}>
           <button
@@ -459,39 +677,10 @@ function AddPlacementModal({
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: "100%" }}
         />
-        <div style={{ overflowY: "auto", maxHeight: "50vh" }}>
-          {tab === "device" ? (
-            visibleDevices.length === 0 ? (
-              <div className="muted">No devices to add.</div>
-            ) : (
-              visibleDevices.map((d) => (
-                <div
-                  key={d.id}
-                  className="flow-row"
-                  onClick={() => onPick("device", d.id)}
-                  style={{ cursor: "pointer" }}
-                >
-                  <span style={{ fontSize: 13 }}>● {d.name}</span>
-                </div>
-              ))
-            )
-          ) : visibleFlows.length === 0 ? (
-            <div className="muted">No flows to add.</div>
-          ) : (
-            visibleFlows.map((f) => (
-              <div
-                key={f.id}
-                className="flow-row"
-                onClick={() => onPick("flow", f.id)}
-                style={{ cursor: "pointer" }}
-              >
-                <span style={{ fontSize: 13 }}>
-                  ▢ {f.name}
-                  {f.kind === "advanced" && <span className="kind"> ADV</span>}
-                </span>
-              </div>
-            ))
-          )}
+        <div style={{ overflowY: "auto", maxHeight: "50vh", paddingRight: 4 }}>
+          {tab === "device"
+            ? renderNode(deviceTree, "device", 0, !!q)
+            : renderNode(flowTree, "flow", 0, !!q)}
         </div>
         <div className="muted" style={{ fontSize: 11 }}>
           Items appear at the canvas centre; drag to position. Right-click an icon to remove.

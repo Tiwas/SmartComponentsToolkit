@@ -30,11 +30,11 @@ Test and build your logic before deploying:
 
 A floating, always-on-top desktop widget that lets you run Homey flows from any platform you're working on, with local favorites organized into folders and live Homey notifications surfaced as on-screen toasts.
 
-- Source: [`apps/dashboard/`](apps/dashboard/) — `app/` (Tauri desktop shell) and `shared/` (framework-agnostic logic).
+- Source: [`apps/dashboard/`](apps/dashboard/) (with framework-agnostic logic in [`apps/dashboard/shared/`](apps/dashboard/shared/))
 - Built with [Tauri 2](https://v2.tauri.app/) + React + TypeScript
 - Cross-platform: Windows, macOS, Linux
 
-See [`apps/dashboard/README.md`](apps/dashboard/README.md) for an overview and [`apps/dashboard/app/README.md`](apps/dashboard/app/README.md) for setup, OAuth scopes and build instructions.
+See [`apps/dashboard/README.md`](apps/dashboard/README.md) for setup, OAuth scopes and build instructions.
 
 ---
 

@@ -159,7 +159,6 @@
       .room-label {
         fill: white;
         font-family: system-ui;
-        font-size: 4;
         font-weight: 600;
         text-anchor: middle;
         dominant-baseline: middle;
@@ -187,7 +186,7 @@
       <button class="secondary" onclick="newPlan()">New</button>
       <button class="secondary" onclick="document.getElementById('import-file').click()">Open .svg</button>
       <input id="import-file" type="file" accept=".svg,image/svg+xml" style="display:none" onchange="importFile(event)" />
-      <button class="secondary" onclick="importPrompt()">Paste SVG</button>
+      <button class="secondary" onclick="openPasteModal()">Paste SVG</button>
       <button class="secondary" onclick="exportClipboard()">Copy SVG</button>
       <button onclick="exportFile()">Download .svg</button>
     </header>
@@ -258,6 +257,18 @@
         <g id="furniture-layer"></g>
         <g id="handles"></g>
       </svg>
+    </div>
+
+    <div id="paste-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:#1c1f27;border:1px solid #2c303a;border-radius:8px;padding:16px;width:560px;max-width:90vw;display:flex;flex-direction:column;gap:10px;">
+        <div style="font-weight:600;font-size:14px;">Paste a previously exported floorplan SVG</div>
+        <textarea id="paste-textarea" rows="10" placeholder="&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; …&gt;…&lt;/svg&gt;"
+          style="width:100%;font-family:monospace;font-size:11px;background:rgba(255,255,255,0.04);color:#e8eaed;border:1px solid #2c303a;border-radius:6px;padding:8px;resize:vertical;"></textarea>
+        <div style="display:flex;justify-content:flex-end;gap:6px;">
+          <button class="secondary" onclick="closePasteModal()">Cancel</button>
+          <button onclick="confirmPaste()">Import</button>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -379,6 +390,19 @@
         return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
       }
 
+      /**
+       * Pick a font-size in viewBox units that lets `name` fit inside a w×h
+       * box. 0.55 is a rough char-width / font-size ratio for system fonts.
+       * Clamps to [1.5, 6] so very tiny rooms still hint a label, and very
+       * large rooms don't end up with absurdly big text.
+       */
+      function fitFontSize(name, w, h) {
+        const len = Math.max(1, (name || "").length);
+        const byWidth = w / (len * 0.55);
+        const byHeight = h * 0.35;
+        return Math.max(1.5, Math.min(byWidth, byHeight, 6));
+      }
+
       function currentRooms() { return state.rooms[state.activeFloorId] ??= []; }
       function currentFurniture() { return state.furniture[state.activeFloorId] ??= []; }
 
@@ -449,11 +473,12 @@
           const overlay = r.pattern && r.pattern !== "none" ? `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>` : "";
           const sel = state.selected && state.selected.kind === "room" && state.selected.id === r.id;
           const cls = sel ? "room selected" : "room";
+          const fs = fitFontSize(r.name, r.w, r.h);
           roomsLayer.insertAdjacentHTML("beforeend",
             `<g data-kind="room" data-id="${r.id}">
               <rect class="${cls}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}"/>
               ${overlay}
-              <text class="room-label" x="${r.x + r.w / 2}" y="${r.y + r.h / 2}">${escapeAttr(r.name || "")}</text>
+              <text class="room-label" font-size="${fs}" x="${r.x + r.w / 2}" y="${r.y + r.h / 2}">${escapeAttr(r.name || "")}</text>
             </g>`);
         }
 
@@ -640,7 +665,7 @@
               ? `\n      <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>`
               : "";
             const label = r.name
-              ? `\n      <text x="${r.x + r.w / 2}" y="${r.y + r.h / 2}" font-family="system-ui" font-size="4" font-weight="600" fill="white" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="rgba(0,0,0,0.6)" stroke-width="0.5">${escapeAttr(r.name)}</text>`
+              ? `\n      <text x="${r.x + r.w / 2}" y="${r.y + r.h / 2}" font-family="system-ui" font-size="${fitFontSize(r.name, r.w, r.h)}" font-weight="600" fill="white" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="rgba(0,0,0,0.6)" stroke-width="0.5">${escapeAttr(r.name)}</text>`
               : "";
             return `    <g data-zone="${escapeAttr(r.zone || "")}" data-name="${escapeAttr(r.name || "")}">
       <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}" stroke="rgba(0,0,0,0.35)" stroke-width="0.2"/>${tint}${label}
@@ -698,10 +723,30 @@ ${groups}
         file.text().then((text) => loadFromSvg(text));
         e.target.value = "";
       }
-      function importPrompt() {
-        const text = prompt("Paste a previously exported floorplan SVG:");
-        if (text) loadFromSvg(text);
+      function openPasteModal() {
+        const m = document.getElementById("paste-modal");
+        const ta = document.getElementById("paste-textarea");
+        ta.value = "";
+        m.style.display = "flex";
+        setTimeout(() => ta.focus(), 30);
       }
+      function closePasteModal() {
+        document.getElementById("paste-modal").style.display = "none";
+      }
+      function confirmPaste() {
+        const ta = document.getElementById("paste-textarea");
+        const text = ta.value;
+        if (!text.trim()) { closePasteModal(); return; }
+        closePasteModal();
+        loadFromSvg(text);
+      }
+      // Allow Esc to close, Ctrl/Cmd+Enter to confirm
+      document.addEventListener("keydown", (e) => {
+        const m = document.getElementById("paste-modal");
+        if (m.style.display !== "flex") return;
+        if (e.key === "Escape") closePasteModal();
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") confirmPaste();
+      });
       function loadFromSvg(svgText) {
         try {
           // Strip any XML declaration / doctype prefix and BOM.

@@ -82,6 +82,18 @@ export class HomeyClient {
     return out;
   }
 
+  /** Full device list with zone id (for floorplan auto-placement). */
+  async listDevices(): Promise<Array<{ id: string; name: string; zone: string | null }>> {
+    if (!this.api.devices?.getDevices) return [];
+    const map = await this.api.devices.getDevices();
+    const out: Array<{ id: string; name: string; zone: string | null }> = [];
+    for (const d of Object.values(map) as RawDevice[]) {
+      if (!d.id) continue;
+      out.push({ id: d.id, name: d.name ?? d.id, zone: d.zone ?? null });
+    }
+    return out;
+  }
+
   /** Maps appId → app name. Empty map if apps API not available. */
   async listAppNames(): Promise<Map<string, string>> {
     if (!this.api.apps?.getApps) return new Map();

@@ -1,20 +1,31 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   EMPTY_FLOORPLAN,
   extractFloors,
   filterFloors,
+  getViewBox,
   HomeyClient,
+  parseRooms,
   validateSvg,
+  type DevicePlacement,
   type FloorplanData,
+  type RoomGeometry,
 } from "@homey-toolbox/dashboard-shared";
 import { loadFloorplan, saveFloorplan } from "../lib/floorplan-tauri";
 import { useI18n } from "../i18n/context";
 
-const EDITOR_HINT_URL = "https://tiwas.github.io/SmartComponentsToolkit/tools/floorplan-editor.html";
+const EDITOR_HINT_URL =
+  "https://tiwas.github.io/SmartComponentsToolkit/tools/floorplan-editor.html";
+
+interface Device {
+  id: string;
+  name: string;
+  zone: string | null;
+}
 
 export function Floorplan({
-  client: _client,
+  client,
   onLogout,
   onOpenSettings,
 }: {
@@ -27,20 +38,69 @@ export function Floorplan({
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [hiddenFloors, setHiddenFloors] = useState<Set<string>>(new Set());
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const overlayRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    loadFloorplan()
-      .then(setData)
-      .catch((e) => console.warn("[dashboard] loadFloorplan failed:", e))
+    Promise.all([loadFloorplan(), client.listDevices().catch(() => [])])
+      .then(([fp, devs]) => {
+        setData(fp);
+        setDevices(devs);
+      })
+      .catch((e) => console.warn("[dashboard] floorplan init failed:", e))
       .finally(() => setLoading(false));
-  }, []);
+  }, [client]);
 
-  const floors = data.svg ? extractFloors(data.svg) : [];
+  const floors = useMemo(() => (data.svg ? extractFloors(data.svg) : []), [data.svg]);
+  const rooms: RoomGeometry[] = useMemo(
+    () => (data.svg ? parseRooms(data.svg) : []),
+    [data.svg],
+  );
+  const roomsByZone = useMemo(() => {
+    const m = new Map<string, RoomGeometry>();
+    for (const r of rooms) m.set(r.zone, r);
+    return m;
+  }, [rooms]);
   const visibleFloors =
     floors.length > 0 ? new Set(floors.filter((f) => !hiddenFloors.has(f))) : null;
   const renderedSvg =
     data.svg && visibleFloors ? filterFloors(data.svg, visibleFloors) : data.svg;
+  const viewBox = data.svg ? getViewBox(data.svg) : "0 0 100 70";
+
+  // Compute effective placements: persisted, plus auto-placed for any
+  // device that has a matching zone but no stored placement yet.
+  const placements: DevicePlacement[] = useMemo(() => {
+    if (!data.svg) return [];
+    const stored = new Map(
+      data.placements
+        .filter((p) => p.kind === "device")
+        .map((p) => [p.id, p] as const),
+    );
+    const result: DevicePlacement[] = [];
+    for (const dev of devices) {
+      const existing = stored.get(dev.id);
+      if (existing) {
+        result.push(existing);
+        continue;
+      }
+      if (dev.zone && roomsByZone.has(dev.zone)) {
+        const room = roomsByZone.get(dev.zone)!;
+        result.push({ kind: "device", id: dev.id, x: room.cx, y: room.cy });
+      }
+    }
+    // Keep any persisted placements for devices that no longer exist
+    // (so they don't get silently lost if the device API returned a partial list).
+    for (const p of data.placements) {
+      if (p.kind === "device" && !devices.find((d) => d.id === p.id)) result.push(p);
+    }
+    return result;
+  }, [data.svg, data.placements, devices, roomsByZone]);
+
+  const deviceById = useMemo(() => {
+    const m = new Map<string, Device>();
+    for (const d of devices) m.set(d.id, d);
+    return m;
+  }, [devices]);
 
   async function persist(next: FloorplanData) {
     setData(next);
@@ -49,6 +109,65 @@ export function Floorplan({
     } catch (e) {
       console.warn("[dashboard] saveFloorplan failed:", e);
     }
+  }
+
+  async function resetPlacements() {
+    if (!confirm("Reset all device positions to their room centers?")) return;
+    await persist({ ...data, placements: [] });
+  }
+
+  // SVG drag using pointer events. We convert client coords to viewBox coords
+  // via the overlay SVG's CTM.
+  const dragRef = useRef<{ id: string; pointerId: number } | null>(null);
+
+  function toViewBox(evt: React.PointerEvent<SVGSVGElement>): { x: number; y: number } | null {
+    const svg = overlayRef.current;
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const result = pt.matrixTransform(ctm.inverse());
+    return { x: result.x, y: result.y };
+  }
+
+  function onPointerDown(e: React.PointerEvent<SVGCircleElement>, id: string) {
+    e.stopPropagation();
+    overlayRef.current?.setPointerCapture(e.pointerId);
+    dragRef.current = { id, pointerId: e.pointerId };
+  }
+
+  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (!dragRef.current) return;
+    const coords = toViewBox(e);
+    if (!coords) return;
+    const id = dragRef.current.id;
+    // Optimistic local update — only persist on release to avoid hammering disk.
+    setData((prev) => {
+      const others = prev.placements.filter((p) => !(p.kind === "device" && p.id === id));
+      return {
+        ...prev,
+        placements: [...others, { kind: "device", id, x: coords.x, y: coords.y }],
+      };
+    });
+  }
+
+  async function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    if (!dragRef.current) return;
+    const id = dragRef.current.id;
+    overlayRef.current?.releasePointerCapture(dragRef.current.pointerId);
+    dragRef.current = null;
+    const placement = data.placements.find(
+      (p) => p.kind === "device" && p.id === id,
+    );
+    if (placement) {
+      // Save the latest position we have in state to disk.
+      await saveFloorplan(data).catch((err) =>
+        console.warn("[dashboard] saveFloorplan failed:", err),
+      );
+    }
+    e.stopPropagation();
   }
 
   return (
@@ -79,6 +198,15 @@ export function Floorplan({
           );
         })}
         <div style={{ flex: 1 }} />
+        {data.svg && (
+          <button
+            className="tab"
+            onClick={resetPlacements}
+            title="Reset device positions to room centers"
+          >
+            ↺
+          </button>
+        )}
         <button className="tab" onClick={() => setShowImport(true)} title={t.floorplan_import}>
           ⤓
         </button>
@@ -90,14 +218,51 @@ export function Floorplan({
         </button>
       </div>
 
-      <div className="floorplan-stage" ref={containerRef}>
+      <div className="floorplan-stage">
         {loading ? (
           <div className="muted">{t.loading}</div>
         ) : data.svg ? (
-          <div
-            className="floorplan-svg"
-            dangerouslySetInnerHTML={{ __html: renderedSvg }}
-          />
+          <div className="floorplan-canvas">
+            <div
+              className="floorplan-svg"
+              dangerouslySetInnerHTML={{ __html: renderedSvg }}
+            />
+            <svg
+              ref={overlayRef}
+              className="floorplan-overlay"
+              viewBox={viewBox}
+              preserveAspectRatio="xMidYMid meet"
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+            >
+              {placements
+                .filter((p) => {
+                  // Hide placements that belong to a hidden floor.
+                  if (!visibleFloors) return true;
+                  const dev = deviceById.get(p.id);
+                  if (!dev || !dev.zone) return true;
+                  const room = roomsByZone.get(dev.zone);
+                  if (!room || !room.floor) return true;
+                  return visibleFloors.has(room.floor);
+                })
+                .map((p) => {
+                  const dev = deviceById.get(p.id);
+                  return (
+                    <g key={p.id} className="device-icon">
+                      <circle
+                        cx={p.x}
+                        cy={p.y}
+                        r={2.2}
+                        onPointerDown={(e) => onPointerDown(e, p.id)}
+                      />
+                      {dev && (
+                        <title>{dev.name}</title>
+                      )}
+                    </g>
+                  );
+                })}
+            </svg>
+          </div>
         ) : (
           <div className="floorplan-empty">
             <h3>{t.floorplan_empty_title}</h3>
@@ -142,9 +307,6 @@ function ImportFloorplanModal({
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-focus the textarea every time the paste tab becomes active. This
-  // also recovers focus after the window is minimized and restored, which
-  // sometimes leaves the previous element in a focus-stuck state in WebView2.
   useEffect(() => {
     if (tab === "paste") {
       const id = window.setTimeout(() => textareaRef.current?.focus(), 30);

@@ -97,6 +97,72 @@ export function filterFloors(svg: string, visibleFloors: Set<string> | null): st
   return removeFloorsExcept(svg, visibleFloors);
 }
 
+export interface RoomGeometry {
+  zone: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  cx: number;
+  cy: number;
+  floor: string | null;
+}
+
+/**
+ * Parse the imported floorplan SVG and return one entry per `<g data-zone>`
+ * group with its room rect translated into the SVG root's coordinate system
+ * (accounts for parent floor translate offsets).
+ */
+export function parseRooms(svg: string): RoomGeometry[] {
+  if (typeof DOMParser === "undefined") return [];
+  const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const result: RoomGeometry[] = [];
+  doc.querySelectorAll("g[data-zone]").forEach((g) => {
+    const zone = g.getAttribute("data-zone");
+    if (!zone) return;
+    const rect = g.querySelector("rect");
+    if (!rect) return;
+    const x = parseFloat(rect.getAttribute("x") ?? "0");
+    const y = parseFloat(rect.getAttribute("y") ?? "0");
+    const w = parseFloat(rect.getAttribute("width") ?? "0");
+    const h = parseFloat(rect.getAttribute("height") ?? "0");
+    let offsetX = 0;
+    let offsetY = 0;
+    let floor: string | null = null;
+    let parent = g.parentElement;
+    while (parent) {
+      const t = parent.getAttribute("transform");
+      if (t) {
+        const m = /translate\(\s*(-?\d*\.?\d+)\s*[,\s]\s*(-?\d*\.?\d+)?/.exec(t);
+        if (m) {
+          offsetX += parseFloat(m[1]!);
+          if (m[2]) offsetY += parseFloat(m[2]);
+        }
+      }
+      const dataFloor = parent.getAttribute("data-floor");
+      if (dataFloor && !floor) floor = dataFloor;
+      parent = parent.parentElement;
+    }
+    result.push({
+      zone,
+      x: x + offsetX,
+      y: y + offsetY,
+      w,
+      h,
+      cx: x + offsetX + w / 2,
+      cy: y + offsetY + h / 2,
+      floor,
+    });
+  });
+  return result;
+}
+
+/** Extract the viewBox string from an SVG so an overlay can match it. */
+export function getViewBox(svg: string): string {
+  const m = /<svg\b[^>]*\bviewBox\s*=\s*"([^"]*)"/i.exec(svg);
+  return m ? m[1]! : "0 0 100 70";
+}
+
 function removeFloorsExcept(svg: string, keep: Set<string>): string {
   let out = svg;
   const openRegex = /<g\b[^>]*\bdata-floor\s*=\s*"([^"]*)"[^>]*>/i;

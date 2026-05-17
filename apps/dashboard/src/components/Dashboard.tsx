@@ -14,6 +14,7 @@ import {
   moveFavorite,
   removeFavorite,
   renameFolder,
+  toggleFolderCollapsed,
   type AppSettings,
   type FavoritesData,
   type Flow,
@@ -300,56 +301,71 @@ export function Dashboard({
             ) : (
               quickFlows.map((f) => renderFlowRow(f))
             )}
-            {favorites.folders.map((folder) => (
-              <div key={folder.id}>
-                <div className="folder-header">
-                  <span
-                    className="name"
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        target: "folder",
-                        folderId: folder.id,
-                      });
-                    }}
-                  >
-                    {folder.name}
-                  </span>
-                  <button
-                    className="folder-action"
-                    title={t.rename_btn}
-                    onClick={() =>
-                      setModal({
-                        kind: "renameFolder",
-                        folderId: folder.id,
-                        current: folder.name,
-                      })
-                    }
-                  >
-                    ✎
-                  </button>
-                  <button
-                    className="folder-action"
-                    title={t.delete_btn}
-                    onClick={() => persist(deleteFolder(favorites, folder.id))}
-                  >
-                    ×
-                  </button>
-                </div>
-                {folder.flowIds.length === 0 ? (
-                  <div className="muted" style={{ padding: "4px 8px" }}>
-                    {tf("fav_empty_folder", { name: folder.name })}
+            {favorites.folders.map((folder) => {
+              const collapsed = !!folder.collapsed;
+              return (
+                <div key={folder.id}>
+                  <div className="folder-header">
+                    <button
+                      className="folder-chevron"
+                      onClick={() => persist(toggleFolderCollapsed(favorites, folder.id))}
+                      title={collapsed ? "Expand" : "Collapse"}
+                    >
+                      {collapsed ? "▶" : "▼"}
+                    </button>
+                    <span
+                      className="name"
+                      onClick={() => persist(toggleFolderCollapsed(favorites, folder.id))}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          target: "folder",
+                          folderId: folder.id,
+                        });
+                      }}
+                    >
+                      {folder.name}
+                      {collapsed && folder.flowIds.length > 0 && (
+                        <span className="folder-count"> ({folder.flowIds.length})</span>
+                      )}
+                    </span>
+                    <button
+                      className="folder-action"
+                      title={t.rename_btn}
+                      onClick={() =>
+                        setModal({
+                          kind: "renameFolder",
+                          folderId: folder.id,
+                          current: folder.name,
+                        })
+                      }
+                    >
+                      ✎
+                    </button>
+                    <button
+                      className="folder-action"
+                      title={t.delete_btn}
+                      onClick={() => persist(deleteFolder(favorites, folder.id))}
+                    >
+                      ×
+                    </button>
                   </div>
-                ) : (
-                  folder.flowIds
-                    .map((id) => flowsById.get(id))
-                    .filter((f): f is Flow => !!f && flowMatchesSearch(f))
-                    .map((f) => renderFlowRow(f))
-                )}
-              </div>
-            ))}
+                  {!collapsed &&
+                    (folder.flowIds.length === 0 ? (
+                      <div className="muted" style={{ padding: "4px 8px" }}>
+                        {tf("fav_empty_folder", { name: folder.name })}
+                      </div>
+                    ) : (
+                      folder.flowIds
+                        .map((id) => flowsById.get(id))
+                        .filter((f): f is Flow => !!f && flowMatchesSearch(f))
+                        .map((f) => renderFlowRow(f))
+                    ))}
+                </div>
+              );
+            })}
           </>
         )}
       </>

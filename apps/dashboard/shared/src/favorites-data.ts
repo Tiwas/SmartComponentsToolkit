@@ -2,6 +2,7 @@ export interface FavoriteFolder {
   id: string;
   name: string;
   flowIds: string[];
+  collapsed?: boolean;
 }
 
 export interface FavoritesData {
@@ -39,7 +40,16 @@ function normalizeFolder(raw: unknown): FavoriteFolder | null {
   const flowIds = Array.isArray(obj.flowIds)
     ? obj.flowIds.filter((x): x is string => typeof x === "string")
     : [];
-  return { id: obj.id, name: obj.name, flowIds };
+  return { id: obj.id, name: obj.name, flowIds, collapsed: obj.collapsed === true };
+}
+
+export function toggleFolderCollapsed(data: FavoritesData, folderId: string): FavoritesData {
+  return {
+    ...data,
+    folders: data.folders.map((f) =>
+      f.id === folderId ? { ...f, collapsed: !f.collapsed } : f,
+    ),
+  };
 }
 
 export function isFavorite(data: FavoritesData, flowId: string): boolean {

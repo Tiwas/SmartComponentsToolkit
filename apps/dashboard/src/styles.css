@@ -277,6 +277,20 @@ button.primary:hover {
   gap: 4px;
   margin: 12px 4px 4px;
 }
+.folder-header .folder-chevron {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 9px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.folder-header .folder-chevron:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
 .folder-header .name {
   flex: 1;
   text-transform: uppercase;
@@ -287,6 +301,10 @@ button.primary:hover {
 }
 .folder-header .name:hover {
   color: var(--fg);
+}
+.folder-header .folder-count {
+  font-weight: normal;
+  opacity: 0.6;
 }
 .folder-header .folder-action {
   opacity: 0;

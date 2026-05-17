@@ -161,6 +161,7 @@
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="warn" checked> <span class="badge badge-warn">Warnings</span> <span id="count-warnings">0</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="info"> <span class="badge badge-info">Info</span> <span id="count-info">0</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="ok"> <span class="badge badge-ok">Healthy</span> <span id="count-ok">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" id="flow-hide-disabled"> <span data-i18n="filter.hideDisabled">Hide disabled flows</span></label>
                 </div>
                 <div id="results-list" class="space-y-3"></div>
             </div>
@@ -286,6 +287,7 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'Healthy',
         'filter.onlyIssues': 'Only show flows with issues',
+        'filter.hideDisabled': 'Hide disabled flows',
         'filter.allApps': 'All apps',
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
@@ -399,6 +401,7 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'OK',
         'filter.onlyIssues': 'Vis kun flows med problemer',
+        'filter.hideDisabled': 'Skjul deaktiverte flows',
         'filter.allApps': 'Alle apper',
         'tab.flows': 'Flows',
         'tab.apps': 'Apper',
@@ -512,6 +515,7 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'OK',
         'filter.onlyIssues': 'Nur Flows mit Problemen anzeigen',
+        'filter.hideDisabled': 'Deaktivierte Flows ausblenden',
         'filter.allApps': 'Alle Apps',
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
@@ -607,6 +611,7 @@ const I18N = {
         'filter.info': 'Info',
         'filter.healthy': 'OK',
         'filter.onlyIssues': 'Toon alleen flows met problemen',
+        'filter.hideDisabled': 'Verberg uitgeschakelde flows',
         'filter.allApps': 'Alle apps',
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
@@ -803,6 +808,7 @@ class FlowDoctor {
         document.getElementById('flow-search').addEventListener('input', () => this.renderFlows());
         document.getElementById('flow-app-filter').addEventListener('change', () => this.renderFlows());
         document.querySelectorAll('.sev-toggle').forEach(cb => cb.addEventListener('change', () => this.renderFlows()));
+        document.getElementById('flow-hide-disabled').addEventListener('change', () => this.renderFlows());
         document.getElementById('app-search').addEventListener('input', () => this.renderApps());
         document.getElementById('app-only-updates').addEventListener('change', () => this.renderApps());
         document.getElementById('app-only-unused').addEventListener('change', () => this.renderApps());
@@ -1332,8 +1338,13 @@ class FlowDoctor {
     }
 
     renderFlows() {
+        const hideDisabled = document.getElementById('flow-hide-disabled').checked;
+        // "Hide disabled" is a structural filter — it removes disabled flows from both the
+        // tab count, the severity badges, and the rendered list. Severity toggles below
+        // only filter the rendered list (their badges always show what's countable).
+        const countable = hideDisabled ? this.results.filter(r => r.enabled) : this.results;
         let nErr = 0, nWarn = 0, nInfo = 0, nOk = 0;
-        for (const r of this.results) {
+        for (const r of countable) {
             const sev = this.flowSeverity(r);
             if (sev === 'error') nErr++;
             else if (sev === 'warn') nWarn++;
@@ -1362,7 +1373,7 @@ class FlowDoctor {
         const list = document.getElementById('results-list');
         list.innerHTML = '';
 
-        const filtered = this.results.filter(r => {
+        const filtered = countable.filter(r => {
             if (!sevWanted.has(this.flowSeverity(r))) return false;
             if (search && !(r.name || '').toLowerCase().includes(search)) return false;
             if (appFilter && !r.apps.includes(appFilter)) return false;

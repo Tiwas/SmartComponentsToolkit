@@ -145,6 +145,7 @@
                 <nav class="flex gap-1" id="tab-nav">
                     <button data-tab="flows" class="tab-btn px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-semibold text-sm"><span data-i18n="tab.flows">Flows</span> <span class="ml-1 text-xs text-gray-500" id="tab-flows-count">0</span></button>
                     <button data-tab="apps" class="tab-btn px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-800 text-sm"><span data-i18n="tab.apps">Apps</span> <span class="ml-1 text-xs text-gray-400" id="tab-apps-count">0</span></button>
+                    <button data-tab="trace" class="tab-btn px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-800 text-sm"><span data-i18n="tab.trace">Trace</span> <span class="ml-1 text-xs text-gray-400" id="tab-trace-count">0</span><span id="trace-rec-dot" class="hidden ml-1 inline-block w-2 h-2 rounded-full bg-red-500 align-middle animate-pulse"></span></button>
                 </nav>
                 <button id="rescan-button" class="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 mb-2" data-i18n="rescan">Rescan</button>
             </div>
@@ -179,6 +180,29 @@
                     </select>
                 </div>
                 <div id="apps-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Trace tab -->
+            <div id="tab-trace" class="tab-pane hidden">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-xs text-blue-900">
+                    <span data-i18n="trace.intro">Live trace of events on your Homey. Use this to find cyclic flows or unexpected triggers. Tracing only runs while you stay on this tab.</span>
+                </div>
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3 flex flex-wrap items-center gap-3">
+                    <button id="trace-start-button" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold" data-i18n="trace.start">▶ Start tracing</button>
+                    <button id="trace-stop-button" class="hidden px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold" data-i18n="trace.stop">■ Stop</button>
+                    <button id="trace-clear-button" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm border border-gray-300" data-i18n="trace.clear">Clear</button>
+                    <button id="trace-export-button" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm border border-gray-300" data-i18n="trace.export">Export JSON</button>
+                    <span id="trace-status" class="text-xs text-gray-500 ml-1"></span>
+                    <span class="flex-grow"></span>
+                    <input type="text" id="trace-search" placeholder="Filter…" data-i18n-placeholder="trace.filterPlaceholder" class="text-sm border border-gray-300 rounded px-2 py-1 w-40">
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="flow" checked> <span class="badge" style="background:#ede9fe;color:#5b21b6">Flow</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="device" checked> <span class="badge" style="background:#cffafe;color:#155e75">Device</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="logic" checked> <span class="badge" style="background:#fef3c7;color:#92400e">Logic</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="trace-cat-toggle" data-cat="app" checked> <span class="badge" style="background:#fee2e2;color:#991b1b">App</span></label>
+                </div>
+                <div id="trace-log" class="bg-gray-900 text-gray-100 rounded-lg p-3 font-mono text-xs overflow-auto" style="height:60vh; min-height:300px;">
+                    <div class="text-gray-500" data-i18n="trace.empty">No events yet. Press "Start tracing" and then trigger something on your Homey.</div>
+                </div>
             </div>
         </div>
 
@@ -265,6 +289,24 @@ const I18N = {
         'filter.allApps': 'All apps',
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
+        'tab.trace': 'Trace',
+        'trace.intro': 'Live trace of events on your Homey. Use this to find cyclic flows or unexpected triggers. Tracing only runs while you stay on this tab.',
+        'trace.start': '▶ Start tracing',
+        'trace.stop': '■ Stop',
+        'trace.clear': 'Clear',
+        'trace.export': 'Export JSON',
+        'trace.filterPlaceholder': 'Filter…',
+        'trace.empty': 'No events yet. Press "Start tracing" and then trigger something on your Homey.',
+        'trace.statusIdle': '',
+        'trace.statusStarting': 'Subscribing to events…',
+        'trace.statusRunning': 'Tracing — events stream in below',
+        'trace.statusStopped': 'Stopped',
+        'trace.statusError': 'Error: ',
+        'trace.flowRan': 'Flow ran',
+        'trace.flowUpdated': 'Flow updated',
+        'trace.deviceUpdate': 'Device update',
+        'trace.logicUpdate': 'Logic variable',
+        'trace.appUpdate': 'App update',
         'apps.onlyUpdates': 'Only apps with updates',
         'apps.onlyUnused': 'Only unused apps',
         'apps.hideExtensions': 'Hide extensions',
@@ -356,6 +398,24 @@ const I18N = {
         'filter.allApps': 'Alle apper',
         'tab.flows': 'Flows',
         'tab.apps': 'Apper',
+        'tab.trace': 'Sporing',
+        'trace.intro': 'Live-sporing av hendelser på Homey-en din. Bruk dette til å finne sykliske flows eller uventede triggere. Sporingen kjører bare så lenge du er på denne fanen.',
+        'trace.start': '▶ Start sporing',
+        'trace.stop': '■ Stopp',
+        'trace.clear': 'Tøm',
+        'trace.export': 'Eksporter JSON',
+        'trace.filterPlaceholder': 'Filtrer…',
+        'trace.empty': 'Ingen hendelser ennå. Trykk "Start sporing" og utløs noe på Homey-en din.',
+        'trace.statusIdle': '',
+        'trace.statusStarting': 'Kobler til hendelser…',
+        'trace.statusRunning': 'Sporer — hendelser strømmer inn under',
+        'trace.statusStopped': 'Stoppet',
+        'trace.statusError': 'Feil: ',
+        'trace.flowRan': 'Flow kjørte',
+        'trace.flowUpdated': 'Flow oppdatert',
+        'trace.deviceUpdate': 'Enhetsoppdatering',
+        'trace.logicUpdate': 'Logikkvariabel',
+        'trace.appUpdate': 'Appoppdatering',
         'apps.onlyUpdates': 'Bare apper med oppdateringer',
         'apps.onlyUnused': 'Bare ubrukte apper',
         'apps.hideExtensions': 'Skjul utvidelser',
@@ -595,6 +655,14 @@ class FlowDoctor {
         this.cloudApi = null;
         this.api = null;
         this.results = [];
+        this.tracing = false;
+        this.traceEvents = [];
+        this.traceMaxEvents = 2000;
+        this.traceListeners = [];
+        this.traceFlowPollHandle = null;
+        this.traceLastExec = new Map();
+        this.traceFlowsById = new Map();
+        this.traceDevicesById = new Map();
     }
 
     t(key) { return (I18N[this.lang] && I18N[this.lang][key]) || I18N.en[key] || key; }
@@ -724,6 +792,14 @@ class FlowDoctor {
         document.getElementById('app-only-unused').addEventListener('change', () => this.renderApps());
         document.getElementById('app-hide-extensions').addEventListener('change', () => this.renderApps());
         document.getElementById('app-sort').addEventListener('change', () => this.renderApps());
+
+        // Trace tab wiring
+        document.getElementById('trace-start-button').addEventListener('click', () => this.startTrace());
+        document.getElementById('trace-stop-button').addEventListener('click', () => this.stopTrace());
+        document.getElementById('trace-clear-button').addEventListener('click', () => this.clearTrace());
+        document.getElementById('trace-export-button').addEventListener('click', () => this.exportTrace());
+        document.getElementById('trace-search').addEventListener('input', () => this.renderTrace());
+        document.querySelectorAll('.trace-cat-toggle').forEach(cb => cb.addEventListener('change', () => this.renderTrace()));
 
         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
             this.showScreen('api-setup-screen');
@@ -922,6 +998,9 @@ class FlowDoctor {
         });
         document.getElementById('tab-flows').classList.toggle('hidden', name !== 'flows');
         document.getElementById('tab-apps').classList.toggle('hidden', name !== 'apps');
+        document.getElementById('tab-trace').classList.toggle('hidden', name !== 'trace');
+        // Auto-pause tracing when leaving the tab so we don't burn polling/realtime in the background.
+        if (name !== 'trace' && this.tracing) this.stopTrace({ silent: true });
     }
 
     async scan() {
@@ -1474,6 +1553,283 @@ class FlowDoctor {
                 if (chev) chev.textContent = nowHidden ? '▸' : '▾';
             });
         });
+    }
+
+    // ---------- Trace tab ----------
+
+    setTraceStatus(text, kind) {
+        const el = document.getElementById('trace-status');
+        if (!el) return;
+        el.textContent = text || '';
+        el.className = 'text-xs ml-1 ' + (kind === 'error' ? 'text-red-600' : kind === 'running' ? 'text-green-700' : 'text-gray-500');
+    }
+
+    async startTrace() {
+        if (this.tracing) return;
+        if (!this.api) { this.setTraceStatus('Not connected', 'error'); return; }
+        this.tracing = true;
+        document.getElementById('trace-start-button').classList.add('hidden');
+        document.getElementById('trace-stop-button').classList.remove('hidden');
+        document.getElementById('trace-rec-dot').classList.remove('hidden');
+        this.setTraceStatus(this.t('trace.statusStarting'));
+
+        try {
+            // Build initial caches (flows + devices) — also seeds the lastExecuted baseline so we
+            // only log NEW executions from now on.
+            const [flows, advFlows, devices] = await Promise.all([
+                this.api.flow.getFlows().catch(() => ({})),
+                (this.api.flow.getAdvancedFlows ? this.api.flow.getAdvancedFlows() : Promise.resolve({})).catch(() => ({})),
+                this.api.devices ? this.api.devices.getDevices().catch(() => ({})) : Promise.resolve({}),
+            ]);
+            this.traceFlowsById.clear();
+            Object.values(flows).forEach(f => { this.traceFlowsById.set(f.id, { ...f, _type: 'standard' }); if (f.lastExecuted) this.traceLastExec.set(f.id, f.lastExecuted); });
+            Object.values(advFlows).forEach(f => { this.traceFlowsById.set(f.id, { ...f, _type: 'advanced' }); if (f.lastExecuted) this.traceLastExec.set(f.id, f.lastExecuted); });
+            this.traceDevicesById.clear();
+            Object.values(devices).forEach(d => this.traceDevicesById.set(d.id, d));
+
+            // Subscribe to WebSocket events. The HomeyAPI v3 managers extend EventEmitter and emit
+            // events like "device.update", "flow.update", "variable.update", "app.update".
+            // We wrap each subscription in try/catch — if a particular manager isn't exposed in this
+            // SDK build, the others should still work.
+            this.attachManagerListener('devices', 'device.update', (dev) => {
+                const prev = this.traceDevicesById.get(dev.id);
+                const changes = this.diffCapabilities(prev, dev);
+                this.traceDevicesById.set(dev.id, dev);
+                if (changes.length === 0) return;
+                for (const c of changes) {
+                    this.addTraceEvent({
+                        cat: 'device',
+                        title: this.t('trace.deviceUpdate'),
+                        subject: dev.name || dev.id,
+                        detail: `${c.cap} = ${this.fmtVal(c.next)}` + (c.prev !== undefined ? ` (was ${this.fmtVal(c.prev)})` : ''),
+                        raw: { id: dev.id, capability: c.cap, value: c.next, previous: c.prev },
+                    });
+                }
+            });
+
+            this.attachManagerListener('flow', 'flow.update', (flow) => {
+                const prev = this.traceFlowsById.get(flow.id);
+                const prevExec = this.traceLastExec.get(flow.id);
+                this.traceFlowsById.set(flow.id, { ...(prev || {}), ...flow });
+                if (flow.lastExecuted && flow.lastExecuted !== prevExec) {
+                    this.traceLastExec.set(flow.id, flow.lastExecuted);
+                    this.addTraceEvent({
+                        cat: 'flow',
+                        title: this.t('trace.flowRan'),
+                        subject: flow.name || (prev && prev.name) || flow.id,
+                        detail: new Date(flow.lastExecuted).toLocaleTimeString(),
+                        raw: { id: flow.id, lastExecuted: flow.lastExecuted },
+                    });
+                } else if (prev && (prev.enabled !== flow.enabled || prev.broken !== flow.broken)) {
+                    this.addTraceEvent({
+                        cat: 'flow',
+                        title: this.t('trace.flowUpdated'),
+                        subject: flow.name || (prev && prev.name) || flow.id,
+                        detail: `enabled=${flow.enabled} broken=${!!flow.broken}`,
+                        raw: { id: flow.id, enabled: flow.enabled, broken: flow.broken },
+                    });
+                }
+            });
+            this.attachManagerListener('flow', 'advancedflow.update', (flow) => {
+                const prev = this.traceFlowsById.get(flow.id);
+                const prevExec = this.traceLastExec.get(flow.id);
+                this.traceFlowsById.set(flow.id, { ...(prev || {}), ...flow, _type: 'advanced' });
+                if (flow.lastExecuted && flow.lastExecuted !== prevExec) {
+                    this.traceLastExec.set(flow.id, flow.lastExecuted);
+                    this.addTraceEvent({
+                        cat: 'flow',
+                        title: this.t('trace.flowRan') + ' (advanced)',
+                        subject: flow.name || (prev && prev.name) || flow.id,
+                        detail: new Date(flow.lastExecuted).toLocaleTimeString(),
+                        raw: { id: flow.id, lastExecuted: flow.lastExecuted },
+                    });
+                }
+            });
+
+            this.attachManagerListener('logic', 'variable.update', (v) => {
+                this.addTraceEvent({
+                    cat: 'logic',
+                    title: this.t('trace.logicUpdate'),
+                    subject: v.name || v.id,
+                    detail: `= ${this.fmtVal(v.value)}`,
+                    raw: { id: v.id, value: v.value },
+                });
+            });
+
+            this.attachManagerListener('apps', 'app.update', (a) => {
+                this.addTraceEvent({
+                    cat: 'app',
+                    title: this.t('trace.appUpdate'),
+                    subject: a.name || a.id,
+                    detail: `state=${a.state || '?'}${a.crashed ? ' CRASHED' : ''}`,
+                    raw: { id: a.id, state: a.state, crashed: !!a.crashed },
+                });
+            });
+
+            // Polling fallback for flow executions — the WebSocket 'flow.update' event isn't
+            // emitted on every run on every Homey firmware, so we diff lastExecuted ourselves.
+            // 1.5s cadence is a compromise between responsiveness and load.
+            this.traceFlowPollHandle = setInterval(() => this.pollFlowExecutions(), 1500);
+
+            this.setTraceStatus(this.t('trace.statusRunning'), 'running');
+        } catch (e) {
+            this.setTraceStatus(this.t('trace.statusError') + (e.message || String(e)), 'error');
+            this.tracing = false;
+            document.getElementById('trace-start-button').classList.remove('hidden');
+            document.getElementById('trace-stop-button').classList.add('hidden');
+            document.getElementById('trace-rec-dot').classList.add('hidden');
+        }
+    }
+
+    attachManagerListener(managerName, eventName, handler) {
+        try {
+            const mgr = this.api && this.api[managerName];
+            if (!mgr || typeof mgr.on !== 'function') return;
+            const wrapped = (payload) => {
+                try { handler(payload); } catch (e) { /* swallow per-event errors */ }
+            };
+            mgr.on(eventName, wrapped);
+            this.traceListeners.push({ mgr, eventName, wrapped });
+        } catch (e) { /* manager not available — ignore */ }
+    }
+
+    diffCapabilities(prev, next) {
+        const changes = [];
+        const nextCaps = next && next.capabilitiesObj;
+        if (!nextCaps) return changes;
+        const prevCaps = (prev && prev.capabilitiesObj) || {};
+        for (const [cap, obj] of Object.entries(nextCaps)) {
+            const nv = obj && obj.value;
+            const pv = prevCaps[cap] && prevCaps[cap].value;
+            if (pv !== nv) changes.push({ cap, prev: pv, next: nv });
+        }
+        return changes;
+    }
+
+    async pollFlowExecutions() {
+        if (!this.tracing) return;
+        try {
+            const [flows, advFlows] = await Promise.all([
+                this.api.flow.getFlows().catch(() => ({})),
+                (this.api.flow.getAdvancedFlows ? this.api.flow.getAdvancedFlows() : Promise.resolve({})).catch(() => ({})),
+            ]);
+            const all = [
+                ...Object.values(flows).map(f => ({ ...f, _type: 'standard' })),
+                ...Object.values(advFlows).map(f => ({ ...f, _type: 'advanced' })),
+            ];
+            for (const flow of all) {
+                if (!flow.lastExecuted) continue;
+                const prev = this.traceLastExec.get(flow.id);
+                if (prev === flow.lastExecuted) continue;
+                const seeding = prev === undefined;
+                this.traceLastExec.set(flow.id, flow.lastExecuted);
+                if (seeding) continue;
+                this.addTraceEvent({
+                    cat: 'flow',
+                    title: this.t('trace.flowRan') + (flow._type === 'advanced' ? ' (advanced)' : ''),
+                    subject: flow.name || flow.id,
+                    detail: new Date(flow.lastExecuted).toLocaleTimeString(),
+                    raw: { id: flow.id, lastExecuted: flow.lastExecuted, type: flow._type },
+                });
+                this.traceFlowsById.set(flow.id, flow);
+            }
+        } catch (e) { /* ignore transient poll errors */ }
+    }
+
+    stopTrace(opts) {
+        if (!this.tracing) return;
+        this.tracing = false;
+        if (this.traceFlowPollHandle) { clearInterval(this.traceFlowPollHandle); this.traceFlowPollHandle = null; }
+        for (const { mgr, eventName, wrapped } of this.traceListeners) {
+            try { if (typeof mgr.off === 'function') mgr.off(eventName, wrapped); else if (typeof mgr.removeListener === 'function') mgr.removeListener(eventName, wrapped); } catch (e) { /* ignore */ }
+        }
+        this.traceListeners = [];
+        document.getElementById('trace-start-button').classList.remove('hidden');
+        document.getElementById('trace-stop-button').classList.add('hidden');
+        document.getElementById('trace-rec-dot').classList.add('hidden');
+        if (!opts || !opts.silent) this.setTraceStatus(this.t('trace.statusStopped'));
+    }
+
+    clearTrace() {
+        this.traceEvents = [];
+        document.getElementById('tab-trace-count').textContent = '0';
+        this.renderTrace();
+    }
+
+    exportTrace() {
+        const blob = new Blob([JSON.stringify(this.traceEvents, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `flow-doctor-trace-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    addTraceEvent(ev) {
+        ev.t = Date.now();
+        this.traceEvents.push(ev);
+        if (this.traceEvents.length > this.traceMaxEvents) this.traceEvents.splice(0, this.traceEvents.length - this.traceMaxEvents);
+        document.getElementById('tab-trace-count').textContent = String(this.traceEvents.length);
+        this.appendTraceLine(ev);
+    }
+
+    fmtVal(v) {
+        if (v === null || v === undefined) return '∅';
+        if (typeof v === 'boolean') return v ? 'true' : 'false';
+        if (typeof v === 'number') return String(v);
+        if (typeof v === 'string') return JSON.stringify(v);
+        try { return JSON.stringify(v); } catch (e) { return String(v); }
+    }
+
+    traceCatColor(cat) {
+        switch (cat) {
+            case 'flow':   return 'text-purple-300';
+            case 'device': return 'text-cyan-300';
+            case 'logic':  return 'text-amber-300';
+            case 'app':    return 'text-red-300';
+            default:       return 'text-gray-300';
+        }
+    }
+
+    passesTraceFilters(ev) {
+        const cats = {};
+        document.querySelectorAll('.trace-cat-toggle').forEach(cb => { cats[cb.getAttribute('data-cat')] = cb.checked; });
+        if (cats[ev.cat] === false) return false;
+        const q = (document.getElementById('trace-search').value || '').trim().toLowerCase();
+        if (!q) return true;
+        const hay = `${ev.title} ${ev.subject || ''} ${ev.detail || ''}`.toLowerCase();
+        return hay.includes(q);
+    }
+
+    appendTraceLine(ev) {
+        const log = document.getElementById('trace-log');
+        if (!log) return;
+        // First event after empty state — wipe the placeholder.
+        if (log.firstElementChild && log.firstElementChild.getAttribute('data-i18n') === 'trace.empty') log.innerHTML = '';
+        if (!this.passesTraceFilters(ev)) return;
+        const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+        const row = document.createElement('div');
+        row.className = 'whitespace-pre-wrap leading-snug';
+        const ts = new Date(ev.t).toLocaleTimeString() + '.' + String(ev.t % 1000).padStart(3, '0');
+        row.innerHTML = `<span class="text-gray-500">${this.escape(ts)}</span> ` +
+            `<span class="${this.traceCatColor(ev.cat)} font-semibold">[${ev.cat}]</span> ` +
+            `<span class="text-gray-100">${this.escape(ev.title)}</span>` +
+            (ev.subject ? ` <span class="text-white font-semibold">${this.escape(ev.subject)}</span>` : '') +
+            (ev.detail ? ` <span class="text-gray-400">${this.escape(ev.detail)}</span>` : '');
+        log.appendChild(row);
+        if (nearBottom) log.scrollTop = log.scrollHeight;
+    }
+
+    renderTrace() {
+        const log = document.getElementById('trace-log');
+        if (!log) return;
+        log.innerHTML = '';
+        if (this.traceEvents.length === 0) {
+            log.innerHTML = `<div class="text-gray-500" data-i18n="trace.empty">${this.escape(this.t('trace.empty'))}</div>`;
+            return;
+        }
+        for (const ev of this.traceEvents) this.appendTraceLine(ev);
     }
 
     escape(s) {

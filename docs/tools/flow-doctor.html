@@ -274,6 +274,8 @@ const I18N = {
         'apps.unused': 'Unused by any flow',
         'apps.usedBy': 'flows',
         'apps.devices': 'devices',
+        'apps.flowsHeader': 'Flows using this app',
+        'apps.devicesHeader': 'Devices from this app',
         'apps.extends': 'Extends',
         'apps.installed': 'Installed',
         'apps.store': 'store',
@@ -363,6 +365,8 @@ const I18N = {
         'apps.unused': 'Ikke brukt av noen flow',
         'apps.usedBy': 'flows',
         'apps.devices': 'enheter',
+        'apps.flowsHeader': 'Flows som bruker denne appen',
+        'apps.devicesHeader': 'Enheter fra denne appen',
         'apps.extends': 'Utvider',
         'apps.installed': 'Installert',
         'apps.store': 'butikk',
@@ -452,6 +456,8 @@ const I18N = {
         'apps.unused': 'Von keinem Flow verwendet',
         'apps.usedBy': 'Flows',
         'apps.devices': 'Geräte',
+        'apps.flowsHeader': 'Flows, die diese App nutzen',
+        'apps.devicesHeader': 'Geräte aus dieser App',
         'apps.extends': 'Erweitert',
         'apps.installed': 'Installiert',
         'apps.store': 'Store',
@@ -541,6 +547,8 @@ const I18N = {
         'apps.unused': 'Door geen enkele flow gebruikt',
         'apps.usedBy': 'flows',
         'apps.devices': 'apparaten',
+        'apps.flowsHeader': 'Flows die deze app gebruiken',
+        'apps.devicesHeader': 'Apparaten van deze app',
         'apps.extends': 'Breidt uit',
         'apps.installed': 'Geïnstalleerd',
         'apps.store': 'store',
@@ -795,6 +803,11 @@ class FlowDoctor {
         if (!this.homeyId) return null;
         const base = `https://my.homey.app/homeys/${this.homeyId}`;
         return type === 'advanced' ? `${base}/flows/advanced/${flow.id}` : `${base}/flows/${flow.id}`;
+    }
+
+    deviceUrl(deviceId) {
+        if (!this.homeyId || !deviceId) return null;
+        return `https://my.homey.app/homeys/${this.homeyId}/devices/${deviceId}`;
     }
 
     appUrl(appId) {
@@ -1158,8 +1171,28 @@ class FlowDoctor {
                 }
             });
 
+            const appToFlows = {};
+            results.forEach(r => {
+                r.apps.forEach(appId => {
+                    if (!appToFlows[appId]) appToFlows[appId] = [];
+                    appToFlows[appId].push({ id: r.id, name: r.name || '', type: r.type, severity: this.flowSeverity(r) });
+                });
+            });
+            Object.values(appToFlows).forEach(list => list.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+
+            const appToDevices = {};
+            Object.values(devices).forEach(d => {
+                const appId = deviceToApp[d.id];
+                if (!appId) return;
+                if (!appToDevices[appId]) appToDevices[appId] = [];
+                appToDevices[appId].push({ id: d.id, name: d.name || d.id });
+            });
+            Object.values(appToDevices).forEach(list => list.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+
             this.results = results;
             this.appsList = appsList;
+            this.appToFlows = appToFlows;
+            this.appToDevices = appToDevices;
             this.populateAppFilter();
             this.showScreen('results-screen');
             // Preserve the active tab across rescans; default to flows on first scan.
@@ -1352,15 +1385,52 @@ class FlowDoctor {
                 ? `${installedTag} · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
                 : installedTag;
             const storeLink = this.appUrl(a.id);
-            const showUsageLink = a.usage > 0;
-            const flowsHtml = showUsageLink
-                ? `<a href="#" data-app-id="${this.escape(a.id)}" class="filter-by-app text-xs text-blue-600 hover:underline">${a.usage} ${this.t('apps.usedBy')} →</a>`
+            const flowsCount = a.usage || 0;
+            const devicesCount = a.deviceCount || 0;
+            const flowsHtml = flowsCount > 0
+                ? `<button type="button" data-toggle-app="${this.escape(a.id)}" data-toggle-kind="flows" class="app-toggle text-xs text-blue-600 hover:underline">${flowsCount} ${this.t('apps.usedBy')} <span class="chevron">▸</span></button>`
                 : `<span class="text-xs text-gray-400">0 ${this.t('apps.usedBy')}</span>`;
-            const devicesText = `${a.deviceCount || 0} ${this.t('apps.devices')}`;
-            const devicesHtml = `<span class="text-xs ${(a.deviceCount || 0) > 0 ? 'text-gray-600' : 'text-gray-400'}">${devicesText}</span>`;
+            const devicesHtml = devicesCount > 0
+                ? `<button type="button" data-toggle-app="${this.escape(a.id)}" data-toggle-kind="devices" class="app-toggle text-xs text-blue-600 hover:underline">${devicesCount} ${this.t('apps.devices')} <span class="chevron">▸</span></button>`
+                : `<span class="text-xs text-gray-400">0 ${this.t('apps.devices')}</span>`;
             const usageHtml = `${devicesHtml}${flowsHtml}`;
             const extendsHtml = a.parentAppId
                 ? `<div class="text-xs text-gray-500 mt-1 italic">${this.t('apps.extends')} ${this.escape(a.parentAppName || a.parentAppId)}</div>`
+                : '';
+
+            const flowsList = (this.appToFlows && this.appToFlows[a.id]) || [];
+            const devicesList = (this.appToDevices && this.appToDevices[a.id]) || [];
+            const sevDot = (sev) => {
+                const color = sev === 'error' ? 'text-red-600'
+                    : sev === 'warn' ? 'text-amber-600'
+                    : sev === 'info' ? 'text-blue-600'
+                    : 'text-green-700';
+                return `<span class="${color}">●</span>`;
+            };
+            const flowsPanelHtml = flowsList.length
+                ? `<div class="app-panel hidden mt-3 pt-3 border-t border-gray-100" data-panel-kind="flows">
+                       <div class="text-xs font-semibold text-gray-700 mb-1">${this.t('apps.flowsHeader')}</div>
+                       <ul class="space-y-1">${flowsList.map(f => {
+                           const url = this.flowUrl(f, f.type);
+                           const typeTag = f.type === 'advanced' ? ` <span class="text-gray-400">(adv)</span>` : '';
+                           const nameHtml = url
+                               ? `<a href="${url}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${this.escape(f.name || '(unnamed)')}</a>`
+                               : this.escape(f.name || '(unnamed)');
+                           return `<li class="text-xs">${sevDot(f.severity)} ${nameHtml}${typeTag}</li>`;
+                       }).join('')}</ul>
+                   </div>`
+                : '';
+            const devicesPanelHtml = devicesList.length
+                ? `<div class="app-panel hidden mt-3 pt-3 border-t border-gray-100" data-panel-kind="devices">
+                       <div class="text-xs font-semibold text-gray-700 mb-1">${this.t('apps.devicesHeader')}</div>
+                       <ul class="space-y-1">${devicesList.map(d => {
+                           const url = this.deviceUrl(d.id);
+                           const nameHtml = url
+                               ? `<a href="${url}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${this.escape(d.name)}</a>`
+                               : this.escape(d.name);
+                           return `<li class="text-xs">${nameHtml}</li>`;
+                       }).join('')}</ul>
+                   </div>`
                 : '';
 
             const div = document.createElement('div');
@@ -1386,16 +1456,22 @@ class FlowDoctor {
                         <a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">App Store ↗</a>
                     </div>
                 </div>
+                ${devicesPanelHtml}
+                ${flowsPanelHtml}
             `;
             list.appendChild(div);
         }
 
-        list.querySelectorAll('.filter-by-app').forEach(a => {
-            a.addEventListener('click', (e) => {
-                e.preventDefault();
-                document.getElementById('flow-app-filter').value = a.getAttribute('data-app-id');
-                this.switchTab('flows');
-                this.renderFlows();
+        list.querySelectorAll('.app-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const kind = btn.getAttribute('data-toggle-kind');
+                const row = btn.closest('.issue-row');
+                if (!row) return;
+                const panel = row.querySelector(`.app-panel[data-panel-kind="${kind}"]`);
+                if (!panel) return;
+                const nowHidden = panel.classList.toggle('hidden');
+                const chev = btn.querySelector('.chevron');
+                if (chev) chev.textContent = nowHidden ? '▸' : '▾';
             });
         });
     }

@@ -290,7 +290,7 @@ const I18N = {
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
         'tab.trace': 'Trace',
-        'trace.intro': 'Live trace of events on your Homey. Use this to find cyclic flows or unexpected triggers. Tracing only runs while you stay on this tab.',
+        'trace.intro': 'Live trace of events on your Homey. Use this to find cyclic flows or unexpected triggers. Tracing keeps running while you switch to other Flow Doctor tabs.',
         'trace.start': '▶ Start tracing',
         'trace.stop': '■ Stop',
         'trace.clear': 'Clear',
@@ -399,7 +399,7 @@ const I18N = {
         'tab.flows': 'Flows',
         'tab.apps': 'Apper',
         'tab.trace': 'Sporing',
-        'trace.intro': 'Live-sporing av hendelser på Homey-en din. Bruk dette til å finne sykliske flows eller uventede triggere. Sporingen kjører bare så lenge du er på denne fanen.',
+        'trace.intro': 'Live-sporing av hendelser på Homey-en din. Bruk dette til å finne sykliske flows eller uventede triggere. Sporingen fortsetter når du bytter mellom Flow Doctor-faner.',
         'trace.start': '▶ Start sporing',
         'trace.stop': '■ Stopp',
         'trace.clear': 'Tøm',
@@ -999,8 +999,8 @@ class FlowDoctor {
         document.getElementById('tab-flows').classList.toggle('hidden', name !== 'flows');
         document.getElementById('tab-apps').classList.toggle('hidden', name !== 'apps');
         document.getElementById('tab-trace').classList.toggle('hidden', name !== 'trace');
-        // Auto-pause tracing when leaving the tab so we don't burn polling/realtime in the background.
-        if (name !== 'trace' && this.tracing) this.stopTrace({ silent: true });
+        // Tracing keeps running across internal tab switches — users need to compare with the
+        // Flows/Apps tabs while events stream. The hidden log catches up when they switch back.
     }
 
     async scan() {
@@ -1741,10 +1741,22 @@ class FlowDoctor {
                 ...Object.values(flows).map(f => ({ ...f, _type: 'standard' })),
                 ...Object.values(advFlows).map(f => ({ ...f, _type: 'advanced' })),
             ];
+            // One-time field-shape dump on first successful poll — helps diagnose whether
+            // 'lastExecuted' is the right field name or if it's null on this Homey.
+            if (!this._poll_logged_shape && all.length) {
+                this._poll_logged_shape = true;
+                const sample = all[0];
+                console.log('[trace] flow object sample:', sample);
+                console.log('[trace] flow keys:', Object.keys(sample));
+                console.log('[trace] flows with lastExecuted:', all.filter(f => f.lastExecuted).length, '/', all.length);
+            }
+            let changes = 0;
             for (const flow of all) {
                 if (!flow.lastExecuted) continue;
                 const prev = this.traceLastExec.get(flow.id);
                 if (prev === flow.lastExecuted) continue;
+                changes++;
+                console.log('[trace] flow lastExecuted changed:', flow.name, 'prev=', prev, 'next=', flow.lastExecuted);
                 // startTrace() already seeded every flow that had a prior lastExecuted, so a
                 // prev===undefined here means this flow ran for the very first time during
                 // this tracing session — that's a real event worth reporting.

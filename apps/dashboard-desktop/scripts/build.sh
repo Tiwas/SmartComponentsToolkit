@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Quiet build script for the Homey Toolbox Dashboard (Linux/macOS).
+# Quiet build script for the Smart (Components) Toolkit Widget (Linux/macOS).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

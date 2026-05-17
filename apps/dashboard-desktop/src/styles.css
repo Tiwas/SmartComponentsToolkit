@@ -337,3 +337,52 @@ button.primary:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.settings-screen {
+  padding: 0;
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+.settings-header h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.settings-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-section:last-child {
+  border-bottom: none;
+}
+.settings-section-title {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+.settings-label {
+  flex: 1;
+  font-size: 12px;
+}
+.settings-hint {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}

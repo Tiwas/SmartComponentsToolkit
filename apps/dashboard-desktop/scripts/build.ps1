@@ -1,4 +1,4 @@
-# Quiet build script for the Homey Toolbox Dashboard (Windows).
+# Quiet build script for the Smart (Components) Toolkit Widget (Windows).
 # Run from the repo root or anywhere — it cd's into the desktop app folder.
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path

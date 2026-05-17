@@ -26,9 +26,9 @@ Test and build your logic before deploying:
 
 ---
 
-## 🖥️ Desktop Dashboard *(experimental)*
+## 🖥️ Smart (Components) Toolkit Widget *(experimental)*
 
-A floating, always-on-top desktop widget that lets you run Homey flows from any platform you're working on, with local favorites organized into folders and live Homey notifications surfaced as toasts.
+A floating, always-on-top desktop widget that lets you run Homey flows from any platform you're working on, with local favorites organized into folders and live Homey notifications surfaced as on-screen toasts.
 
 - Source: [`apps/dashboard-desktop/`](apps/dashboard-desktop/)
 - Built with [Tauri 2](https://v2.tauri.app/) + React + TypeScript; shared logic in [`apps/dashboard-shared/`](apps/dashboard-shared/)

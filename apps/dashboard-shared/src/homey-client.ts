@@ -4,6 +4,8 @@ import type {
   Flow,
   FlowFolder,
   HomeyAPILike,
+  RawApp,
+  RawDevice,
   RawFlow,
   RawFlowFolder,
 } from "./types.js";
@@ -59,6 +61,28 @@ export class HomeyClient {
     } else {
       await this.api.flow.updateFlow({ id: flow.id, flow: { favorite } });
     }
+  }
+
+  /** Maps deviceId → device name. Empty map if devices API not available. */
+  async listDeviceNames(): Promise<Map<string, string>> {
+    if (!this.api.devices?.getDevices) return new Map();
+    const map = await this.api.devices.getDevices();
+    const out = new Map<string, string>();
+    for (const d of Object.values(map) as RawDevice[]) {
+      if (d.id && d.name) out.set(d.id, d.name);
+    }
+    return out;
+  }
+
+  /** Maps appId → app name. Empty map if apps API not available. */
+  async listAppNames(): Promise<Map<string, string>> {
+    if (!this.api.apps?.getApps) return new Map();
+    const map = await this.api.apps.getApps();
+    const out = new Map<string, string>();
+    for (const a of Object.values(map) as RawApp[]) {
+      if (a.id && a.name) out.set(a.id, a.name);
+    }
+    return out;
   }
 }
 

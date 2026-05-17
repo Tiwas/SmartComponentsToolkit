@@ -2,24 +2,30 @@ import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   AuthSession,
+  DEFAULT_SETTINGS,
   HomeyClient,
+  type AppSettings,
   type AuthCredentials,
 } from "@homey-toolbox/dashboard-shared";
 import { Setup } from "./components/Setup";
 import { Login } from "./components/Login";
 import { Dashboard } from "./components/Dashboard";
+import { Settings } from "./components/Settings";
 import { getAthomCloudAPI } from "./lib/cloud";
 import { performLoopbackOAuth, REDIRECT_URL } from "./lib/oauth";
 import { clearCredentials, loadCredentials } from "./lib/storage";
+import { loadSettings, saveSettings } from "./lib/settings-tauri";
 
 type Screen =
   | { kind: "loading" }
   | { kind: "setup" }
   | { kind: "login"; creds: AuthCredentials }
-  | { kind: "dashboard"; client: HomeyClient };
+  | { kind: "dashboard"; client: HomeyClient }
+  | { kind: "settings"; client: HomeyClient };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ kind: "loading" });
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [fatal, setFatal] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,7 +33,12 @@ export function App() {
   }, []);
 
   async function bootstrap() {
-    const stored = loadCredentials();
+    const [stored, loadedSettings] = await Promise.all([
+      Promise.resolve(loadCredentials()),
+      loadSettings().catch(() => DEFAULT_SETTINGS),
+    ]);
+    setSettings(loadedSettings);
+
     if (!stored) {
       setScreen({ kind: "setup" });
       return;
@@ -58,7 +69,6 @@ export function App() {
 
   async function handleLogout() {
     setFatal(null);
-    // AthomCloudAPI's known token keys (mirrors docs/tools/flow-doctor.html:623).
     [
       "homey-api",
       "homey_api_key",
@@ -68,7 +78,6 @@ export function App() {
       "athom_refresh_token",
       "athom_token_expires_at",
     ].forEach((k) => localStorage.removeItem(k));
-    // Catch anything else Athom/Homey-related we might have missed.
     Object.keys(localStorage)
       .filter((k) => /^(homey|athom)[-_]/i.test(k))
       .forEach((k) => localStorage.removeItem(k));
@@ -86,21 +95,32 @@ export function App() {
     handleLogout();
   }
 
+  async function persistSettings(next: AppSettings) {
+    setSettings(next);
+    try {
+      await saveSettings(next);
+    } catch (e) {
+      console.warn("[dashboard] saveSettings failed:", e);
+    }
+  }
+
+  function openSettings() {
+    if (screen.kind === "dashboard") {
+      setScreen({ kind: "settings", client: screen.client });
+    }
+  }
+
+  function backToDashboard() {
+    if (screen.kind === "settings") {
+      setScreen({ kind: "dashboard", client: screen.client });
+    }
+  }
+
   return (
     <>
       <div className="titlebar">
         <span>Smart Toolkit Widget</span>
         <div className="actions">
-          <button className="icon-btn" onClick={handleLogout} title="Sign out (keep credentials)">
-            ⎋
-          </button>
-          <button
-            className="icon-btn"
-            onClick={handleResetCredentials}
-            title="Reset OAuth credentials"
-          >
-            ⚙
-          </button>
           <button
             className="icon-btn close-btn"
             onClick={() => getCurrentWindow().close()}
@@ -117,7 +137,21 @@ export function App() {
       {!fatal && screen.kind === "setup" && <Setup onSaved={() => bootstrap()} />}
       {!fatal && screen.kind === "login" && <Login onLogin={handleLogin} />}
       {!fatal && screen.kind === "dashboard" && (
-        <Dashboard client={screen.client} onLogout={handleLogout} />
+        <Dashboard
+          client={screen.client}
+          settings={settings}
+          onLogout={handleLogout}
+          onOpenSettings={openSettings}
+        />
+      )}
+      {!fatal && screen.kind === "settings" && (
+        <Settings
+          settings={settings}
+          onChange={persistSettings}
+          onBack={backToDashboard}
+          onResetCredentials={handleResetCredentials}
+          onSignOut={handleLogout}
+        />
       )}
     </>
   );

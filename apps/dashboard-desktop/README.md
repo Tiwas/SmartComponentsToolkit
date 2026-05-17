@@ -1,4 +1,4 @@
-# Homey Toolbox Dashboard
+# Smart (Components) Toolkit Widget
 
 A small floating, always-on-top desktop widget for triggering Homey flows and watching notifications. Sits next to your editor or browser without stealing focus.
 

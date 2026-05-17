@@ -7,12 +7,14 @@ import {
   deleteFolder,
   EMPTY_FAVORITES,
   flowEditorUrl,
+  formatOwnerUri,
   groupByFolder,
   HomeyClient,
   isFavorite,
   moveFavorite,
   removeFavorite,
   renameFolder,
+  type AppSettings,
   type FavoritesData,
   type Flow,
   type FlowFolder,
@@ -28,7 +30,16 @@ type Modal =
   | { kind: "newFolder"; assignFlowId?: string }
   | { kind: "renameFolder"; folderId: string; current: string };
 
-export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout: () => void }) {
+export function Dashboard({
+  client,
+  settings,
+  onOpenSettings,
+}: {
+  client: HomeyClient;
+  settings: AppSettings;
+  onLogout: () => void;
+  onOpenSettings: () => void;
+}) {
   const [tab, setTab] = useState<Tab>("favorites");
   const [flows, setFlows] = useState<Flow[]>([]);
   const [homeyFolders, setHomeyFolders] = useState<FlowFolder[]>([]);
@@ -36,6 +47,8 @@ export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout:
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [deviceNames, setDeviceNames] = useState<Map<string, string>>(new Map());
+  const [appNames, setAppNames] = useState<Map<string, string>>(new Map());
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [menu, setMenu] = useState<
     { x: number; y: number } & ({ target: "flow"; flow: Flow } | { target: "folder"; folderId: string })
@@ -65,15 +78,19 @@ export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout:
     let cancelled = false;
     (async () => {
       try {
-        const [fl, fd, fav] = await Promise.all([
+        const [fl, fd, fav, dn, an] = await Promise.all([
           client.listFlows(),
           client.listFolders(),
           loadFavorites(),
+          client.listDeviceNames().catch(() => new Map<string, string>()),
+          client.listAppNames().catch(() => new Map<string, string>()),
         ]);
         if (cancelled) return;
         setFlows(fl);
         setHomeyFolders(fd);
         setFavorites(fav);
+        setDeviceNames(dn);
+        setAppNames(an);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -92,10 +109,9 @@ export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout:
   }
 
   // Poll Homey for new notifications and surface them as toasts.
-  // We poll because the SDK's realtime emitter shape varies between versions
-  // and isn't reliably exposed; a 10s poll is more than good enough for a
-  // dashboard widget.
   useEffect(() => {
+    if (!settings.notifications.enabled) return;
+
     const notifApi = (client.api as unknown as { notifications?: NotificationsManager }).notifications;
     if (!notifApi?.getNotifications) {
       console.warn("[dashboard] notifications.getNotifications missing — toasts disabled");
@@ -107,11 +123,7 @@ export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout:
     let initial = true;
 
     async function tick() {
-      const t0 = Date.now();
       try {
-        // $skipCache forces the SDK to hit the server instead of returning
-        // its cached map — required since the manager is not connected to
-        // realtime updates (manager.__connected is false in current SDK).
         const map = await notifApi!.getNotifications!({ $skipCache: true });
         if (cancelled) return;
         const entries = Object.values(map ?? {}) as Array<{
@@ -123,37 +135,45 @@ export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout:
         entries.sort((a, b) =>
           (a.dateCreated ?? "").localeCompare(b.dateCreated ?? ""),
         );
-        let newCount = 0;
         for (const n of entries) {
           if (!n.id || seen.has(n.id)) continue;
           seen.add(n.id);
           if (initial) continue;
-          newCount++;
-          const source = formatOwnerUri(n.ownerUri);
+          const source = settings.notifications.showSource
+            ? formatOwnerUri(n.ownerUri, {
+                device: (id) => deviceNames.get(id),
+                app: (id) => appNames.get(id),
+              })
+            : null;
           const text = source
             ? `${source} — ${n.excerpt ?? "Notification"}`
             : (n.excerpt ?? "Notification");
-          invoke("show_toast", { text, durationMs: 6000 }).catch((e) =>
-            console.warn("[dashboard] show_toast failed:", e),
-          );
+          invoke("show_toast", {
+            text,
+            durationMs: settings.notifications.durationMs,
+          }).catch((e) => console.warn("[dashboard] show_toast failed:", e));
         }
-        console.log(
-          `[dashboard] poll ${initial ? "(initial)" : ""}: total=${entries.length}, new=${newCount}, ms=${Date.now() - t0}`,
-        );
         initial = false;
       } catch (e) {
         console.warn("[dashboard] notification poll failed:", e);
       }
     }
 
-    console.log("[dashboard] starting notification poll (10s interval)");
     tick();
-    const id = window.setInterval(tick, 10_000);
+    const id = window.setInterval(tick, settings.notifications.pollIntervalSec * 1000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [client]);
+  }, [
+    client,
+    deviceNames,
+    appNames,
+    settings.notifications.enabled,
+    settings.notifications.showSource,
+    settings.notifications.durationMs,
+    settings.notifications.pollIntervalSec,
+  ]);
 
   async function persist(next: FavoritesData) {
     setFavorites(next);
@@ -400,8 +420,8 @@ export function Dashboard({ client, onLogout }: { client: HomeyClient; onLogout:
         >
           {refreshing ? "…" : "↻"}
         </button>
-        <button className="tab" onClick={onLogout} title="Sign out">
-          ⎋
+        <button className="tab" onClick={onOpenSettings} title="Settings">
+          ⚙
         </button>
       </div>
 
@@ -487,24 +507,4 @@ interface NotificationsManager {
     ownerUri?: string;
     dateCreated?: string;
   }>>;
-}
-
-/**
- * Turn a Homey ownerUri like "homey:manager:flow" or "homey:device:abc123"
- * into a short, human-readable source label for notification toasts.
- */
-function formatOwnerUri(uri: string | undefined): string | null {
-  if (!uri) return null;
-  // homey:manager:<name>
-  const mgr = uri.match(/^homey:manager:([^:]+)/i);
-  if (mgr) {
-    const name = mgr[1]!;
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }
-  // homey:device:<id> — we don't have the device name handy here; fall back to "Device"
-  if (/^homey:device:/i.test(uri)) return "Device";
-  // homey:app:<id>
-  const app = uri.match(/^homey:app:([^:]+)/i);
-  if (app) return `App ${app[1]}`;
-  return uri;
 }

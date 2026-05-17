@@ -110,13 +110,17 @@ fn url_decode(s: &str) -> String {
     out
 }
 
-fn favorites_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn app_data_file(app: &tauri::AppHandle, filename: &str) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("could not resolve app data dir: {e}"))?;
     fs::create_dir_all(&dir).map_err(|e| format!("create_dir_all: {e}"))?;
-    Ok(dir.join("favorites.json"))
+    Ok(dir.join(filename))
+}
+
+fn favorites_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app_data_file(app, "favorites.json")
 }
 
 #[tauri::command]
@@ -133,6 +137,23 @@ fn load_favorites(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
 fn save_favorites(app: tauri::AppHandle, data: serde_json::Value) -> Result<(), String> {
     let path = favorites_path(&app)?;
     let json = serde_json::to_string(&data).map_err(|e| format!("serialize: {e}"))?;
+    fs::write(&path, json).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn load_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let path = app_data_file(&app, "settings.json")?;
+    match fs::read_to_string(&path) {
+        Ok(contents) => serde_json::from_str(&contents).map_err(|e| format!("parse: {e}")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(serde_json::Value::Null),
+        Err(e) => Err(format!("read {}: {e}", path.display())),
+    }
+}
+
+#[tauri::command]
+fn save_settings(app: tauri::AppHandle, data: serde_json::Value) -> Result<(), String> {
+    let path = app_data_file(&app, "settings.json")?;
+    let json = serde_json::to_string_pretty(&data).map_err(|e| format!("serialize: {e}"))?;
     fs::write(&path, json).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
@@ -189,10 +210,16 @@ fn show_toast(app: tauri::AppHandle, text: String, duration_ms: u64) -> Result<(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             await_oauth_code,
             load_favorites,
             save_favorites,
+            load_settings,
+            save_settings,
             show_toast
         ])
         .run(tauri::generate_context!())

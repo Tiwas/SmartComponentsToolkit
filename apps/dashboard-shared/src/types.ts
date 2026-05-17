@@ -64,6 +64,23 @@ export interface HomeyAPILike {
     updateFlow(opts: { id: string; flow: Partial<RawFlow> }): Promise<void>;
     updateAdvancedFlow(opts: { id: string; advancedflow: Partial<RawFlow> }): Promise<void>;
   };
+  devices?: {
+    getDevices(opts?: { $skipCache?: boolean }): Promise<Record<string, RawDevice>>;
+  };
+  apps?: {
+    getApps(opts?: { $skipCache?: boolean }): Promise<Record<string, RawApp>>;
+  };
+}
+
+export interface RawDevice {
+  id: string;
+  name?: string;
+  zone?: string | null;
+}
+
+export interface RawApp {
+  id: string;
+  name?: string;
 }
 
 export interface RawFlow {

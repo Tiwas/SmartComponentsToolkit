@@ -24,6 +24,12 @@ interface Device {
   zone: string | null;
 }
 
+interface FlowLite {
+  id: string;
+  name: string;
+  kind: "standard" | "advanced";
+}
+
 export function Floorplan({
   client,
   onLogout,
@@ -37,15 +43,22 @@ export function Floorplan({
   const [data, setData] = useState<FloorplanData>(EMPTY_FLOORPLAN);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const [hiddenFloors, setHiddenFloors] = useState<Set<string>>(new Set());
   const [devices, setDevices] = useState<Device[]>([]);
+  const [flows, setFlows] = useState<FlowLite[]>([]);
   const overlayRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    Promise.all([loadFloorplan(), client.listDevices().catch(() => [])])
-      .then(([fp, devs]) => {
+    Promise.all([
+      loadFloorplan(),
+      client.listDevices().catch(() => []),
+      client.listFlows().catch(() => []),
+    ])
+      .then(([fp, devs, fls]) => {
         setData(fp);
         setDevices(devs);
+        setFlows(fls.map((f) => ({ id: f.id, name: f.name, kind: f.kind })));
       })
       .catch((e) => console.warn("[dashboard] floorplan init failed:", e))
       .finally(() => setLoading(false));
@@ -67,18 +80,24 @@ export function Floorplan({
     data.svg && visibleFloors ? filterFloors(data.svg, visibleFloors) : data.svg;
   const viewBox = data.svg ? getViewBox(data.svg) : "0 0 100 70";
 
-  // Compute effective placements: persisted, plus auto-placed for any
-  // device that has a matching zone but no stored placement yet.
+  // Compute effective placements: persisted (devices + flows), plus
+  // auto-placed for devices that have a matching zone but no stored
+  // placement yet.
   const placements: DevicePlacement[] = useMemo(() => {
     if (!data.svg) return [];
-    const stored = new Map(
+    const storedDevices = new Map(
       data.placements
         .filter((p) => p.kind === "device")
         .map((p) => [p.id, p] as const),
     );
+    const storedFlows = new Map(
+      data.placements
+        .filter((p) => p.kind === "flow")
+        .map((p) => [p.id, p] as const),
+    );
     const result: DevicePlacement[] = [];
     for (const dev of devices) {
-      const existing = stored.get(dev.id);
+      const existing = storedDevices.get(dev.id);
       if (existing) {
         result.push(existing);
         continue;
@@ -88,19 +107,38 @@ export function Floorplan({
         result.push({ kind: "device", id: dev.id, x: room.cx, y: room.cy });
       }
     }
-    // Keep any persisted placements for devices that no longer exist
-    // (so they don't get silently lost if the device API returned a partial list).
+    for (const flow of flows) {
+      const existing = storedFlows.get(flow.id);
+      if (existing) result.push(existing);
+    }
+    // Keep persisted placements for items that no longer exist on the Homey
+    // (don't silently delete them — could be transient API failure).
     for (const p of data.placements) {
       if (p.kind === "device" && !devices.find((d) => d.id === p.id)) result.push(p);
+      if (p.kind === "flow" && !flows.find((f) => f.id === p.id)) result.push(p);
     }
     return result;
-  }, [data.svg, data.placements, devices, roomsByZone]);
+  }, [data.svg, data.placements, devices, flows, roomsByZone]);
 
   const deviceById = useMemo(() => {
     const m = new Map<string, Device>();
     for (const d of devices) m.set(d.id, d);
     return m;
   }, [devices]);
+  const flowById = useMemo(() => {
+    const m = new Map<string, FlowLite>();
+    for (const f of flows) m.set(f.id, f);
+    return m;
+  }, [flows]);
+
+  const placedDeviceIds = useMemo(
+    () => new Set(placements.filter((p) => p.kind === "device").map((p) => p.id)),
+    [placements],
+  );
+  const placedFlowIds = useMemo(
+    () => new Set(placements.filter((p) => p.kind === "flow").map((p) => p.id)),
+    [placements],
+  );
 
   async function persist(next: FloorplanData) {
     setData(next);
@@ -114,6 +152,31 @@ export function Floorplan({
   async function resetPlacements() {
     if (!confirm("Reset all device positions to their room centers?")) return;
     await persist({ ...data, placements: [] });
+  }
+
+  function viewBoxCenter() {
+    const m = /([\-\d.]+)\s+([\-\d.]+)\s+([\-\d.]+)\s+([\-\d.]+)/.exec(viewBox);
+    if (!m) return { x: 50, y: 35 };
+    return {
+      x: parseFloat(m[1]!) + parseFloat(m[3]!) / 2,
+      y: parseFloat(m[2]!) + parseFloat(m[4]!) / 2,
+    };
+  }
+
+  async function addPlacement(kind: "device" | "flow", id: string) {
+    const center = viewBoxCenter();
+    const others = data.placements.filter((p) => !(p.kind === kind && p.id === id));
+    await persist({
+      ...data,
+      placements: [...others, { kind, id, x: center.x, y: center.y }],
+    });
+  }
+
+  async function removePlacement(kind: "device" | "flow", id: string) {
+    await persist({
+      ...data,
+      placements: data.placements.filter((p) => !(p.kind === kind && p.id === id)),
+    });
   }
 
   // SVG drag using pointer events. We convert client coords to viewBox coords
@@ -132,10 +195,17 @@ export function Floorplan({
     return { x: result.x, y: result.y };
   }
 
-  function onPointerDown(e: React.PointerEvent<SVGCircleElement>, id: string) {
+  const dragKindRef = useRef<"device" | "flow">("device");
+
+  function onPointerDown(
+    e: React.PointerEvent<SVGElement>,
+    kind: "device" | "flow",
+    id: string,
+  ) {
     e.stopPropagation();
     overlayRef.current?.setPointerCapture(e.pointerId);
     dragRef.current = { id, pointerId: e.pointerId };
+    dragKindRef.current = kind;
   }
 
   function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
@@ -143,30 +213,23 @@ export function Floorplan({
     const coords = toViewBox(e);
     if (!coords) return;
     const id = dragRef.current.id;
-    // Optimistic local update — only persist on release to avoid hammering disk.
+    const kind = dragKindRef.current;
     setData((prev) => {
-      const others = prev.placements.filter((p) => !(p.kind === "device" && p.id === id));
+      const others = prev.placements.filter((p) => !(p.kind === kind && p.id === id));
       return {
         ...prev,
-        placements: [...others, { kind: "device", id, x: coords.x, y: coords.y }],
+        placements: [...others, { kind, id, x: coords.x, y: coords.y }],
       };
     });
   }
 
   async function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
     if (!dragRef.current) return;
-    const id = dragRef.current.id;
     overlayRef.current?.releasePointerCapture(dragRef.current.pointerId);
     dragRef.current = null;
-    const placement = data.placements.find(
-      (p) => p.kind === "device" && p.id === id,
+    await saveFloorplan(data).catch((err) =>
+      console.warn("[dashboard] saveFloorplan failed:", err),
     );
-    if (placement) {
-      // Save the latest position we have in state to disk.
-      await saveFloorplan(data).catch((err) =>
-        console.warn("[dashboard] saveFloorplan failed:", err),
-      );
-    }
     e.stopPropagation();
   }
 
@@ -215,13 +278,18 @@ export function Floorplan({
         })}
         <div style={{ flex: 1 }} />
         {data.svg && (
-          <button
-            className="tab"
-            onClick={resetPlacements}
-            title="Reset device positions to room centers"
-          >
-            ↺
-          </button>
+          <>
+            <button className="tab" onClick={() => setShowAdd(true)} title="Add device or flow">
+              +
+            </button>
+            <button
+              className="tab"
+              onClick={resetPlacements}
+              title="Reset device positions to room centers"
+            >
+              ↺
+            </button>
+          </>
         )}
         <button className="tab" onClick={() => setShowImport(true)} title={t.floorplan_import}>
           ⤓
@@ -253,8 +321,9 @@ export function Floorplan({
             >
               {placements
                 .filter((p) => {
-                  // Hide placements that belong to a hidden floor.
+                  // Hide device placements whose zone belongs to a hidden floor.
                   if (!visibleFloors) return true;
+                  if (p.kind !== "device") return true;
                   const dev = deviceById.get(p.id);
                   if (!dev || !dev.zone) return true;
                   const room = roomsByZone.get(dev.zone);
@@ -262,18 +331,41 @@ export function Floorplan({
                   return visibleFloors.has(room.floor);
                 })
                 .map((p) => {
-                  const dev = deviceById.get(p.id);
+                  const dev = p.kind === "device" ? deviceById.get(p.id) : null;
+                  const flow = p.kind === "flow" ? flowById.get(p.id) : null;
+                  const label = dev?.name ?? flow?.name ?? p.id;
                   return (
-                    <g key={p.id} className="device-icon">
-                      <circle
-                        cx={p.x}
-                        cy={p.y}
-                        r={2.2}
-                        onPointerDown={(e) => onPointerDown(e, p.id)}
-                      />
-                      {dev && (
-                        <title>{dev.name}</title>
+                    <g key={`${p.kind}-${p.id}`} className={`device-icon ${p.kind}`}>
+                      {p.kind === "device" ? (
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={2.2}
+                          onPointerDown={(e) => onPointerDown(e, "device", p.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            if (confirm(`Remove ${label} from the floorplan?`)) {
+                              removePlacement("device", p.id);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <rect
+                          x={p.x - 2.2}
+                          y={p.y - 2.2}
+                          width={4.4}
+                          height={4.4}
+                          rx={0.6}
+                          onPointerDown={(e) => onPointerDown(e, "flow", p.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            if (confirm(`Remove ${label} from the floorplan?`)) {
+                              removePlacement("flow", p.id);
+                            }
+                          }}
+                        />
                       )}
+                      <title>{label}</title>
                     </g>
                   );
                 })}
@@ -297,6 +389,18 @@ export function Floorplan({
         )}
       </div>
 
+      {showAdd && (
+        <AddPlacementModal
+          devices={devices.filter((d) => !placedDeviceIds.has(d.id))}
+          flows={flows.filter((f) => !placedFlowIds.has(f.id))}
+          onClose={() => setShowAdd(false)}
+          onPick={(kind, id) => {
+            addPlacement(kind, id);
+            setShowAdd(false);
+          }}
+        />
+      )}
+
       {showImport && (
         <ImportFloorplanModal
           onClose={() => setShowImport(false)}
@@ -307,6 +411,93 @@ export function Floorplan({
         />
       )}
     </>
+  );
+}
+
+function AddPlacementModal({
+  devices,
+  flows,
+  onClose,
+  onPick,
+}: {
+  devices: Device[];
+  flows: FlowLite[];
+  onClose: () => void;
+  onPick: (kind: "device" | "flow", id: string) => void;
+}) {
+  const [tab, setTab] = useState<"device" | "flow">("device");
+  const [search, setSearch] = useState("");
+  const q = search.trim().toLowerCase();
+  const visibleDevices = q
+    ? devices.filter((d) => d.name.toLowerCase().includes(q))
+    : devices;
+  const visibleFlows = q ? flows.filter((f) => f.name.toLowerCase().includes(q)) : flows;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ minWidth: 380, maxHeight: "80vh" }}>
+        <div className="modal-title">Add to floorplan</div>
+        <div className="tabs" style={{ marginBottom: 8 }}>
+          <button
+            type="button"
+            className={`tab ${tab === "device" ? "active" : ""}`}
+            onClick={() => setTab("device")}
+          >
+            Devices ({devices.length})
+          </button>
+          <button
+            type="button"
+            className={`tab ${tab === "flow" ? "active" : ""}`}
+            onClick={() => setTab("flow")}
+          >
+            Flows ({flows.length})
+          </button>
+        </div>
+        <input
+          type="text"
+          placeholder="Search…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: "100%" }}
+        />
+        <div style={{ overflowY: "auto", maxHeight: "50vh" }}>
+          {tab === "device" ? (
+            visibleDevices.length === 0 ? (
+              <div className="muted">No devices to add.</div>
+            ) : (
+              visibleDevices.map((d) => (
+                <div
+                  key={d.id}
+                  className="flow-row"
+                  onClick={() => onPick("device", d.id)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <span style={{ fontSize: 13 }}>● {d.name}</span>
+                </div>
+              ))
+            )
+          ) : visibleFlows.length === 0 ? (
+            <div className="muted">No flows to add.</div>
+          ) : (
+            visibleFlows.map((f) => (
+              <div
+                key={f.id}
+                className="flow-row"
+                onClick={() => onPick("flow", f.id)}
+                style={{ cursor: "pointer" }}
+              >
+                <span style={{ fontSize: 13 }}>
+                  ▢ {f.name}
+                  {f.kind === "advanced" && <span className="kind"> ADV</span>}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="muted" style={{ fontSize: 11 }}>
+          Items appear at the canvas centre; drag to position. Right-click an icon to remove.
+        </div>
+      </div>
+    </div>
   );
 }
 

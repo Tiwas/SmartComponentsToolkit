@@ -615,7 +615,10 @@
           const def = FURNITURE.find((x) => x.id === f.type);
           if (!def) continue;
           const sel = state.selected && state.selected.kind === "furniture" && state.selected.id === f.id;
-          const transform = `translate(${f.x}, ${f.y}) rotate(${f.rotation || 0} ${def.w / 2} ${def.h / 2})`;
+          const sx = f.scaleX ?? 1;
+          const sy = f.scaleY ?? 1;
+          // Rotate in unscaled coords around the centre, then scale, then translate.
+          const transform = `translate(${f.x}, ${f.y}) scale(${sx}, ${sy}) rotate(${f.rotation || 0} ${def.w / 2} ${def.h / 2})`;
           furnitureLayer.insertAdjacentHTML("beforeend",
             `<g class="furniture${sel ? " selected" : ""}" data-kind="furniture" data-id="${f.id}" transform="${transform}">${def.svg}</g>`);
         }
@@ -624,6 +627,25 @@
         if (selObj && !selObj.locked && state.selected.kind === "room") {
           handlesLayer.insertAdjacentHTML("beforeend",
             `<rect class="handle" x="${selObj.x + selObj.w - 0.6}" y="${selObj.y + selObj.h - 0.6}" width="1.2" height="1.2" data-handle="resize"/>`);
+        } else if (selObj && !selObj.locked && state.selected.kind === "furniture") {
+          const def = FURNITURE.find((x) => x.id === selObj.type);
+          if (def) {
+            // Handle position = bottom-right corner of the furniture's
+            // bounding box AFTER rotation+scale, in viewBox coords.
+            const sx = selObj.scaleX ?? 1;
+            const sy = selObj.scaleY ?? 1;
+            const cx = def.w * sx / 2;
+            const cy = def.h * sy / 2;
+            const cornerDx = def.w * sx - cx;
+            const cornerDy = def.h * sy - cy;
+            const rad = ((selObj.rotation || 0) * Math.PI) / 180;
+            const rotDx = cornerDx * Math.cos(rad) - cornerDy * Math.sin(rad);
+            const rotDy = cornerDx * Math.sin(rad) + cornerDy * Math.cos(rad);
+            const hx = selObj.x + cx + rotDx;
+            const hy = selObj.y + cy + rotDy;
+            handlesLayer.insertAdjacentHTML("beforeend",
+              `<rect class="handle" x="${hx - 0.6}" y="${hy - 0.6}" width="1.2" height="1.2" data-handle="furn-resize"/>`);
+          }
         }
         renderPartsList();
 
@@ -692,10 +714,23 @@
         }
 
         const handle = e.target.closest("[data-handle]");
-        if (handle && state.selected && state.selected.kind === "room") {
-          const r = findSelected();
-          drag = { type: "resize", startX: p.x, startY: p.y, origW: r.w, origH: r.h };
-          return;
+        if (handle && state.selected) {
+          const obj = findSelected();
+          if (!obj) return;
+          if (handle.dataset.handle === "resize" && state.selected.kind === "room") {
+            drag = { type: "resize", startX: p.x, startY: p.y, origW: obj.w, origH: obj.h };
+            return;
+          }
+          if (handle.dataset.handle === "furn-resize" && state.selected.kind === "furniture") {
+            const def = FURNITURE.find((x) => x.id === obj.type);
+            if (!def) return;
+            const sx = obj.scaleX ?? 1;
+            const cx = obj.x + def.w * sx / 2;
+            const cy = obj.y + def.h * (obj.scaleY ?? 1) / 2;
+            const origDist = Math.hypot(p.x - cx, p.y - cy);
+            drag = { type: "furn-resize", origScaleX: sx, origScaleY: obj.scaleY ?? 1, origDist, defW: def.w, defH: def.h, origX: obj.x, origY: obj.y };
+            return;
+          }
         }
         const target = e.target.closest("[data-kind][data-id]");
         if (state.tool === "rect") {
@@ -765,6 +800,14 @@
         } else if (drag.type === "resize") {
           obj.w = Math.max(2, drag.origW + (p.x - drag.startX));
           obj.h = Math.max(2, drag.origH + (p.y - drag.startY));
+        } else if (drag.type === "furn-resize") {
+          // Scale = ratio of new distance from centre to original distance.
+          const cx = drag.origX + drag.defW * drag.origScaleX / 2;
+          const cy = drag.origY + drag.defH * drag.origScaleY / 2;
+          const newDist = Math.hypot(p.x - cx, p.y - cy);
+          const ratio = drag.origDist > 0.001 ? newDist / drag.origDist : 1;
+          obj.scaleX = Math.max(0.2, drag.origScaleX * ratio);
+          obj.scaleY = Math.max(0.2, drag.origScaleY * ratio);
         } else if (drag.type === "drawPart") {
           const part = obj.parts[drag.partIdx];
           if (!part) return;
@@ -878,7 +921,9 @@
           const furniture = (state.furniture[floor.id] ?? []).map((f) => {
             const def = FURNITURE.find((x) => x.id === f.type);
             if (!def) return "";
-            const transform = `translate(${f.x}, ${f.y}) rotate(${f.rotation || 0} ${def.w / 2} ${def.h / 2})`;
+            const sx = f.scaleX ?? 1;
+            const sy = f.scaleY ?? 1;
+            const transform = `translate(${f.x}, ${f.y}) scale(${sx}, ${sy}) rotate(${f.rotation || 0} ${def.w / 2} ${def.h / 2})`;
             return `    <g data-furniture="${def.id}" transform="${transform}">${def.svg}</g>`;
           }).join("\n");
           const border = `    <rect x="0" y="0" width="${FLOOR_W}" height="${FLOOR_H}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.3"/>
@@ -1051,11 +1096,14 @@ ${groups}
               const transform = furnNode.getAttribute("transform") || "";
               const trMatch = /translate\(\s*(-?\d*\.?\d+)\s*[,\s]\s*(-?\d*\.?\d+)?/.exec(transform);
               const rotMatch = /rotate\(\s*(-?\d*\.?\d+)/.exec(transform);
+              const scMatch = /scale\(\s*(-?\d*\.?\d+)\s*(?:[,\s]\s*(-?\d*\.?\d+))?\s*\)/.exec(transform);
               const x = trMatch ? parseFloat(trMatch[1]) : 0;
               const y = trMatch && trMatch[2] ? parseFloat(trMatch[2]) : 0;
               const rotation = rotMatch ? parseFloat(rotMatch[1]) : 0;
+              const scaleX = scMatch ? parseFloat(scMatch[1]) : 1;
+              const scaleY = scMatch && scMatch[2] ? parseFloat(scMatch[2]) : scaleX;
               const id = ++maxFurnId;
-              newFurn[fid].push({ id, type, x, y, rotation, locked: false });
+              newFurn[fid].push({ id, type, x, y, rotation, scaleX, scaleY, locked: false });
             });
           });
 

@@ -484,18 +484,28 @@ button.primary:hover {
   height: 100%;
   pointer-events: none;
 }
-.device-icon circle {
-  fill: rgba(76, 179, 255, 0.85);
+.device-icon circle,
+.device-icon rect {
   stroke: white;
   stroke-width: 0.3;
   cursor: grab;
   pointer-events: auto;
   transition: fill 0.15s;
 }
-.device-icon circle:hover {
+.device-icon.device circle {
+  fill: rgba(76, 179, 255, 0.85);
+}
+.device-icon.device circle:hover {
   fill: rgba(76, 179, 255, 1);
 }
-.device-icon circle:active {
+.device-icon.flow rect {
+  fill: rgba(245, 197, 66, 0.85);
+}
+.device-icon.flow rect:hover {
+  fill: rgba(245, 197, 66, 1);
+}
+.device-icon circle:active,
+.device-icon rect:active {
   cursor: grabbing;
 }
 .floorplan-svg {

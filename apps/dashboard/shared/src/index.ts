@@ -6,3 +6,4 @@ export * from "./favorites.js";
 export * from "./favorites-data.js";
 export * from "./settings.js";
 export * from "./notification-source.js";
+export * from "./floorplan.js";

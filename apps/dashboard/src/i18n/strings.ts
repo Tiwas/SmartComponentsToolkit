@@ -73,6 +73,10 @@ export interface Strings {
   settings_account: string;
   settings_sign_out: string;
   settings_reset_creds: string;
+  settings_mode: string;
+  settings_mode_widget: string;
+  settings_mode_dashboard: string;
+  settings_mode_hint: string;
   settings_window: string;
   settings_hotkey: string;
   settings_hotkey_hint: string;
@@ -97,6 +101,15 @@ export interface Strings {
   // Misc
   fallback_notification: string;
   fallback_device: string;
+  // Floorplan
+  floorplan_title: string;
+  floorplan_empty_title: string;
+  floorplan_empty_hint: string;
+  floorplan_import: string;
+  floorplan_import_file: string;
+  floorplan_import_paste: string;
+  floorplan_import_apply: string;
+  floorplan_open_editor: string;
 }
 
 const en: Strings = {
@@ -161,6 +174,11 @@ const en: Strings = {
   settings_account: "Account",
   settings_sign_out: "Sign out (keep credentials)",
   settings_reset_creds: "Reset OAuth credentials",
+  settings_mode: "App mode",
+  settings_mode_widget: "Widget (floating)",
+  settings_mode_dashboard: "Dashboard (full window)",
+  settings_mode_hint:
+    "Widget is a small always-on-top tooltip beside your editor. Dashboard mode resizes to a normal window for a floorplan overview.",
   settings_window: "Window",
   settings_hotkey: "Show/hide shortcut",
   settings_hotkey_hint:
@@ -188,6 +206,15 @@ const en: Strings = {
   settings_language: "Language",
   fallback_notification: "Notification",
   fallback_device: "Device",
+  floorplan_title: "Floorplan",
+  floorplan_empty_title: "No floorplan yet",
+  floorplan_empty_hint:
+    "Import an SVG you've drawn (any tool that exports SVG works) and devices for each Homey zone will appear inside their rooms.",
+  floorplan_import: "Import floorplan",
+  floorplan_import_file: "Open file",
+  floorplan_import_paste: "Paste SVG",
+  floorplan_import_apply: "Import",
+  floorplan_open_editor: "Open the floorplan editor",
 };
 
 const no: Strings = {
@@ -252,6 +279,11 @@ const no: Strings = {
   settings_account: "Konto",
   settings_sign_out: "Logg ut (behold legitimasjon)",
   settings_reset_creds: "Nullstill OAuth-legitimasjon",
+  settings_mode: "App-modus",
+  settings_mode_widget: "Widget (flytende)",
+  settings_mode_dashboard: "Dashboard (helt vindu)",
+  settings_mode_hint:
+    "Widget er en liten alltid-på-topp ved siden av editoren. Dashboard-modus utvider til et normalt vindu med oversiktskart.",
   settings_window: "Vindu",
   settings_hotkey: "Hurtigtast for vis/skjul",
   settings_hotkey_hint:
@@ -279,6 +311,15 @@ const no: Strings = {
   settings_language: "Språk",
   fallback_notification: "Varsel",
   fallback_device: "Enhet",
+  floorplan_title: "Plantegning",
+  floorplan_empty_title: "Ingen plantegning ennå",
+  floorplan_empty_hint:
+    "Importer en SVG du har tegnet (alle verktøy som eksporterer SVG funker) — enheter i hver Homey-zone vises automatisk i sine rom.",
+  floorplan_import: "Importer plantegning",
+  floorplan_import_file: "Åpne fil",
+  floorplan_import_paste: "Lim inn SVG",
+  floorplan_import_apply: "Importer",
+  floorplan_open_editor: "Åpne plantegnings-editoren",
 };
 
 const de: Strings = {
@@ -343,6 +384,11 @@ const de: Strings = {
   settings_account: "Konto",
   settings_sign_out: "Abmelden (Zugangsdaten behalten)",
   settings_reset_creds: "OAuth-Zugangsdaten zurücksetzen",
+  settings_mode: "App-Modus",
+  settings_mode_widget: "Widget (schwebend)",
+  settings_mode_dashboard: "Dashboard (volles Fenster)",
+  settings_mode_hint:
+    "Widget ist ein kleines Always-on-Top-Fenster neben dem Editor. Im Dashboard-Modus wird es zu einem normalen Fenster mit Grundriss-Übersicht.",
   settings_window: "Fenster",
   settings_hotkey: "Tastenkürzel zum Ein-/Ausblenden",
   settings_hotkey_hint:
@@ -370,6 +416,15 @@ const de: Strings = {
   settings_language: "Sprache",
   fallback_notification: "Benachrichtigung",
   fallback_device: "Gerät",
+  floorplan_title: "Grundriss",
+  floorplan_empty_title: "Noch kein Grundriss",
+  floorplan_empty_hint:
+    "Importiere ein SVG, das du gezeichnet hast (jedes Tool, das SVG exportiert, funktioniert) — Geräte jeder Homey-Zone erscheinen automatisch in ihren Räumen.",
+  floorplan_import: "Grundriss importieren",
+  floorplan_import_file: "Datei öffnen",
+  floorplan_import_paste: "SVG einfügen",
+  floorplan_import_apply: "Importieren",
+  floorplan_open_editor: "Grundriss-Editor öffnen",
 };
 
 const nl: Strings = {
@@ -434,6 +489,11 @@ const nl: Strings = {
   settings_account: "Account",
   settings_sign_out: "Uitloggen (gegevens bewaren)",
   settings_reset_creds: "OAuth-gegevens resetten",
+  settings_mode: "App-modus",
+  settings_mode_widget: "Widget (zwevend)",
+  settings_mode_dashboard: "Dashboard (volledig venster)",
+  settings_mode_hint:
+    "Widget is een kleine altijd-bovenop tooltip naast je editor. Dashboard-modus vergroot tot een normaal venster met plattegrond-overzicht.",
   settings_window: "Venster",
   settings_hotkey: "Sneltoets voor tonen/verbergen",
   settings_hotkey_hint:
@@ -461,6 +521,15 @@ const nl: Strings = {
   settings_language: "Taal",
   fallback_notification: "Melding",
   fallback_device: "Apparaat",
+  floorplan_title: "Plattegrond",
+  floorplan_empty_title: "Nog geen plattegrond",
+  floorplan_empty_hint:
+    "Importeer een SVG die je hebt getekend (elk tool dat SVG exporteert werkt) — apparaten van elke Homey-zone verschijnen automatisch in hun kamer.",
+  floorplan_import: "Plattegrond importeren",
+  floorplan_import_file: "Bestand openen",
+  floorplan_import_paste: "SVG plakken",
+  floorplan_import_apply: "Importeren",
+  floorplan_open_editor: "Open de plattegrond-editor",
 };
 
 export const STRINGS: Record<Language, Strings> = { en, no, de, nl };

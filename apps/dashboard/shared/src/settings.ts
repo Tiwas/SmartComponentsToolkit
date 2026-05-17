@@ -18,6 +18,10 @@ export type HotzoneEdge = "off" | "left" | "right" | "top" | "bottom";
 
 export const HOTZONE_EDGES: HotzoneEdge[] = ["off", "left", "right", "top", "bottom"];
 
+export type AppMode = "widget" | "dashboard";
+
+export const APP_MODES: AppMode[] = ["widget", "dashboard"];
+
 export interface NotificationSettings {
   enabled: boolean;
   durationMs: number;
@@ -33,6 +37,8 @@ export interface AppSettings {
   notifications: NotificationSettings;
   /** Active Homey id; empty string means "use first one found". */
   homeyId: string;
+  /** Widget = small always-on-top tooltip; dashboard = full floorplan view. */
+  mode: AppMode;
   /** Global shortcut (Tauri-style accelerator, e.g. "CommandOrControl+Shift+H"). Empty = unregistered. */
   hotkey: string;
   /** Screen edge to use as a hotzone (move cursor to edge to pop the widget out). */
@@ -53,6 +59,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showSource: true,
   },
   homeyId: "",
+  mode: "widget",
   hotkey: "CommandOrControl+Shift+H",
   hotzone: "off",
   hotzoneAutoHideSec: 10,
@@ -74,6 +81,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     language,
     autostart: typeof obj.autostart === "boolean" ? obj.autostart : DEFAULT_SETTINGS.autostart,
     homeyId: typeof obj.homeyId === "string" ? obj.homeyId : DEFAULT_SETTINGS.homeyId,
+    mode: APP_MODES.includes(obj.mode as AppMode) ? (obj.mode as AppMode) : DEFAULT_SETTINGS.mode,
     hotkey: typeof obj.hotkey === "string" ? obj.hotkey : DEFAULT_SETTINGS.hotkey,
     hotzone,
     hotzoneAutoHideSec:

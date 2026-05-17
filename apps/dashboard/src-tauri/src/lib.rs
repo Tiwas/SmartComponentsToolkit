@@ -169,6 +169,23 @@ fn save_settings(app: tauri::AppHandle, data: serde_json::Value) -> Result<(), S
 }
 
 #[tauri::command]
+fn load_floorplan(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let path = app_data_file(&app, "floorplan.json")?;
+    match fs::read_to_string(&path) {
+        Ok(contents) => serde_json::from_str(&contents).map_err(|e| format!("parse: {e}")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(serde_json::Value::Null),
+        Err(e) => Err(format!("read {}: {e}", path.display())),
+    }
+}
+
+#[tauri::command]
+fn save_floorplan(app: tauri::AppHandle, data: serde_json::Value) -> Result<(), String> {
+    let path = app_data_file(&app, "floorplan.json")?;
+    let json = serde_json::to_string_pretty(&data).map_err(|e| format!("serialize: {e}"))?;
+    fs::write(&path, json).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+#[tauri::command]
 fn show_toast(app: tauri::AppHandle, text: String, duration_ms: u64) -> Result<(), String> {
     let win = app
         .get_webview_window("toast")
@@ -223,6 +240,32 @@ fn set_hotzone_edge(edge: i32) -> Result<(), String> {
         return Err(format!("invalid edge {edge}"));
     }
     HOTZONE_EDGE.store(edge, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_window_mode(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    let win = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window missing".to_string())?;
+    match mode.as_str() {
+        "widget" => {
+            win.set_always_on_top(true).map_err(|e| e.to_string())?;
+            win.set_decorations(false).map_err(|e| e.to_string())?;
+            win.set_resizable(true).map_err(|e| e.to_string())?;
+            win.set_size(tauri::LogicalSize::new(320.0, 480.0))
+                .map_err(|e| e.to_string())?;
+        }
+        "dashboard" => {
+            win.set_always_on_top(false).map_err(|e| e.to_string())?;
+            win.set_decorations(false).map_err(|e| e.to_string())?;
+            win.set_resizable(true).map_err(|e| e.to_string())?;
+            win.set_size(tauri::LogicalSize::new(1200.0, 800.0))
+                .map_err(|e| e.to_string())?;
+        }
+        _ => return Err(format!("unknown mode: {mode}")),
+    }
+    let _ = win.set_focus();
     Ok(())
 }
 
@@ -414,8 +457,11 @@ pub fn run() {
             save_favorites,
             load_settings,
             save_settings,
+            load_floorplan,
+            save_floorplan,
             show_toast,
             set_hotzone_edge,
+            set_window_mode,
             toggle_window
         ])
         .run(tauri::generate_context!())

@@ -18,6 +18,10 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "core:window:allow-is-visible",
+    "core:window:allow-set-size",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-decorations",
+    "core:window:allow-set-resizable",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

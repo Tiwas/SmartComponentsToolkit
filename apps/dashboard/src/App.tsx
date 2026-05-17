@@ -19,6 +19,7 @@ import {
 import { Setup } from "./components/Setup";
 import { Login } from "./components/Login";
 import { Dashboard } from "./components/Dashboard";
+import { Floorplan } from "./components/Floorplan";
 import { Settings } from "./components/Settings";
 import { getAthomCloudAPI } from "./lib/cloud";
 import { performLoopbackOAuth, REDIRECT_URL } from "./lib/oauth";
@@ -74,6 +75,13 @@ function AppInner({
       console.warn("[dashboard] set_hotzone_edge failed:", e),
     );
   }, [settings.hotzone]);
+
+  // Apply window mode (widget = small floating, dashboard = larger normal window).
+  useEffect(() => {
+    invoke("set_window_mode", { mode: settings.mode }).catch((e) =>
+      console.warn("[dashboard] set_window_mode failed:", e),
+    );
+  }, [settings.mode]);
 
   // Listen for hotzone triggers from Rust. If the widget was already visible
   // we just focus it. If it was hidden, we show it and start a recurring
@@ -272,10 +280,17 @@ function AppInner({
       )}
       {!fatal && screen.kind === "setup" && <Setup onSaved={() => bootstrap()} />}
       {!fatal && screen.kind === "login" && <Login onLogin={handleLogin} />}
-      {!fatal && screen.kind === "dashboard" && (
+      {!fatal && screen.kind === "dashboard" && settings.mode === "widget" && (
         <Dashboard
           client={screen.client}
           settings={settings}
+          onLogout={handleLogout}
+          onOpenSettings={openSettings}
+        />
+      )}
+      {!fatal && screen.kind === "dashboard" && settings.mode === "dashboard" && (
+        <Floorplan
+          client={screen.client}
           onLogout={handleLogout}
           onOpenSettings={openSettings}
         />

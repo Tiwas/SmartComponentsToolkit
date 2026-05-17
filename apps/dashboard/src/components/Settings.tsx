@@ -7,8 +7,10 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  APP_MODES,
   HOTZONE_EDGES,
   SUPPORTED_LANGUAGES,
+  type AppMode,
   type AppSettings,
   type HotzoneEdge,
   type Language,
@@ -156,6 +158,25 @@ export function Settings({
 
       <div className="settings-section">
         <div className="settings-section-title">{t.settings_window}</div>
+
+        <div className="settings-row">
+          <label className="settings-label" htmlFor="mode">
+            {t.settings_mode}
+          </label>
+          <select
+            id="mode"
+            value={settings.mode}
+            onChange={(e) => update({ mode: e.target.value as AppMode })}
+          >
+            {APP_MODES.map((m) => (
+              <option key={m} value={m}>
+                {m === "widget" ? t.settings_mode_widget : t.settings_mode_dashboard}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-hint">{t.settings_mode_hint}</div>
+
         <div className="settings-row">
           <label className="settings-label" htmlFor="hotkey">
             {t.settings_hotkey}

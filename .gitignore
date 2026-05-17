@@ -42,5 +42,5 @@ PROJECT_DOCUMENTATION.md
 apps/**/node_modules/
 apps/**/dist/
 apps/**/.vite/
-apps/dashboard-desktop/src-tauri/target/
-apps/dashboard-desktop/src-tauri/gen/
+apps/dashboard/app/src-tauri/target/
+apps/dashboard/app/src-tauri/gen/

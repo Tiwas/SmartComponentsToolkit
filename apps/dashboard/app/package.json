@@ -15,7 +15,7 @@
     "release:macos": "tauri build --bundles dmg,app"
   },
   "dependencies": {
-    "@homey-toolbox/dashboard-shared": "file:../dashboard-shared",
+    "@homey-toolbox/dashboard-shared": "file:../shared",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-autostart": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",

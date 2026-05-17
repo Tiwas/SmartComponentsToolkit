@@ -176,6 +176,22 @@ export function Floorplan({
         <span className="tab active" style={{ cursor: "default" }}>
           {t.floorplan_title}
         </span>
+        {data.svg && (
+          <button
+            className="tab"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(data.svg);
+                console.log("[dashboard] copied current floorplan SVG to clipboard");
+              } catch (e) {
+                console.warn("[dashboard] copy failed:", e);
+              }
+            }}
+            title="Copy current floorplan SVG (paste into the editor to edit it)"
+          >
+            ⧉
+          </button>
+        )}
         {floors.map((floor) => {
           const visible = !hiddenFloors.has(floor);
           return (
@@ -345,6 +361,19 @@ function ImportFloorplanModal({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ minWidth: 360 }}>
         <div className="modal-title">{t.floorplan_import}</div>
+        <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+          {t.floorplan_no_svg_yet}{" "}
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              openUrl(EDITOR_HINT_URL);
+            }}
+            style={{ color: "var(--accent)" }}
+          >
+            {t.floorplan_open_editor} →
+          </a>
+        </div>
         <div className="tabs" style={{ marginBottom: 8 }}>
           <button
             className={`tab ${tab === "file" ? "active" : ""}`}

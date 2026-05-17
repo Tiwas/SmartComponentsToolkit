@@ -185,6 +185,9 @@
       <h1>🏠 Floorplan Editor <span style="color: var(--fg-muted); font-weight: normal;">— alpha</span></h1>
       <div class="spacer"></div>
       <button class="secondary" onclick="newPlan()">New</button>
+      <button class="secondary" onclick="document.getElementById('import-file').click()">Open .svg</button>
+      <input id="import-file" type="file" accept=".svg,image/svg+xml" style="display:none" onchange="importFile(event)" />
+      <button class="secondary" onclick="importPrompt()">Paste SVG</button>
       <button class="secondary" onclick="exportClipboard()">Copy SVG</button>
       <button onclick="exportFile()">Download .svg</button>
     </header>
@@ -686,6 +689,106 @@ ${groups}
         div.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1f27;border:1px solid var(--accent);color:white;padding:8px 14px;border-radius:6px;font-size:12px;z-index:1000;";
         document.body.appendChild(div);
         setTimeout(() => div.remove(), 2000);
+      }
+
+      // ---- Import / re-edit existing SVG ----
+      function importFile(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        file.text().then((text) => loadFromSvg(text));
+        e.target.value = "";
+      }
+      function importPrompt() {
+        const text = prompt("Paste a previously exported floorplan SVG:");
+        if (text) loadFromSvg(text);
+      }
+      function loadFromSvg(svgText) {
+        try {
+          const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+          const err = doc.querySelector("parsererror");
+          if (err) throw new Error("Could not parse SVG");
+
+          const floorNodes = doc.querySelectorAll("g[data-floor]");
+          if (floorNodes.length === 0) {
+            // Legacy single-floor SVG: wrap it as one floor.
+            const synth = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+            synth.setAttribute("data-floor", "Ground floor");
+            doc.documentElement.appendChild(synth);
+          }
+
+          const newFloors = [];
+          const newRooms = {};
+          const newFurn = {};
+          let maxFloorId = 0;
+          let maxRoomId = 0;
+          let maxFurnId = 0;
+
+          const sources = doc.querySelectorAll("g[data-floor]");
+          sources.forEach((floorNode, idx) => {
+            const floorName = floorNode.getAttribute("data-floor") || `Floor ${idx + 1}`;
+            const fid = "f" + (idx + 1);
+            maxFloorId = Math.max(maxFloorId, idx + 1);
+            newFloors.push({ id: fid, name: floorName });
+            newRooms[fid] = [];
+            newFurn[fid] = [];
+
+            floorNode.querySelectorAll("g[data-zone], g[data-name]").forEach((roomNode) => {
+              const rect = roomNode.querySelector("rect");
+              if (!rect) return;
+              const x = parseFloat(rect.getAttribute("x") ?? "0");
+              const y = parseFloat(rect.getAttribute("y") ?? "0");
+              const w = parseFloat(rect.getAttribute("width") ?? "0");
+              const h = parseFloat(rect.getAttribute("height") ?? "0");
+              const fillAttr = rect.getAttribute("fill") ?? "#3b82f6";
+              let color = "#3b82f6";
+              let pattern = "none";
+              if (fillAttr.startsWith("url(#pat-")) {
+                pattern = fillAttr.slice("url(#pat-".length, -1);
+                // Look for the tint overlay rect that has the actual color.
+                const rects = roomNode.querySelectorAll("rect");
+                if (rects.length > 1) {
+                  const tint = rects[1].getAttribute("fill");
+                  if (tint && tint.startsWith("#")) color = tint;
+                }
+              } else if (fillAttr.startsWith("#")) {
+                color = fillAttr;
+              }
+              const name = roomNode.getAttribute("data-name") || "";
+              const zone = roomNode.getAttribute("data-zone") || "";
+              const id = ++maxRoomId;
+              newRooms[fid].push({ id, name, zone, x, y, w, h, color, pattern, locked: false });
+            });
+
+            floorNode.querySelectorAll("g[data-furniture]").forEach((furnNode) => {
+              const type = furnNode.getAttribute("data-furniture");
+              if (!type || !FURNITURE.find((f) => f.id === type)) return;
+              const transform = furnNode.getAttribute("transform") || "";
+              const trMatch = /translate\(\s*(-?\d*\.?\d+)\s*[,\s]\s*(-?\d*\.?\d+)?/.exec(transform);
+              const rotMatch = /rotate\(\s*(-?\d*\.?\d+)/.exec(transform);
+              const x = trMatch ? parseFloat(trMatch[1]) : 0;
+              const y = trMatch && trMatch[2] ? parseFloat(trMatch[2]) : 0;
+              const rotation = rotMatch ? parseFloat(rotMatch[1]) : 0;
+              const id = ++maxFurnId;
+              newFurn[fid].push({ id, type, x, y, rotation, locked: false });
+            });
+          });
+
+          if (newFloors.length === 0) throw new Error("No floors found in SVG");
+
+          state.floors = newFloors;
+          state.rooms = newRooms;
+          state.furniture = newFurn;
+          state.activeFloorId = newFloors[0].id;
+          state.selected = null;
+          state.nextRoomId = maxRoomId + 1;
+          state.nextFurnId = maxFurnId + 1;
+          state.nextFloorId = maxFloorId + 1;
+          renderFloorTabs();
+          render();
+          flash(`Imported ${newFloors.length} floor(s), ${Object.values(newRooms).flat().length} rooms`);
+        } catch (e) {
+          alert("Failed to import SVG: " + (e.message || e));
+        }
       }
 
       // Seed example

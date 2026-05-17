@@ -110,6 +110,7 @@ export interface Strings {
   floorplan_import_paste: string;
   floorplan_import_apply: string;
   floorplan_open_editor: string;
+  floorplan_no_svg_yet: string;
 }
 
 const en: Strings = {
@@ -215,6 +216,7 @@ const en: Strings = {
   floorplan_import_paste: "Paste SVG",
   floorplan_import_apply: "Import",
   floorplan_open_editor: "Open the floorplan editor",
+  floorplan_no_svg_yet: "Don't have an SVG yet?",
 };
 
 const no: Strings = {
@@ -320,6 +322,7 @@ const no: Strings = {
   floorplan_import_paste: "Lim inn SVG",
   floorplan_import_apply: "Importer",
   floorplan_open_editor: "Åpne plantegnings-editoren",
+  floorplan_no_svg_yet: "Har du ikke en SVG ennå?",
 };
 
 const de: Strings = {
@@ -425,6 +428,7 @@ const de: Strings = {
   floorplan_import_paste: "SVG einfügen",
   floorplan_import_apply: "Importieren",
   floorplan_open_editor: "Grundriss-Editor öffnen",
+  floorplan_no_svg_yet: "Hast du noch kein SVG?",
 };
 
 const nl: Strings = {
@@ -530,6 +534,7 @@ const nl: Strings = {
   floorplan_import_paste: "SVG plakken",
   floorplan_import_apply: "Importeren",
   floorplan_open_editor: "Open de plattegrond-editor",
+  floorplan_no_svg_yet: "Heb je nog geen SVG?",
 };
 
 export const STRINGS: Record<Language, Strings> = { en, no, de, nl };

@@ -557,11 +557,14 @@
           if (hasParts(r)) {
             const d = roomPath(r);
             const overlay = r.pattern && r.pattern !== "none"
-              ? `<path d="${d}" fill="${r.color}" fill-opacity="0.55" fill-rule="nonzero"/>`
+              ? `<path d="${d}" fill="${r.color}" fill-opacity="0.55" fill-rule="nonzero" stroke="none"/>`
               : "";
+            // No stroke on compound paths: the path is composed of separate
+            // subpaths, so a stroke would draw a line along every part's
+            // edge — including the seams that should be invisible.
             roomsLayer.insertAdjacentHTML("beforeend",
               `<g data-kind="room" data-id="${r.id}">
-                <path class="${cls}" d="${d}" fill="${fill}" fill-rule="nonzero"/>
+                <path class="${cls}" d="${d}" fill="${fill}" fill-rule="nonzero" stroke="none"/>
                 ${overlay}
                 <text class="room-label" font-size="${fs}" x="${bbox.x + bbox.w / 2}" y="${bbox.y + bbox.h / 2}">${escapeAttr(r.name || "")}</text>
               </g>`);
@@ -820,10 +823,10 @@
             if (hasParts(r)) {
               const d = roomPath(r);
               const overlay = r.pattern && r.pattern !== "none"
-                ? `\n      <path d="${d}" fill="${r.color}" fill-opacity="0.55" fill-rule="nonzero"/>`
+                ? `\n      <path d="${d}" fill="${r.color}" fill-opacity="0.55" fill-rule="nonzero" stroke="none"/>`
                 : "";
               return `    <g ${attrs}>
-      <path d="${d}" fill="${fill}" stroke="rgba(0,0,0,0.35)" stroke-width="0.2" fill-rule="nonzero"/>${overlay}${label}
+      <path d="${d}" fill="${fill}" stroke="none" fill-rule="nonzero"/>${overlay}${label}
     </g>`;
             }
             const tint = r.pattern && r.pattern !== "none"

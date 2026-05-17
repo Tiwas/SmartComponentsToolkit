@@ -1,6 +1,6 @@
 [package]
 name = "homey-toolbox-dashboard"
-version = "0.0.1"
+version = "0.0.4"
 description = "Floating dashboard for Homey flows"
 authors = ["Lars Kvanum"]
 edition = "2021"

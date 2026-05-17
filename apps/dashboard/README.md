@@ -1,20 +1,36 @@
 # Smart (Components) Toolkit Widget
 
-A small floating, always-on-top desktop widget for triggering Homey flows and watching notifications. Sits next to your editor or browser without stealing focus.
+A small floating, always-on-top desktop widget for triggering Homey flows and watching notifications. Sits next to your editor or browser without stealing focus. As of v0.0.4 it can also enter **Dashboard mode** with a floorplan-based overview — see roadmap below.
 
-> **Status: v0.0.1 — experimental.** API surface and storage shape may change.
+> **Status: v0.0.4 — experimental.** API surface and storage shape may change.
 
-## What it does
+## What it does (widget mode — default)
 
 - **★ Favorites tab** — flows you've starred, optionally organized into custom local folders. Right-click to move flows between folders or create new ones. Favorites persist across restarts in `<app-data-dir>/favorites.json`.
-- **Folders tab** — flows grouped by their Homey flow folder (read-only, mirrors what's in the Homey app).
-- **All tab** — flat alphabetical list.
+- **Flows tab** — every flow on the Homey, organized in the same nested folder structure you see in the Homey app, with collapsible folders. Folders A–Z first, then flows A–Z, recursively.
 - **Click** a flow → triggers it (with toast feedback).
 - **Right-click** → context menu: run, manage favorites, edit in browser (opens `my.homey.app`).
-- **Live notifications** from Homey appear as toasts in the dashboard while it's running.
-- **Search** filters the current tab.
+- **Live notifications** from Homey appear as on-screen toasts above the widget (yellow-orange, stacked, click-through). Source name is resolved from devices/apps where possible.
+- **Tray icon, global hotkey, hotzone** for quick show/hide. Settings → Window.
 
-> ⚠️ Homey's public API doesn't expose the "Favorites" you set in the mobile app, so this dashboard's favorites list is local. Use the *Folders* tab for synced grouping, or organize your dashboard favorites independently.
+> ⚠️ Homey's public API doesn't expose the "Favorites" you set in the mobile app, so this dashboard's favorites list is local.
+
+## Dashboard mode (v0.0.4+)
+
+Settings → Window → App mode → "Dashboard (full window)". The widget grows to 1200×800, drops always-on-top, and switches to a floorplan view that renders an SVG of your home. Empty until you import one — either via the file picker or by pasting an SVG.
+
+Device placement, room-based controls and multi-floor support land in v0.0.5–v0.1.0. See the [roadmap](#roadmap).
+
+## Roadmap
+
+| Version | What |
+|---|---|
+| **v0.0.4** *(current)* | Mode toggle, larger window, SVG floorplan rendering, import dialog. Editor available as web tool (unlinked from main site for now). |
+| v0.0.5 | Device placement: auto-place by zone, drag for fine position. Capability rendering: onoff + dim. State Devices as first-class icons. |
+| v0.0.6 | Remaining capabilities (temperature, motion, contact, color). Flow placement as buttons in rooms. |
+| v0.0.7 | Multi-floor (rooms side-by-side or floor-switcher). Polish, animations. |
+| **v0.1.0** | Public release. Docs, screenshots, signed installers. Floorplan editor linked from the main toolkit site. |
+| v0.2+ | OS keychain for tokens, signing/notarization, more device types. |
 
 ## Get the code
 

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Floorplan Editor — Smart (Components) Toolkit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #14161c;
+        --panel: #1c1f27;
+        --border: #2c303a;
+        --fg: #e8eaed;
+        --fg-muted: #9aa0a6;
+        --accent: #4cb3ff;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 13px;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
+      body { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: auto 1fr; height: 100vh; }
+      header {
+        grid-column: 1 / -1;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      header h1 { font-size: 14px; margin: 0; font-weight: 600; }
+      header .spacer { flex: 1; }
+      header button {
+        background: var(--accent);
+        color: #001a2b;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      header button.secondary {
+        background: transparent;
+        color: var(--fg);
+        border: 1px solid var(--border);
+        font-weight: normal;
+      }
+      header button:hover { filter: brightness(1.1); }
+      aside { background: var(--panel); border-right: 1px solid var(--border); padding: 12px; overflow-y: auto; }
+      aside h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); margin: 0 0 6px; }
+      aside section { margin-bottom: 16px; }
+      aside .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+      aside .tools button {
+        background: rgba(255,255,255,0.04);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      aside .tools button.active { background: var(--accent); color: #001a2b; border-color: var(--accent); }
+      aside label { display: block; font-size: 11px; color: var(--fg-muted); margin-top: 8px; margin-bottom: 2px; }
+      aside input[type="text"], aside select {
+        width: 100%;
+        background: rgba(255,255,255,0.04);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        padding: 4px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 4px; }
+      .palette button { width: 100%; height: 22px; padding: 0; border-radius: 3px; cursor: pointer; border: 2px solid transparent; }
+      .palette button.active { border-color: var(--fg); }
+      .pattern-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; }
+      .pattern-list button {
+        height: 36px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        cursor: pointer;
+        background-size: 12px 12px;
+      }
+      .pattern-list button.active { border-color: var(--accent); border-width: 2px; }
+      .pattern-list button::after {
+        content: attr(data-label);
+        display: block;
+        font-size: 9px;
+        color: var(--fg-muted);
+        text-align: center;
+        margin-top: 38px;
+      }
+      .canvas-wrap { position: relative; background: #0d0f14; overflow: hidden; }
+      svg.canvas { display: block; width: 100%; height: 100%; background: #0d0f14; }
+      .room {
+        cursor: move;
+        stroke: rgba(255,255,255,0.4);
+        stroke-width: 2;
+        vector-effect: non-scaling-stroke;
+      }
+      .room.selected { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 3; }
+      .room-label {
+        fill: white;
+        font-family: system-ui;
+        font-size: 6px;
+        font-weight: 600;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        pointer-events: none;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      }
+      .handle { fill: var(--accent); stroke: white; stroke-width: 1; cursor: nwse-resize; }
+      .hint { color: var(--fg-muted); font-size: 11px; line-height: 1.5; }
+      .hint code { background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px; font-size: 10px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🏠 Floorplan Editor <span style="color: var(--fg-muted); font-weight: normal;">— alpha, unlinked</span></h1>
+      <div class="spacer"></div>
+      <button class="secondary" onclick="newPlan()">New</button>
+      <button class="secondary" onclick="exportClipboard()">Copy SVG</button>
+      <button onclick="exportFile()">Download .svg</button>
+    </header>
+
+    <aside>
+      <section>
+        <h2>Tool</h2>
+        <div class="tools">
+          <button data-tool="select" class="active">↖ Select</button>
+          <button data-tool="rect">▭ Room</button>
+        </div>
+      </section>
+
+      <section id="selection-panel" style="display:none">
+        <h2>Selected room</h2>
+        <label for="room-name">Name</label>
+        <input type="text" id="room-name" placeholder="Living room" />
+
+        <label for="room-zone">Homey zone id (optional)</label>
+        <input type="text" id="room-zone" placeholder="e.g. zone-abc-123" />
+
+        <label>Color</label>
+        <div class="palette" id="color-palette"></div>
+
+        <label>Floor pattern</label>
+        <div class="pattern-list" id="pattern-list"></div>
+
+        <label>
+          <input type="checkbox" id="room-locked" /> Lock position
+        </label>
+
+        <button class="secondary" style="margin-top: 8px; width: 100%; color: #f28b82;" onclick="deleteSelected()">
+          Delete room
+        </button>
+      </section>
+
+      <section>
+        <h2>Tips</h2>
+        <p class="hint">
+          Pick <b>Room</b>, drag on the canvas to draw a rectangle. Switch to
+          <b>Select</b> to move, resize (via handle), name, color and tag rooms.
+          <br /><br />
+          <b>Homey zone id</b> is what the dashboard uses to place devices.
+          Get it from <code>my.homey.app</code> URL: <code>/zones/&lt;id&gt;</code>.
+          <br /><br />
+          <b>Shortcuts:</b> Del to delete · Esc to deselect
+        </p>
+      </section>
+    </aside>
+
+    <div class="canvas-wrap">
+      <svg id="canvas" class="canvas" viewBox="0 0 100 70" preserveAspectRatio="xMidYMid meet">
+        <defs id="defs">
+          <!-- patterns added dynamically -->
+        </defs>
+        <g id="rooms"></g>
+        <g id="handles"></g>
+      </svg>
+    </div>
+
+    <script>
+      const COLORS = [
+        { name: "Slate", value: "#475569" },
+        { name: "Blue", value: "#3b82f6" },
+        { name: "Teal", value: "#14b8a6" },
+        { name: "Green", value: "#22c55e" },
+        { name: "Yellow", value: "#eab308" },
+        { name: "Orange", value: "#f97316" },
+        { name: "Red", value: "#ef4444" },
+        { name: "Pink", value: "#ec4899" },
+        { name: "Purple", value: "#a855f7" },
+        { name: "Stone", value: "#78716c" },
+      ];
+      const PATTERNS = [
+        { id: "none", label: "Plain", svg: null },
+        { id: "wood", label: "Wood", svg: `<pattern id="pat-wood" patternUnits="userSpaceOnUse" width="4" height="2"><rect width="4" height="2" fill="#00000022"/><line x1="0" y1="0" x2="4" y2="0" stroke="#00000066" stroke-width="0.15"/><line x1="0" y1="1" x2="4" y2="1" stroke="#00000044" stroke-width="0.1"/></pattern>` },
+        { id: "tile", label: "Tile", svg: `<pattern id="pat-tile" patternUnits="userSpaceOnUse" width="3" height="3"><rect width="3" height="3" fill="#ffffff15"/><path d="M0 0 L3 0 M0 0 L0 3" stroke="#00000044" stroke-width="0.15"/></pattern>` },
+        { id: "carpet", label: "Carpet", svg: `<pattern id="pat-carpet" patternUnits="userSpaceOnUse" width="1.5" height="1.5"><rect width="1.5" height="1.5" fill="#00000018"/><circle cx="0.75" cy="0.75" r="0.2" fill="#ffffff22"/></pattern>` },
+        { id: "stone", label: "Stone", svg: `<pattern id="pat-stone" patternUnits="userSpaceOnUse" width="5" height="3"><rect width="5" height="3" fill="#ffffff10"/><path d="M0 0 L5 0 M0 1.5 L5 1.5 M2.5 0 L2.5 1.5 M0 1.5 L0 3 M5 1.5 L5 3 M2.5 1.5 L2.5 3" stroke="#00000044" stroke-width="0.1" fill="none"/></pattern>` },
+      ];
+
+      const state = {
+        tool: "select",
+        rooms: [],
+        selectedId: null,
+        dragging: null,
+        nextId: 1,
+      };
+
+      const canvas = document.getElementById("canvas");
+      const defs = document.getElementById("defs");
+      const roomsLayer = document.getElementById("rooms");
+      const handlesLayer = document.getElementById("handles");
+
+      // Inject patterns into defs
+      PATTERNS.forEach((p) => {
+        if (p.svg) defs.insertAdjacentHTML("beforeend", p.svg);
+      });
+
+      // Build palette buttons
+      const colorPalette = document.getElementById("color-palette");
+      COLORS.forEach((c) => {
+        const b = document.createElement("button");
+        b.style.background = c.value;
+        b.dataset.value = c.value;
+        b.title = c.name;
+        b.onclick = () => updateSelected({ color: c.value });
+        colorPalette.appendChild(b);
+      });
+      const patternList = document.getElementById("pattern-list");
+      PATTERNS.forEach((p) => {
+        const b = document.createElement("button");
+        b.dataset.value = p.id;
+        b.dataset.label = p.label;
+        b.title = p.label;
+        if (p.id !== "none") b.style.background = `url(#pat-${p.id}) center/12px 12px, #1c1f27`;
+        b.onclick = () => updateSelected({ pattern: p.id });
+        patternList.appendChild(b);
+      });
+
+      // Tool selection
+      document.querySelectorAll("[data-tool]").forEach((b) => {
+        b.onclick = () => {
+          state.tool = b.dataset.tool;
+          document.querySelectorAll("[data-tool]").forEach((x) => x.classList.toggle("active", x === b));
+          canvas.style.cursor = state.tool === "rect" ? "crosshair" : "default";
+        };
+      });
+
+      function svgPoint(evt) {
+        const pt = canvas.createSVGPoint();
+        pt.x = evt.clientX;
+        pt.y = evt.clientY;
+        return pt.matrixTransform(canvas.getScreenCTM().inverse());
+      }
+
+      function render() {
+        roomsLayer.innerHTML = "";
+        handlesLayer.innerHTML = "";
+        for (const r of state.rooms) {
+          const fill = r.pattern && r.pattern !== "none" ? `url(#pat-${r.pattern})` : r.color;
+          const overlay = r.pattern && r.pattern !== "none" ? `<rect class="room-tint" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>` : "";
+          const cls = r.id === state.selectedId ? "room selected" : "room";
+          roomsLayer.insertAdjacentHTML("beforeend",
+            `<g data-id="${r.id}" data-zone="${r.zone ?? ""}" data-name="${escapeAttr(r.name)}">
+              <rect class="${cls}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}"/>
+              ${overlay}
+              <text class="room-label" x="${r.x + r.w / 2}" y="${r.y + r.h / 2}">${escapeAttr(r.name || "")}</text>
+            </g>`);
+        }
+        const sel = state.rooms.find((r) => r.id === state.selectedId);
+        if (sel && !sel.locked) {
+          handlesLayer.insertAdjacentHTML("beforeend",
+            `<rect class="handle" x="${sel.x + sel.w - 1.5}" y="${sel.y + sel.h - 1.5}" width="3" height="3" data-handle="resize"/>`);
+        }
+        document.getElementById("selection-panel").style.display = sel ? "block" : "none";
+        if (sel) {
+          document.getElementById("room-name").value = sel.name || "";
+          document.getElementById("room-zone").value = sel.zone || "";
+          document.getElementById("room-locked").checked = !!sel.locked;
+          colorPalette.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.value === sel.color));
+          patternList.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.value === (sel.pattern || "none")));
+        }
+      }
+
+      function escapeAttr(s) {
+        return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+      }
+
+      function newPlan() {
+        if (state.rooms.length && !confirm("Discard the current floorplan?")) return;
+        state.rooms = [];
+        state.selectedId = null;
+        state.nextId = 1;
+        render();
+      }
+
+      function deleteSelected() {
+        state.rooms = state.rooms.filter((r) => r.id !== state.selectedId);
+        state.selectedId = null;
+        render();
+      }
+
+      function updateSelected(patch) {
+        const r = state.rooms.find((r) => r.id === state.selectedId);
+        if (!r) return;
+        Object.assign(r, patch);
+        render();
+      }
+
+      document.getElementById("room-name").addEventListener("input", (e) => updateSelected({ name: e.target.value }));
+      document.getElementById("room-zone").addEventListener("input", (e) => updateSelected({ zone: e.target.value }));
+      document.getElementById("room-locked").addEventListener("change", (e) => updateSelected({ locked: e.target.checked }));
+
+      // Mouse interactions
+      let drag = null;
+      canvas.addEventListener("pointerdown", (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        const p = svgPoint(e);
+        const handle = e.target.closest("[data-handle]");
+        if (handle && state.selectedId) {
+          const r = state.rooms.find((r) => r.id === state.selectedId);
+          drag = { type: "resize", id: r.id, startX: p.x, startY: p.y, origW: r.w, origH: r.h };
+          return;
+        }
+        const target = e.target.closest("[data-id]");
+        if (state.tool === "rect") {
+          const id = state.nextId++;
+          state.rooms.push({
+            id, name: "Room " + id, x: p.x, y: p.y, w: 0, h: 0,
+            color: COLORS[(id - 1) % COLORS.length].value, pattern: "none", zone: "", locked: false,
+          });
+          state.selectedId = id;
+          drag = { type: "draw", id, startX: p.x, startY: p.y };
+          render();
+          return;
+        }
+        // Select tool
+        if (target) {
+          state.selectedId = +target.dataset.id;
+          const r = state.rooms.find((r) => r.id === state.selectedId);
+          if (r && !r.locked) drag = { type: "move", id: r.id, startX: p.x, startY: p.y, origX: r.x, origY: r.y };
+          render();
+        } else {
+          state.selectedId = null;
+          render();
+        }
+      });
+
+      canvas.addEventListener("pointermove", (e) => {
+        if (!drag) return;
+        const p = svgPoint(e);
+        const r = state.rooms.find((r) => r.id === drag.id);
+        if (!r) return;
+        if (drag.type === "draw") {
+          r.x = Math.min(drag.startX, p.x);
+          r.y = Math.min(drag.startY, p.y);
+          r.w = Math.abs(p.x - drag.startX);
+          r.h = Math.abs(p.y - drag.startY);
+        } else if (drag.type === "move") {
+          r.x = drag.origX + (p.x - drag.startX);
+          r.y = drag.origY + (p.y - drag.startY);
+        } else if (drag.type === "resize") {
+          r.w = Math.max(2, drag.origW + (p.x - drag.startX));
+          r.h = Math.max(2, drag.origH + (p.y - drag.startY));
+        }
+        render();
+      });
+
+      canvas.addEventListener("pointerup", () => {
+        if (drag && drag.type === "draw") {
+          const r = state.rooms.find((r) => r.id === drag.id);
+          if (r.w < 2 || r.h < 2) state.rooms = state.rooms.filter((x) => x.id !== drag.id);
+        }
+        drag = null;
+        render();
+      });
+
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Delete" && state.selectedId) deleteSelected();
+        if (e.key === "Escape") { state.selectedId = null; render(); }
+      });
+
+      function buildSvg() {
+        const usedPatterns = new Set();
+        for (const r of state.rooms) if (r.pattern && r.pattern !== "none") usedPatterns.add(r.pattern);
+        const patternDefs = PATTERNS
+          .filter((p) => usedPatterns.has(p.id))
+          .map((p) => p.svg)
+          .join("\n");
+
+        const bodies = state.rooms.map((r) => {
+          const fill = r.pattern && r.pattern !== "none" ? `url(#pat-${r.pattern})` : r.color;
+          const tint = r.pattern && r.pattern !== "none"
+            ? `\n    <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.color}" fill-opacity="0.55"/>`
+            : "";
+          const label = r.name
+            ? `\n    <text x="${r.x + r.w / 2}" y="${r.y + r.h / 2}" font-family="system-ui" font-size="6" font-weight="600" fill="white" text-anchor="middle" dominant-baseline="middle">${escapeAttr(r.name)}</text>`
+            : "";
+          return `  <g data-zone="${escapeAttr(r.zone || "")}" data-name="${escapeAttr(r.name || "")}">
+    <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}" stroke="rgba(0,0,0,0.35)" stroke-width="0.3"/>${tint}${label}
+  </g>`;
+        }).join("\n");
+
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 70">
+  <defs>
+${patternDefs}
+  </defs>
+${bodies}
+</svg>`;
+      }
+
+      async function exportClipboard() {
+        const svg = buildSvg();
+        try {
+          await navigator.clipboard.writeText(svg);
+          flash("Copied SVG to clipboard");
+        } catch {
+          alert(svg);
+        }
+      }
+
+      function exportFile() {
+        const svg = buildSvg();
+        const blob = new Blob([svg], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "floorplan.svg";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function flash(msg) {
+        const div = document.createElement("div");
+        div.textContent = msg;
+        div.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1f27;border:1px solid var(--accent);color:white;padding:8px 14px;border-radius:6px;font-size:12px;z-index:1000;";
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 2000);
+      }
+
+      // Seed example
+      state.rooms.push(
+        { id: 1, name: "Living room", x: 5, y: 5, w: 40, h: 30, color: "#3b82f6", pattern: "wood", zone: "", locked: false },
+        { id: 2, name: "Kitchen", x: 45, y: 5, w: 30, h: 20, color: "#22c55e", pattern: "tile", zone: "", locked: false },
+        { id: 3, name: "Bedroom", x: 5, y: 35, w: 35, h: 25, color: "#a855f7", pattern: "carpet", zone: "", locked: false },
+        { id: 4, name: "Bathroom", x: 45, y: 25, w: 25, h: 15, color: "#14b8a6", pattern: "stone", zone: "", locked: false },
+      );
+      state.nextId = 5;
+      render();
+    </script>
+  </body>
+</html>

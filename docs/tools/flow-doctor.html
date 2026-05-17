@@ -321,6 +321,10 @@ const I18N = {
         'apps.extends': 'Extends',
         'apps.installed': 'Installed',
         'apps.store': 'store',
+        'apps.storeTest': 'test channel',
+        'apps.testChannel': 'Test',
+        'apps.appStoreLink': 'App Store ↗',
+        'apps.appStoreLinkTest': 'Test Store ↗',
         'apps.crashed': 'Crashed',
         'apps.disabled': 'Disabled',
         'apps.memory': 'Memory',
@@ -430,6 +434,10 @@ const I18N = {
         'apps.extends': 'Utvider',
         'apps.installed': 'Installert',
         'apps.store': 'butikk',
+        'apps.storeTest': 'test-kanal',
+        'apps.testChannel': 'Test',
+        'apps.appStoreLink': 'App Store ↗',
+        'apps.appStoreLinkTest': 'Test-butikk ↗',
         'apps.crashed': 'Krasjet',
         'apps.disabled': 'Deaktivert',
         'apps.memory': 'Minne',
@@ -521,6 +529,10 @@ const I18N = {
         'apps.extends': 'Erweitert',
         'apps.installed': 'Installiert',
         'apps.store': 'Store',
+        'apps.storeTest': 'Test-Kanal',
+        'apps.testChannel': 'Test',
+        'apps.appStoreLink': 'App Store ↗',
+        'apps.appStoreLinkTest': 'Test-Store ↗',
         'apps.crashed': 'Abgestürzt',
         'apps.disabled': 'Deaktiviert',
         'apps.memory': 'Speicher',
@@ -612,6 +624,10 @@ const I18N = {
         'apps.extends': 'Breidt uit',
         'apps.installed': 'Geïnstalleerd',
         'apps.store': 'store',
+        'apps.storeTest': 'test-kanaal',
+        'apps.testChannel': 'Test',
+        'apps.appStoreLink': 'App Store ↗',
+        'apps.appStoreLinkTest': 'Test-store ↗',
         'apps.crashed': 'Gecrasht',
         'apps.disabled': 'Uitgeschakeld',
         'apps.memory': 'Geheugen',
@@ -886,12 +902,15 @@ class FlowDoctor {
         return `https://my.homey.app/homeys/${this.homeyId}/devices/${deviceId}`;
     }
 
-    appUrl(appId) {
+    appUrl(appId, channel) {
         // my.homey.app has no /apps/<id> route — it silently falls back to the dashboard.
         // The public App Store page is the only reliable target; it always shows an
         // "Install" button regardless of whether the user already has the app, but the
         // page is otherwise informative (description, version history, store version).
-        return `https://homey.app/a/${encodeURIComponent(appId)}`;
+        // Test-channel apps live on the /test suffix — that page lists the latest test
+        // build (which is what `updateAvailable` resolves against for test installs).
+        const base = `https://homey.app/a/${encodeURIComponent(appId)}`;
+        return channel === 'test' ? `${base}/test` : base;
     }
 
     isAppUnused(app) {
@@ -918,6 +937,8 @@ class FlowDoctor {
         const apps = (this.appsList || []).map(a => ({
             id: a.id, name: a.name, version: a.version,
             storeVersion: a.storeVersion || null,
+            channel: a.channel || null,
+            origin: a.origin || null,
             hasUpdate: !!a.hasUpdate, enabled: !!a.enabled,
             crashed: !!a.crashed, state: a.state,
             usage: a.usage, deviceCount: a.deviceCount || 0,
@@ -1225,6 +1246,8 @@ class FlowDoctor {
                 name: a.name || a.id,
                 version: a.version || '',
                 storeVersion: appStoreVersions[a.id] || null,
+                channel: a.channel || null,
+                origin: a.origin || null,
                 hasUpdate: !!a.updateAvailable,
                 enabled: a.enabled !== false,
                 state: a.state || null,
@@ -1452,6 +1475,8 @@ class FlowDoctor {
             const unusedBadge = this.isAppUnused(a) ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
             const crashedBadge = a.crashed ? `<span class="badge badge-err">${this.t('apps.crashed')}${a.crashedCount > 1 ? ' ×' + a.crashedCount : ''}</span>` : '';
             const disabledBadge = !a.enabled ? `<span class="badge badge-info">${this.t('apps.disabled')}</span>` : '';
+            const isTest = a.channel === 'test';
+            const testBadge = isTest ? `<span class="badge" style="background:#ede9fe;color:#5b21b6">${this.t('apps.testChannel')}</span>` : '';
             if (a.crashed) sevClass = 'sev-error';
             else if (this.isAppUnused(a) && !sevClass) sevClass = 'sev-info';
             const memMb = a.mem != null ? (a.mem / 1048576).toFixed(0) : null;
@@ -1460,10 +1485,12 @@ class FlowDoctor {
                 ? `<div class="text-xs text-gray-600 mt-1 flex gap-3">${memMb != null ? `<span>${this.t('apps.memory')}: <strong>${memMb} MB</strong></span>` : ''}${cpuPct != null ? `<span>${this.t('apps.cpu')}: <strong>${cpuPct}%</strong></span>` : ''}</div>`
                 : '';
             const installedTag = `<span class="text-green-700 font-semibold">✓ ${this.t('apps.installed')}</span> <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
+            const storeLabel = isTest ? this.t('apps.storeTest') : this.t('apps.store');
             const versionInfo = a.storeVersion
-                ? `${installedTag} · ${this.t('apps.store')} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
+                ? `${installedTag} · ${storeLabel} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
                 : installedTag;
-            const storeLink = this.appUrl(a.id);
+            const storeLink = this.appUrl(a.id, a.channel);
+            const storeLinkLabel = isTest ? this.t('apps.appStoreLinkTest') : this.t('apps.appStoreLink');
             const flowsCount = a.usage || 0;
             const devicesCount = a.deviceCount || 0;
             const flowsHtml = flowsCount > 0
@@ -1522,6 +1549,7 @@ class FlowDoctor {
                             <span class="font-semibold text-gray-900">${this.escape(a.name)}</span>
                             ${crashedBadge}
                             ${statusBadge}
+                            ${testBadge}
                             ${unusedBadge}
                             ${disabledBadge}
                         </div>
@@ -1532,7 +1560,7 @@ class FlowDoctor {
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         ${usageHtml}
-                        <a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">App Store ↗</a>
+                        <a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${storeLinkLabel}</a>
                     </div>
                 </div>
                 ${devicesPanelHtml}

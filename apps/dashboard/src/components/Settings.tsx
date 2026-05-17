@@ -28,7 +28,6 @@ export function Settings({
   settings,
   homeys,
   onChange,
-  onBack,
   onResetCredentials,
   onSignOut,
 }: {
@@ -90,9 +89,6 @@ export function Settings({
   return (
     <div className="screen settings-screen">
       <div className="settings-header">
-        <button className="icon-btn" onClick={onBack} title={t.settings_back}>
-          ←
-        </button>
         <h3>{t.settings_title}</h3>
       </div>
 

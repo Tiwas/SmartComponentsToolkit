@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   EMPTY_FLOORPLAN,
@@ -110,8 +110,19 @@ function ImportFloorplanModal({
   const [tab, setTab] = useState<"file" | "paste">("file");
   const [pasted, setPasted] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  // Auto-focus the textarea every time the paste tab becomes active. This
+  // also recovers focus after the window is minimized and restored, which
+  // sometimes leaves the previous element in a focus-stuck state in WebView2.
+  useEffect(() => {
+    if (tab === "paste") {
+      const id = window.setTimeout(() => textareaRef.current?.focus(), 30);
+      return () => window.clearTimeout(id);
+    }
+  }, [tab]);
+
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     setError(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,14 +171,22 @@ function ImportFloorplanModal({
         </div>
 
         {tab === "file" ? (
-          <input type="file" accept=".svg,image/svg+xml" onChange={handleFile} />
+          <input
+            key="file-input"
+            type="file"
+            accept=".svg,image/svg+xml"
+            onChange={handleFile}
+          />
         ) : (
           <>
             <textarea
+              key="paste-textarea"
+              ref={textareaRef}
               rows={8}
               placeholder="<svg …>…</svg>"
               value={pasted}
               onChange={(e) => setPasted(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
               style={{
                 width: "100%",
                 fontFamily: "monospace",
@@ -178,6 +197,7 @@ function ImportFloorplanModal({
                 borderRadius: 6,
                 padding: 8,
                 resize: "vertical",
+                pointerEvents: "auto",
               }}
             />
             <div className="modal-actions">

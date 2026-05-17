@@ -84,14 +84,15 @@ function AppInner({
   }, [settings.mode]);
 
   // Listen for hotzone triggers from Rust. If the widget was already visible
-  // we just focus it. If it was hidden, we show it and start a recurring
-  // auto-hide check: after `hotzoneAutoHideSec` seconds, if the cursor is
-  // currently over the widget we restart the check (5s re-checks); if not,
-  // we hide. So the widget stays as long as you keep your cursor on it.
+  // we just focus it. If it was hidden, we show it and start an auto-hide
+  // check that polls for user activity (mousemove/mousedown/keydown anywhere
+  // in the window) rather than relying on the :hover pseudo-class, which is
+  // unreliable in WebView2 across focus / minimize cycles.
   useEffect(() => {
     const initialSec = settings.hotzoneAutoHideSec;
     const recheckSec = 5;
     let activeTimer: number | null = null;
+    let lastActivity = Date.now();
 
     function clearTimer() {
       if (activeTimer !== null) {
@@ -100,17 +101,25 @@ function AppInner({
       }
     }
 
+    function markActivity() {
+      lastActivity = Date.now();
+    }
+
     function scheduleCheck(delayMs: number, win: ReturnType<typeof getCurrentWindow>) {
       activeTimer = window.setTimeout(() => {
         activeTimer = null;
-        const hovered = document.body.matches(":hover");
-        if (hovered) {
+        const idleMs = Date.now() - lastActivity;
+        if (idleMs < delayMs) {
           scheduleCheck(recheckSec * 1000, win);
         } else {
           win.hide().catch(() => {});
         }
       }, delayMs);
     }
+
+    document.addEventListener("mousemove", markActivity);
+    document.addEventListener("mousedown", markActivity);
+    document.addEventListener("keydown", markActivity);
 
     const promise = listen<number>("hotzone-trigger", async () => {
       try {
@@ -120,6 +129,7 @@ function AppInner({
         await win.setFocus();
         if (wasVisible) return;
         clearTimer();
+        markActivity();
         scheduleCheck(initialSec * 1000, win);
       } catch (e) {
         console.warn("[dashboard] show on hotzone failed:", e);
@@ -128,6 +138,9 @@ function AppInner({
     return () => {
       promise.then((unlisten) => unlisten()).catch(() => {});
       clearTimer();
+      document.removeEventListener("mousemove", markActivity);
+      document.removeEventListener("mousedown", markActivity);
+      document.removeEventListener("keydown", markActivity);
     };
   }, [settings.hotzoneAutoHideSec]);
 
@@ -263,6 +276,15 @@ function AppInner({
       <div className="titlebar">
         <span>Smart (Components) Toolkit Widget</span>
         <div className="actions">
+          {screen.kind === "settings" && (
+            <button
+              className="icon-btn"
+              onClick={backToDashboard}
+              title={t.settings_back}
+            >
+              ← {t.settings_back}
+            </button>
+          )}
           <button
             className="icon-btn close-btn"
             onClick={() => getCurrentWindow().close()}

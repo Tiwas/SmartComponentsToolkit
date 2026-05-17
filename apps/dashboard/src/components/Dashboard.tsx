@@ -416,11 +416,6 @@ export function Dashboard({
     const indentPx = depth * 12;
     return (
       <>
-        {node.flows.map((f) => (
-          <div key={f.id} style={{ marginLeft: indentPx }}>
-            {renderFlowRow(f)}
-          </div>
-        ))}
         {node.children.map((child) => {
           const folder = child.folder!;
           const collapsed = collapsedSet.has(folder.id);
@@ -459,6 +454,11 @@ export function Dashboard({
             </div>
           );
         })}
+        {node.flows.map((f) => (
+          <div key={f.id} style={{ marginLeft: indentPx }}>
+            {renderFlowRow(f)}
+          </div>
+        ))}
       </>
     );
   }

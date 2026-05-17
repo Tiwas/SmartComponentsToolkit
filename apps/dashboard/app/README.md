@@ -93,19 +93,21 @@ Both run a silent `npm install` if needed and then build for the host platform.
 ## Architecture
 
 ```
-apps/
-├─ dashboard-shared/      # framework-agnostic TS: auth, Homey client wrapper,
-│                         #   favorites data model, flow URL helpers, smoke test
-└─ dashboard-desktop/     # this app
+apps/dashboard/
+├─ shared/                # framework-agnostic TS: auth, Homey client wrapper,
+│                         #   favorites + folders data model, settings model,
+│                         #   notification-source resolver, smoke test
+└─ app/                   # this app
    ├─ src/                # React frontend (Vite)
-   │  ├─ App.tsx          # screen state machine: setup → login → dashboard
-   │  ├─ components/      # Dashboard, FlowRow, ContextMenu, PromptModal, …
+   │  ├─ App.tsx          # screen state machine: setup → login → dashboard ↔ settings
+   │  ├─ components/      # Dashboard, FlowRow, ContextMenu, PromptModal, Settings, …
    │  └─ lib/             # cloud (loads AthomCloudAPI from CDN),
    │                      #   oauth (Tauri loopback handler),
-   │                      #   favorites-tauri (file-backed persistence)
+   │                      #   favorites-tauri + settings-tauri (file-backed)
+   ├─ public/toast.html   # standalone screen-toast page (yellow-orange, stacked)
    └─ src-tauri/          # Rust shell (Tauri 2)
-      ├─ src/lib.rs       # loopback OAuth listener + favorites file I/O
-      ├─ tauri.conf.json  # transparent, always-on-top floating window
+      ├─ src/lib.rs       # loopback OAuth + favorites/settings I/O + show_toast
+      ├─ tauri.conf.json  # main window + toast window
       └─ capabilities/    # plugin permissions
 ```
 
@@ -114,7 +116,7 @@ Key design choices:
 - **Loopback OAuth** at `127.0.0.1:53117` — Rust spins up a one-shot HTTP listener, opens the system browser, captures the redirect, hands the code back to JS.
 - **Favorites in `app_data_dir`** — `%APPDATA%\no.tiwas.homeytoolbox.dashboard\favorites.json` on Windows, equivalent on macOS/Linux. Survives WebView2 storage resets.
 
-## Known limits in v0.0.1
+## Known limits
 
 - **Single Homey only** — uses the first one returned by `getHomeys()`.
 - **No drag-and-drop** for favorites — use the right-click context menu.

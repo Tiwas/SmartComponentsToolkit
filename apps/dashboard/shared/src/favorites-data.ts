@@ -9,9 +9,15 @@ export interface FavoritesData {
   /** Favorites not inside any custom folder ("Quick" group). */
   flowIds: string[];
   folders: FavoriteFolder[];
+  /** IDs of Homey flow folders the user has collapsed in the Flows tab. */
+  collapsedHomeyFolders?: string[];
 }
 
-export const EMPTY_FAVORITES: FavoritesData = { flowIds: [], folders: [] };
+export const EMPTY_FAVORITES: FavoritesData = {
+  flowIds: [],
+  folders: [],
+  collapsedHomeyFolders: [],
+};
 
 /**
  * Coerce any persisted blob (including the legacy `string[]` shape) into the
@@ -30,7 +36,21 @@ export function normalizeFavoritesData(raw: unknown): FavoritesData {
   const folders = Array.isArray(obj.folders)
     ? (obj.folders.map(normalizeFolder).filter((f) => f !== null) as FavoriteFolder[])
     : [];
-  return { flowIds, folders };
+  const collapsedHomeyFolders = Array.isArray(obj.collapsedHomeyFolders)
+    ? obj.collapsedHomeyFolders.filter((x): x is string => typeof x === "string")
+    : [];
+  return { flowIds, folders, collapsedHomeyFolders };
+}
+
+export function toggleHomeyFolderCollapsed(
+  data: FavoritesData,
+  folderId: string,
+): FavoritesData {
+  const current = data.collapsedHomeyFolders ?? [];
+  const next = current.includes(folderId)
+    ? current.filter((id) => id !== folderId)
+    : [...current, folderId];
+  return { ...data, collapsedHomeyFolders: next };
 }
 
 function normalizeFolder(raw: unknown): FavoriteFolder | null {

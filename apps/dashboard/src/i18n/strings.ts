@@ -22,8 +22,7 @@ export interface Strings {
   tb_close: string;
   // Tabs
   tab_favorites: string;
-  tab_folders: string;
-  tab_all: string;
+  tab_flows: string;
   tab_refresh: string;
   tab_settings: string;
   // Dashboard
@@ -114,8 +113,7 @@ const en: Strings = {
   login_waiting: "Waiting for browser…",
   tb_close: "Close",
   tab_favorites: "★ Favorites",
-  tab_folders: "Folders",
-  tab_all: "All",
+  tab_flows: "Flows",
   tab_refresh: "Refresh flows",
   tab_settings: "Settings",
   search_placeholder: "Search flows…",
@@ -206,8 +204,7 @@ const no: Strings = {
   login_waiting: "Venter på nettleser…",
   tb_close: "Lukk",
   tab_favorites: "★ Favoritter",
-  tab_folders: "Mapper",
-  tab_all: "Alle",
+  tab_flows: "Flows",
   tab_refresh: "Oppdater flows",
   tab_settings: "Innstillinger",
   search_placeholder: "Søk i flows…",
@@ -298,8 +295,7 @@ const de: Strings = {
   login_waiting: "Warte auf den Browser…",
   tb_close: "Schließen",
   tab_favorites: "★ Favoriten",
-  tab_folders: "Ordner",
-  tab_all: "Alle",
+  tab_flows: "Flows",
   tab_refresh: "Flows aktualisieren",
   tab_settings: "Einstellungen",
   search_placeholder: "Flows durchsuchen…",
@@ -390,8 +386,7 @@ const nl: Strings = {
   login_waiting: "Wachten op browser…",
   tb_close: "Sluiten",
   tab_favorites: "★ Favorieten",
-  tab_folders: "Mappen",
-  tab_all: "Alle",
+  tab_flows: "Flows",
   tab_refresh: "Flows verversen",
   tab_settings: "Instellingen",
   search_placeholder: "Zoek in flows…",

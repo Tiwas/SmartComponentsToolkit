@@ -3,22 +3,25 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   addFavorite,
+  buildFolderTree,
+  countFlowsInNode,
   createFolder,
   deleteFolder,
   EMPTY_FAVORITES,
   flowEditorUrl,
   formatOwnerUri,
-  groupByFolder,
   HomeyClient,
   isFavorite,
   moveFavorite,
   removeFavorite,
   renameFolder,
   toggleFolderCollapsed,
+  toggleHomeyFolderCollapsed,
   type AppSettings,
   type FavoritesData,
   type Flow,
   type FlowFolder,
+  type FolderNode,
 } from "@homey-toolbox/dashboard-shared";
 import { FlowRow } from "./FlowRow";
 import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
@@ -26,7 +29,7 @@ import { PromptModal } from "./PromptModal";
 import { loadFavorites, saveFavorites } from "../lib/favorites-tauri";
 import { useI18n } from "../i18n/context";
 
-type Tab = "favorites" | "folders" | "all";
+type Tab = "favorites" | "flows";
 type Toast = { id: number; text: string; kind?: "notification" };
 type Modal =
   | { kind: "newFolder"; assignFlowId?: string }
@@ -391,19 +394,73 @@ export function Dashboard({
     );
   }
 
-  function renderFoldersTab() {
-    const grouped = groupByFolder(filteredAll, homeyFolders);
-    return [...grouped.entries()].map(([folderName, list]) => (
-      <div key={folderName}>
-        <div className="section-title">{folderName}</div>
-        {list.map((f) => renderFlowRow(f))}
-      </div>
-    ));
+  function renderFlowsTab() {
+    if (flows.length === 0) return <div className="muted">{t.no_flows}</div>;
+    const tree = buildFolderTree(filteredAll, homeyFolders);
+    const collapsedSet = new Set(favorites.collapsedHomeyFolders ?? []);
+    if (tree.flows.length === 0 && tree.children.length === 0) {
+      return <div className="muted">{t.no_flows}</div>;
+    }
+    return <FolderTree node={tree} depth={0} collapsedSet={collapsedSet} />;
   }
 
-  function renderAllTab() {
-    if (filteredAll.length === 0) return <div className="muted">{t.no_flows}</div>;
-    return filteredAll.map((f) => renderFlowRow(f));
+  function FolderTree({
+    node,
+    depth,
+    collapsedSet,
+  }: {
+    node: FolderNode;
+    depth: number;
+    collapsedSet: Set<string>;
+  }) {
+    const indentPx = depth * 12;
+    return (
+      <>
+        {node.flows.map((f) => (
+          <div key={f.id} style={{ marginLeft: indentPx }}>
+            {renderFlowRow(f)}
+          </div>
+        ))}
+        {node.children.map((child) => {
+          const folder = child.folder!;
+          const collapsed = collapsedSet.has(folder.id);
+          const count = countFlowsInNode(child);
+          return (
+            <div key={folder.id} style={{ marginLeft: indentPx }}>
+              <div className="folder-header">
+                <button
+                  className="folder-chevron"
+                  onClick={() =>
+                    persist(toggleHomeyFolderCollapsed(favorites, folder.id))
+                  }
+                  title={collapsed ? "Expand" : "Collapse"}
+                >
+                  {collapsed ? "▶" : "▼"}
+                </button>
+                <span
+                  className="name"
+                  onClick={() =>
+                    persist(toggleHomeyFolderCollapsed(favorites, folder.id))
+                  }
+                >
+                  {folder.name}
+                  {collapsed && count > 0 && (
+                    <span className="folder-count"> ({count})</span>
+                  )}
+                </span>
+              </div>
+              {!collapsed && (
+                <FolderTree
+                  node={child}
+                  depth={depth + 1}
+                  collapsedSet={collapsedSet}
+                />
+              )}
+            </div>
+          );
+        })}
+      </>
+    );
   }
 
   return (
@@ -416,13 +473,10 @@ export function Dashboard({
           {t.tab_favorites}
         </button>
         <button
-          className={`tab ${tab === "folders" ? "active" : ""}`}
-          onClick={() => setTab("folders")}
+          className={`tab ${tab === "flows" ? "active" : ""}`}
+          onClick={() => setTab("flows")}
         >
-          {t.tab_folders}
-        </button>
-        <button className={`tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>
-          {t.tab_all}
+          {t.tab_flows}
         </button>
         <div style={{ flex: 1 }} />
         <button
@@ -450,8 +504,7 @@ export function Dashboard({
         {error && <div className="error">{error}</div>}
 
         {tab === "favorites" && renderFavoritesTab()}
-        {tab === "folders" && renderFoldersTab()}
-        {tab === "all" && renderAllTab()}
+        {tab === "flows" && renderFlowsTab()}
       </div>
 
       {menu &&

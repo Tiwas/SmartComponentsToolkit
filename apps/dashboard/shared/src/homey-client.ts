@@ -117,3 +117,67 @@ export function groupByFolder(flows: Flow[], folders: FlowFolder[]): Map<string,
   }
   return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
 }
+
+export interface FolderNode {
+  /** null = the synthetic root that holds top-level flows + folders. */
+  folder: FlowFolder | null;
+  children: FolderNode[];
+  flows: Flow[];
+}
+
+/**
+ * Build a nested tree of Homey flow folders, mirroring the structure shown
+ * inside the Homey mobile app. Top-level (parent === null) folders sit
+ * directly under the root, along with any flows whose folder is null.
+ */
+export function buildFolderTree(flows: Flow[], folders: FlowFolder[]): FolderNode {
+  const flowsByFolderId = new Map<string | null, Flow[]>();
+  for (const flow of flows) {
+    const key = flow.folder ?? null;
+    if (!flowsByFolderId.has(key)) flowsByFolderId.set(key, []);
+    flowsByFolderId.get(key)!.push(flow);
+  }
+
+  const nodeByFolderId = new Map<string, FolderNode>();
+  for (const folder of folders) {
+    nodeByFolderId.set(folder.id, {
+      folder,
+      children: [],
+      flows: flowsByFolderId.get(folder.id) ?? [],
+    });
+  }
+
+  const root: FolderNode = {
+    folder: null,
+    children: [],
+    flows: flowsByFolderId.get(null) ?? [],
+  };
+
+  for (const folder of folders) {
+    const node = nodeByFolderId.get(folder.id)!;
+    if (folder.parent && nodeByFolderId.has(folder.parent)) {
+      nodeByFolderId.get(folder.parent)!.children.push(node);
+    } else {
+      root.children.push(node);
+    }
+  }
+
+  function sortNode(node: FolderNode) {
+    node.children.sort((a, b) =>
+      (a.folder?.name ?? "").localeCompare(b.folder?.name ?? ""),
+    );
+    node.flows.sort((a, b) => a.name.localeCompare(b.name));
+    node.children.forEach(sortNode);
+  }
+  sortNode(root);
+
+  return root;
+}
+
+/** Recursively count flows in a folder node (including descendants). */
+export function countFlowsInNode(node: FolderNode): number {
+  return (
+    node.flows.length +
+    node.children.reduce((sum, child) => sum + countFlowsInNode(child), 0)
+  );
+}

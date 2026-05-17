@@ -1587,6 +1587,28 @@ class FlowDoctor {
             this.traceDevicesById.clear();
             Object.values(devices).forEach(d => this.traceDevicesById.set(d.id, d));
 
+            // Synthetic startup marker so the user can see the log is wired up even if no real
+            // events fire yet.
+            this.addTraceEvent({
+                cat: 'app',
+                title: '✅ Tracing started',
+                subject: '',
+                detail: `${this.traceFlowsById.size} flows · ${this.traceDevicesById.size} devices baselined`,
+                raw: { flows: this.traceFlowsById.size, devices: this.traceDevicesById.size },
+            });
+
+            // The cloud-bridged HomeyAPI sometimes needs an explicit connect() on each manager
+            // before realtime events flow. It's a no-op on managers that auto-connect.
+            for (const mgrName of ['devices', 'flow', 'logic', 'apps']) {
+                try {
+                    const mgr = this.api[mgrName];
+                    if (mgr && typeof mgr.connect === 'function') {
+                        await mgr.connect();
+                        console.log(`[trace] connected manager: ${mgrName}`);
+                    }
+                } catch (e) { console.warn(`[trace] connect(${mgrName}) failed:`, e); }
+            }
+
             // Subscribe to WebSocket events. The HomeyAPI v3 managers extend EventEmitter and emit
             // events like "device.update", "flow.update", "variable.update", "app.update".
             // We wrap each subscription in try/catch — if a particular manager isn't exposed in this
@@ -1684,13 +1706,15 @@ class FlowDoctor {
     attachManagerListener(managerName, eventName, handler) {
         try {
             const mgr = this.api && this.api[managerName];
-            if (!mgr || typeof mgr.on !== 'function') return;
+            if (!mgr || typeof mgr.on !== 'function') { console.warn(`[trace] no listener support on ${managerName}`); return; }
             const wrapped = (payload) => {
-                try { handler(payload); } catch (e) { /* swallow per-event errors */ }
+                console.log(`[trace] ${managerName}.${eventName}`, payload);
+                try { handler(payload); } catch (e) { console.warn('[trace] handler error', e); }
             };
             mgr.on(eventName, wrapped);
             this.traceListeners.push({ mgr, eventName, wrapped });
-        } catch (e) { /* manager not available — ignore */ }
+            console.log(`[trace] subscribed: ${managerName}.${eventName}`);
+        } catch (e) { console.warn(`[trace] subscribe failed: ${managerName}.${eventName}`, e); }
     }
 
     diffCapabilities(prev, next) {
@@ -1721,9 +1745,10 @@ class FlowDoctor {
                 if (!flow.lastExecuted) continue;
                 const prev = this.traceLastExec.get(flow.id);
                 if (prev === flow.lastExecuted) continue;
-                const seeding = prev === undefined;
+                // startTrace() already seeded every flow that had a prior lastExecuted, so a
+                // prev===undefined here means this flow ran for the very first time during
+                // this tracing session — that's a real event worth reporting.
                 this.traceLastExec.set(flow.id, flow.lastExecuted);
-                if (seeding) continue;
                 this.addTraceEvent({
                     cat: 'flow',
                     title: this.t('trace.flowRan') + (flow._type === 'advanced' ? ' (advanced)' : ''),

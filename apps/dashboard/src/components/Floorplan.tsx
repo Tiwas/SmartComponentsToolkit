@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   EMPTY_FLOORPLAN,
+  extractFloors,
+  filterFloors,
   HomeyClient,
   validateSvg,
   type FloorplanData,
@@ -24,6 +26,7 @@ export function Floorplan({
   const [data, setData] = useState<FloorplanData>(EMPTY_FLOORPLAN);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [hiddenFloors, setHiddenFloors] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,6 +35,12 @@ export function Floorplan({
       .catch((e) => console.warn("[dashboard] loadFloorplan failed:", e))
       .finally(() => setLoading(false));
   }, []);
+
+  const floors = data.svg ? extractFloors(data.svg) : [];
+  const visibleFloors =
+    floors.length > 0 ? new Set(floors.filter((f) => !hiddenFloors.has(f))) : null;
+  const renderedSvg =
+    data.svg && visibleFloors ? filterFloors(data.svg, visibleFloors) : data.svg;
 
   async function persist(next: FloorplanData) {
     setData(next);
@@ -48,6 +57,27 @@ export function Floorplan({
         <span className="tab active" style={{ cursor: "default" }}>
           {t.floorplan_title}
         </span>
+        {floors.map((floor) => {
+          const visible = !hiddenFloors.has(floor);
+          return (
+            <button
+              key={floor}
+              className={`tab ${visible ? "active" : ""}`}
+              onClick={() => {
+                setHiddenFloors((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(floor)) next.delete(floor);
+                  else next.add(floor);
+                  return next;
+                });
+              }}
+              title={visible ? `Hide ${floor}` : `Show ${floor}`}
+              style={{ fontSize: 11 }}
+            >
+              {floor}
+            </button>
+          );
+        })}
         <div style={{ flex: 1 }} />
         <button className="tab" onClick={() => setShowImport(true)} title={t.floorplan_import}>
           ⤓
@@ -66,7 +96,7 @@ export function Floorplan({
         ) : data.svg ? (
           <div
             className="floorplan-svg"
-            dangerouslySetInnerHTML={{ __html: data.svg }}
+            dangerouslySetInnerHTML={{ __html: renderedSvg }}
           />
         ) : (
           <div className="floorplan-empty">

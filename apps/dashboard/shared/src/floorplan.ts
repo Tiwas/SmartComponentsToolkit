@@ -66,3 +66,69 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
   }
   return { ok: true, svg: trimmed.slice(openIdx, closeIdx + "</svg>".length) };
 }
+
+/**
+ * Parse a floorplan SVG and extract the list of floor names it contains.
+ * The editor wraps each floor in `<g data-floor="...">`. Returns the
+ * floors in the order they appear in the SVG. Empty list if the SVG
+ * has no data-floor groups (legacy single-floor SVGs).
+ */
+export function extractFloors(svg: string): string[] {
+  const result: string[] = [];
+  const regex = /<g\b[^>]*\bdata-floor\s*=\s*"([^"]*)"/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(svg)) !== null) {
+    const name = match[1];
+    if (name && !result.includes(name)) result.push(name);
+  }
+  return result;
+}
+
+/**
+ * Return a filtered SVG containing only the named floors. If `visibleFloors`
+ * is null or the SVG has no data-floor groups, returns the input unchanged.
+ */
+export function filterFloors(svg: string, visibleFloors: Set<string> | null): string {
+  if (!visibleFloors) return svg;
+  const floors = extractFloors(svg);
+  if (floors.length === 0) return svg;
+  // Remove any <g data-floor="X">...</g> whose X isn't in visibleFloors.
+  // Need balanced tag matching since groups can contain nested groups.
+  return removeFloorsExcept(svg, visibleFloors);
+}
+
+function removeFloorsExcept(svg: string, keep: Set<string>): string {
+  let out = svg;
+  const openRegex = /<g\b[^>]*\bdata-floor\s*=\s*"([^"]*)"[^>]*>/i;
+  while (true) {
+    const open = openRegex.exec(out);
+    if (!open) break;
+    const name = open[1] ?? "";
+    const startIdx = open.index;
+    const headerEnd = startIdx + open[0].length;
+    if (keep.has(name)) {
+      // Replace the attribute so we don't re-match, but keep the group.
+      const replaced = open[0].replace(/data-floor="[^"]*"/i, `data-floor-kept="${name}"`);
+      out = out.slice(0, startIdx) + replaced + out.slice(headerEnd);
+      continue;
+    }
+    // Find the matching </g> by counting nesting depth.
+    let depth = 1;
+    let i = headerEnd;
+    while (i < out.length && depth > 0) {
+      const nextOpen = out.toLowerCase().indexOf("<g", i);
+      const nextClose = out.toLowerCase().indexOf("</g>", i);
+      if (nextClose === -1) break;
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        i = nextOpen + 2;
+      } else {
+        depth--;
+        i = nextClose + 4;
+      }
+    }
+    out = out.slice(0, startIdx) + out.slice(i);
+  }
+  // Restore the marker attribute name we used to skip the kept groups.
+  return out.replace(/data-floor-kept=/gi, "data-floor=");
+}

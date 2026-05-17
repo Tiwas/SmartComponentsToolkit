@@ -74,6 +74,22 @@ export interface Strings {
   settings_account: string;
   settings_sign_out: string;
   settings_reset_creds: string;
+  settings_window: string;
+  settings_hotkey: string;
+  settings_hotkey_hint: string;
+  settings_hotzone: string;
+  settings_hotzone_hint: string;
+  settings_hotzone_off: string;
+  settings_hotzone_left: string;
+  settings_hotzone_right: string;
+  settings_hotzone_top: string;
+  settings_hotzone_bottom: string;
+  settings_hotzone_autohide: string;
+  settings_hotzone_autohide_hint: string;
+  settings_start_minimized: string;
+  settings_start_minimized_hint: string;
+  settings_homey: string;
+  settings_homey_loading: string;
   settings_about: string;
   settings_homey_store: string;
   settings_docs: string;
@@ -147,6 +163,26 @@ const en: Strings = {
   settings_account: "Account",
   settings_sign_out: "Sign out (keep credentials)",
   settings_reset_creds: "Reset OAuth credentials",
+  settings_window: "Window",
+  settings_hotkey: "Show/hide shortcut",
+  settings_hotkey_hint:
+    "Global shortcut to toggle the widget. Use Tauri accelerator format, e.g. CommandOrControl+Shift+H. Leave empty to disable.",
+  settings_hotzone: "Hotzone (cursor edge trigger)",
+  settings_hotzone_hint:
+    "Move the cursor all the way against the chosen screen edge to pop the widget out. Disabled by default.",
+  settings_hotzone_off: "Off",
+  settings_hotzone_left: "Left edge",
+  settings_hotzone_right: "Right edge",
+  settings_hotzone_top: "Top edge",
+  settings_hotzone_bottom: "Bottom edge",
+  settings_hotzone_autohide: "Auto-hide after (seconds)",
+  settings_hotzone_autohide_hint:
+    "If you don't move the cursor onto the widget, it hides itself again after this many seconds.",
+  settings_start_minimized: "Start minimized",
+  settings_start_minimized_hint:
+    "When enabled, the widget launches hidden. Bring it up with the tray icon, the global shortcut or the hotzone.",
+  settings_homey: "Active Homey",
+  settings_homey_loading: "Loading…",
   settings_about: "About",
   settings_homey_store: "Homey App Store →",
   settings_docs: "Documentation →",
@@ -219,6 +255,26 @@ const no: Strings = {
   settings_account: "Konto",
   settings_sign_out: "Logg ut (behold legitimasjon)",
   settings_reset_creds: "Nullstill OAuth-legitimasjon",
+  settings_window: "Vindu",
+  settings_hotkey: "Hurtigtast for vis/skjul",
+  settings_hotkey_hint:
+    "Global hurtigtast for å veksle widget-en. Bruk Tauri-format, f.eks. CommandOrControl+Shift+H. Tom = deaktivert.",
+  settings_hotzone: "Hotzone (musepeker mot skjermkant)",
+  settings_hotzone_hint:
+    "Beveg musen helt mot valgt skjermkant for å hente fram widget-en. Av som standard.",
+  settings_hotzone_off: "Av",
+  settings_hotzone_left: "Venstre kant",
+  settings_hotzone_right: "Høyre kant",
+  settings_hotzone_top: "Topp",
+  settings_hotzone_bottom: "Bunn",
+  settings_hotzone_autohide: "Skjul igjen etter (sekunder)",
+  settings_hotzone_autohide_hint:
+    "Hvis du ikke beveger musen inn på widget-en, skjuler den seg selv etter så mange sekunder.",
+  settings_start_minimized: "Start minimert",
+  settings_start_minimized_hint:
+    "Når aktivert, starter widget-en skjult. Hent den fram med tray-ikonet, hurtigtasten eller hotzonen.",
+  settings_homey: "Aktiv Homey",
+  settings_homey_loading: "Laster…",
   settings_about: "Om",
   settings_homey_store: "Homey App Store →",
   settings_docs: "Dokumentasjon →",
@@ -291,6 +347,26 @@ const de: Strings = {
   settings_account: "Konto",
   settings_sign_out: "Abmelden (Zugangsdaten behalten)",
   settings_reset_creds: "OAuth-Zugangsdaten zurücksetzen",
+  settings_window: "Fenster",
+  settings_hotkey: "Tastenkürzel zum Ein-/Ausblenden",
+  settings_hotkey_hint:
+    "Globales Tastenkürzel zum Umschalten des Widgets. Verwende Tauri-Format, z. B. CommandOrControl+Shift+H. Leer = deaktiviert.",
+  settings_hotzone: "Hotzone (Mauszeiger an Bildschirmrand)",
+  settings_hotzone_hint:
+    "Bewege den Mauszeiger ganz an den gewählten Bildschirmrand, um das Widget einzublenden. Standardmäßig aus.",
+  settings_hotzone_off: "Aus",
+  settings_hotzone_left: "Linker Rand",
+  settings_hotzone_right: "Rechter Rand",
+  settings_hotzone_top: "Oberer Rand",
+  settings_hotzone_bottom: "Unterer Rand",
+  settings_hotzone_autohide: "Wieder ausblenden nach (Sekunden)",
+  settings_hotzone_autohide_hint:
+    "Wenn der Cursor das Widget nicht erreicht, blendet es sich nach dieser Zeit selbst aus.",
+  settings_start_minimized: "Minimiert starten",
+  settings_start_minimized_hint:
+    "Wenn aktiviert, startet das Widget ausgeblendet. Hol es per Tray-Symbol, Tastenkürzel oder Hotzone hervor.",
+  settings_homey: "Aktive Homey",
+  settings_homey_loading: "Lädt…",
   settings_about: "Über",
   settings_homey_store: "Homey App Store →",
   settings_docs: "Dokumentation →",
@@ -363,6 +439,26 @@ const nl: Strings = {
   settings_account: "Account",
   settings_sign_out: "Uitloggen (gegevens bewaren)",
   settings_reset_creds: "OAuth-gegevens resetten",
+  settings_window: "Venster",
+  settings_hotkey: "Sneltoets voor tonen/verbergen",
+  settings_hotkey_hint:
+    "Globale sneltoets om de widget te wisselen. Gebruik Tauri-formaat, bv. CommandOrControl+Shift+H. Leeg = uitgeschakeld.",
+  settings_hotzone: "Hotzone (cursor naar schermrand)",
+  settings_hotzone_hint:
+    "Beweeg de cursor helemaal tegen de gekozen schermrand om de widget tevoorschijn te halen. Standaard uit.",
+  settings_hotzone_off: "Uit",
+  settings_hotzone_left: "Linker rand",
+  settings_hotzone_right: "Rechter rand",
+  settings_hotzone_top: "Bovenrand",
+  settings_hotzone_bottom: "Onderrand",
+  settings_hotzone_autohide: "Opnieuw verbergen na (seconden)",
+  settings_hotzone_autohide_hint:
+    "Als de cursor de widget niet bereikt, verbergt deze zichzelf na deze tijd weer.",
+  settings_start_minimized: "Geminimaliseerd starten",
+  settings_start_minimized_hint:
+    "Indien ingeschakeld start de widget verborgen. Haal hem op via het systray-icoon, de sneltoets of de hotzone.",
+  settings_homey: "Actieve Homey",
+  settings_homey_loading: "Laden…",
   settings_about: "Over",
   settings_homey_store: "Homey App Store →",
   settings_docs: "Documentatie →",

@@ -2,12 +2,23 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::time::Duration;
 
-use tauri::{Manager, PhysicalPosition};
+use device_query::{DeviceQuery, DeviceState};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Emitter, Manager, PhysicalPosition};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 static TOAST_INIT: AtomicBool = AtomicBool::new(false);
+static SNAPPING: AtomicBool = AtomicBool::new(false);
+/// Configured screen edge for the hotzone trigger. 0 = disabled, 1 = left,
+/// 2 = right, 3 = top, 4 = bottom. Updated from JS via `set_hotzone_edge`.
+static HOTZONE_EDGE: AtomicI32 = AtomicI32::new(0);
+
+const SNAP_THRESHOLD_PX: i32 = 24;
+const HOTZONE_TRIGGER_PX: i32 = 4;
 
 const SUCCESS_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Signed in</title>
 <style>body{font:14px system-ui;background:#14161c;color:#e8eaed;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}</style>
@@ -206,6 +217,145 @@ fn show_toast(app: tauri::AppHandle, text: String, duration_ms: u64) -> Result<(
     Ok(())
 }
 
+#[tauri::command]
+fn set_hotzone_edge(edge: i32) -> Result<(), String> {
+    if !(0..=4).contains(&edge) {
+        return Err(format!("invalid edge {edge}"));
+    }
+    HOTZONE_EDGE.store(edge, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+fn toggle_window(app: tauri::AppHandle) -> Result<(), String> {
+    let win = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window missing".to_string())?;
+    let visible = win.is_visible().unwrap_or(true);
+    if visible {
+        win.hide().map_err(|e| e.to_string())?;
+    } else {
+        win.show().map_err(|e| e.to_string())?;
+        let _ = win.set_focus();
+    }
+    Ok(())
+}
+
+fn snap_window_to_edges(window: &tauri::WebviewWindow) {
+    if SNAPPING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let result: Result<(), Box<dyn std::error::Error>> = (|| {
+        let monitor = window.current_monitor()?.ok_or("no monitor")?;
+        let m_pos = monitor.position();
+        let m_size = monitor.size();
+        let outer = window.outer_position()?;
+        let size = window.outer_size()?;
+
+        let left_edge = m_pos.x;
+        let right_edge = m_pos.x + (m_size.width as i32) - (size.width as i32);
+        let top_edge = m_pos.y;
+        let bottom_edge = m_pos.y + (m_size.height as i32) - (size.height as i32);
+
+        let mut new_x = outer.x;
+        let mut new_y = outer.y;
+
+        if (outer.x - left_edge).abs() < SNAP_THRESHOLD_PX {
+            new_x = left_edge;
+        } else if (outer.x - right_edge).abs() < SNAP_THRESHOLD_PX {
+            new_x = right_edge;
+        }
+        if (outer.y - top_edge).abs() < SNAP_THRESHOLD_PX {
+            new_y = top_edge;
+        } else if (outer.y - bottom_edge).abs() < SNAP_THRESHOLD_PX {
+            new_y = bottom_edge;
+        }
+
+        if new_x != outer.x || new_y != outer.y {
+            window.set_position(PhysicalPosition::new(new_x, new_y))?;
+        }
+        Ok(())
+    })();
+    let _ = result;
+    SNAPPING.store(false, Ordering::SeqCst);
+}
+
+/// Spawn a thread that polls the system cursor position and emits a
+/// `hotzone-trigger` event to the main webview when the cursor sits within
+/// HOTZONE_TRIGGER_PX of the configured edge. Debounced so consecutive frames
+/// at the edge don't spam the channel.
+fn spawn_hotzone_watcher(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let device_state = DeviceState::new();
+        let mut last_in_zone = false;
+        loop {
+            std::thread::sleep(Duration::from_millis(80));
+            let edge = HOTZONE_EDGE.load(Ordering::SeqCst);
+            if edge == 0 {
+                last_in_zone = false;
+                continue;
+            }
+            let mouse = device_state.get_mouse();
+            let (cx, cy) = (mouse.coords.0, mouse.coords.1);
+
+            let Some(win) = app.get_webview_window("main") else {
+                continue;
+            };
+            let Ok(Some(monitor)) = win.current_monitor() else {
+                continue;
+            };
+            let m_pos = monitor.position();
+            let m_size = monitor.size();
+
+            let in_zone = match edge {
+                1 => cx <= m_pos.x + HOTZONE_TRIGGER_PX,
+                2 => cx >= m_pos.x + (m_size.width as i32) - HOTZONE_TRIGGER_PX,
+                3 => cy <= m_pos.y + HOTZONE_TRIGGER_PX,
+                4 => cy >= m_pos.y + (m_size.height as i32) - HOTZONE_TRIGGER_PX,
+                _ => false,
+            };
+
+            if in_zone && !last_in_zone {
+                let _ = app.emit("hotzone-trigger", edge);
+            }
+            last_in_zone = in_zone;
+        }
+    });
+}
+
+fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let toggle = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&toggle, &quit])?;
+
+    TrayIconBuilder::with_id("main-tray")
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("Smart (Components) Toolkit Widget")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "toggle" => {
+                let _ = toggle_window(app.clone());
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let _ = toggle_window(tray.app_handle().clone());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -214,13 +364,59 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        let _ = toggle_window(app.clone());
+                    }
+                })
+                .build(),
+        )
+        .setup(|app| {
+            let handle = app.handle().clone();
+
+            // Start minimized? Read settings.json synchronously and hide window
+            // before it ever paints if the user opted in.
+            if let Ok(path) = app_data_file(&handle, "settings.json") {
+                if let Ok(contents) = fs::read_to_string(&path) {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
+                        let start_minimized = value
+                            .get("startMinimized")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        if start_minimized {
+                            if let Some(win) = app.get_webview_window("main") {
+                                let _ = win.hide();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Snap-to-edges on move
+            if let Some(win) = app.get_webview_window("main") {
+                let win_clone = win.clone();
+                win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Moved(_) = event {
+                        snap_window_to_edges(&win_clone);
+                    }
+                });
+            }
+            build_tray(&handle)?;
+            spawn_hotzone_watcher(handle.clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             await_oauth_code,
             load_favorites,
             save_favorites,
             load_settings,
             save_settings,
-            show_toast
+            show_toast,
+            set_hotzone_edge,
+            toggle_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

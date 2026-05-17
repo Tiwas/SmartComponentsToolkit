@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import {
+  register as registerShortcut,
+  unregister as unregisterShortcut,
+  isRegistered,
+} from "@tauri-apps/plugin-global-shortcut";
 import {
   AuthSession,
   DEFAULT_SETTINGS,
@@ -7,6 +14,7 @@ import {
   HomeyClient,
   type AppSettings,
   type AuthCredentials,
+  type HotzoneEdge,
 } from "@homey-toolbox/dashboard-shared";
 import { Setup } from "./components/Setup";
 import { Login } from "./components/Login";
@@ -34,6 +42,14 @@ export function App() {
   );
 }
 
+const HOTZONE_EDGE_TO_INT: Record<HotzoneEdge, number> = {
+  off: 0,
+  left: 1,
+  right: 2,
+  top: 3,
+  bottom: 4,
+};
+
 function AppInner({
   settings,
   setSettings,
@@ -44,18 +60,102 @@ function AppInner({
   const { t } = useI18n();
   const [screen, setScreen] = useState<Screen>({ kind: "loading" });
   const [fatal, setFatal] = useState<string | null>(null);
+  const [homeys, setHomeys] = useState<Array<{ id: string; name: string }>>([]);
+  const [activeShortcut, setActiveShortcut] = useState<string>("");
 
   useEffect(() => {
     bootstrap().catch((e) => setFatal(e instanceof Error ? e.message : String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Push hotzone edge into Rust whenever the setting changes.
+  useEffect(() => {
+    invoke("set_hotzone_edge", { edge: HOTZONE_EDGE_TO_INT[settings.hotzone] }).catch((e) =>
+      console.warn("[dashboard] set_hotzone_edge failed:", e),
+    );
+  }, [settings.hotzone]);
+
+  // Listen for hotzone triggers from Rust. If the widget was already visible
+  // we just focus it. If it was hidden, we show it and start a recurring
+  // auto-hide check: after `hotzoneAutoHideSec` seconds, if the cursor is
+  // currently over the widget we restart the check (5s re-checks); if not,
+  // we hide. So the widget stays as long as you keep your cursor on it.
+  useEffect(() => {
+    const initialSec = settings.hotzoneAutoHideSec;
+    const recheckSec = 5;
+    let activeTimer: number | null = null;
+
+    function clearTimer() {
+      if (activeTimer !== null) {
+        window.clearTimeout(activeTimer);
+        activeTimer = null;
+      }
+    }
+
+    function scheduleCheck(delayMs: number, win: ReturnType<typeof getCurrentWindow>) {
+      activeTimer = window.setTimeout(() => {
+        activeTimer = null;
+        const hovered = document.body.matches(":hover");
+        if (hovered) {
+          scheduleCheck(recheckSec * 1000, win);
+        } else {
+          win.hide().catch(() => {});
+        }
+      }, delayMs);
+    }
+
+    const promise = listen<number>("hotzone-trigger", async () => {
+      try {
+        const win = getCurrentWindow();
+        const wasVisible = await win.isVisible();
+        await win.show();
+        await win.setFocus();
+        if (wasVisible) return;
+        clearTimer();
+        scheduleCheck(initialSec * 1000, win);
+      } catch (e) {
+        console.warn("[dashboard] show on hotzone failed:", e);
+      }
+    });
+    return () => {
+      promise.then((unlisten) => unlisten()).catch(() => {});
+      clearTimer();
+    };
+  }, [settings.hotzoneAutoHideSec]);
+
+  // (Re-)register the global shortcut whenever the setting changes.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (activeShortcut && activeShortcut !== settings.hotkey) {
+          if (await isRegistered(activeShortcut)) await unregisterShortcut(activeShortcut);
+        }
+        const next = settings.hotkey.trim();
+        if (!next) {
+          if (!cancelled) setActiveShortcut("");
+          return;
+        }
+        if (!(await isRegistered(next))) {
+          await registerShortcut(next, async () => {
+            await invoke("toggle_window");
+          });
+        }
+        if (!cancelled) setActiveShortcut(next);
+      } catch (e) {
+        console.warn("[dashboard] hotkey register failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.hotkey, activeShortcut]);
+
   async function bootstrap() {
     const [stored, loadedSettings] = await Promise.all([
       Promise.resolve(loadCredentials()),
       loadSettings().catch(() => null),
     ]);
-    // First run: pick language from OS instead of defaulting to English.
     const effective = loadedSettings
       ? loadedSettings
       : { ...DEFAULT_SETTINGS, language: defaultLanguage(navigator.language) };
@@ -70,7 +170,16 @@ function AppInner({
     const AthomCloudAPI = await getAthomCloudAPI();
     const session = new AuthSession({ AthomCloudAPI, credentials: creds });
     if (await session.isLoggedIn()) {
-      const client = await HomeyClient.connect(session);
+      const homeyList = await HomeyClient.listHomeys(session).catch(() => []);
+      setHomeys(homeyList);
+      const client = await HomeyClient.connect(session, effective.homeyId || undefined);
+      // If settings.homeyId was empty, persist the actual one we connected to
+      // so the user has something selectable later.
+      if (!effective.homeyId && client.homey.id) {
+        const next = { ...effective, homeyId: client.homey.id };
+        setSettings(next);
+        saveSettings(next).catch(() => {});
+      }
       setScreen({ kind: "dashboard", client });
     } else {
       setScreen({ kind: "login", creds });
@@ -86,7 +195,9 @@ function AppInner({
     const AthomCloudAPI = await getAthomCloudAPI();
     const session = new AuthSession({ AthomCloudAPI, credentials: screen.creds });
     await session.exchangeCode(code);
-    const client = await HomeyClient.connect(session);
+    const homeyList = await HomeyClient.listHomeys(session).catch(() => []);
+    setHomeys(homeyList);
+    const client = await HomeyClient.connect(session, settings.homeyId || undefined);
     setScreen({ kind: "dashboard", client });
   }
 
@@ -172,6 +283,7 @@ function AppInner({
       {!fatal && screen.kind === "settings" && (
         <Settings
           settings={settings}
+          homeys={homeys}
           onChange={persistSettings}
           onBack={backToDashboard}
           onResetCredentials={handleResetCredentials}

@@ -18,13 +18,21 @@ export class HomeyClient {
     readonly api: HomeyAPILike,
   ) {}
 
-  static async connect(session: AuthSession, homeyIndex = 0): Promise<HomeyClient> {
+  static async connect(session: AuthSession, homeyId?: string): Promise<HomeyClient> {
     const user = await session.cloud.getAuthenticatedUser();
     const homeys = await user.getHomeys();
-    const homey = homeys[homeyIndex];
-    if (!homey) throw new Error("No Homey found on this account.");
+    if (homeys.length === 0) throw new Error("No Homey found on this account.");
+    const homey = (homeyId && homeys.find((h) => h.id === homeyId)) || homeys[0];
+    if (!homey) throw new Error("Selected Homey not available; pick another one in Settings.");
     const api = await homey.authenticate();
     return new HomeyClient(user, homey, api);
+  }
+
+  /** List all Homeys on the account (for the multi-Homey picker). */
+  static async listHomeys(session: AuthSession): Promise<Array<{ id: string; name: string }>> {
+    const user = await session.cloud.getAuthenticatedUser();
+    const homeys = await user.getHomeys();
+    return homeys.map((h) => ({ id: h.id, name: h.name }));
   }
 
   async listFlows(): Promise<Flow[]> {

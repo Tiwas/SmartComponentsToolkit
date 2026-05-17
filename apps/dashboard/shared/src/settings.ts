@@ -14,6 +14,10 @@ export function defaultLanguage(navigatorLang: string | undefined): Language {
   return "en";
 }
 
+export type HotzoneEdge = "off" | "left" | "right" | "top" | "bottom";
+
+export const HOTZONE_EDGES: HotzoneEdge[] = ["off", "left", "right", "top", "bottom"];
+
 export interface NotificationSettings {
   enabled: boolean;
   durationMs: number;
@@ -27,6 +31,16 @@ export interface AppSettings {
   language: Language;
   autostart: boolean;
   notifications: NotificationSettings;
+  /** Active Homey id; empty string means "use first one found". */
+  homeyId: string;
+  /** Global shortcut (Tauri-style accelerator, e.g. "CommandOrControl+Shift+H"). Empty = unregistered. */
+  hotkey: string;
+  /** Screen edge to use as a hotzone (move cursor to edge to pop the widget out). */
+  hotzone: HotzoneEdge;
+  /** If a hotzone-triggered show is ignored (cursor never reaches the widget), auto-hide after this many seconds. */
+  hotzoneAutoHideSec: number;
+  /** If true, the widget starts hidden and only appears on tray click / hotkey / hotzone. */
+  startMinimized: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -38,6 +52,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     pollIntervalSec: 10,
     showSource: true,
   },
+  homeyId: "",
+  hotkey: "CommandOrControl+Shift+H",
+  hotzone: "off",
+  hotzoneAutoHideSec: 10,
+  startMinimized: false,
 };
 
 export function normalizeSettings(raw: unknown): AppSettings {
@@ -48,9 +67,23 @@ export function normalizeSettings(raw: unknown): AppSettings {
     typeof obj.language === "string" && SUPPORTED_LANGUAGES.includes(obj.language as Language)
       ? (obj.language as Language)
       : DEFAULT_SETTINGS.language;
+  const hotzone = HOTZONE_EDGES.includes(obj.hotzone as HotzoneEdge)
+    ? (obj.hotzone as HotzoneEdge)
+    : DEFAULT_SETTINGS.hotzone;
   return {
     language,
     autostart: typeof obj.autostart === "boolean" ? obj.autostart : DEFAULT_SETTINGS.autostart,
+    homeyId: typeof obj.homeyId === "string" ? obj.homeyId : DEFAULT_SETTINGS.homeyId,
+    hotkey: typeof obj.hotkey === "string" ? obj.hotkey : DEFAULT_SETTINGS.hotkey,
+    hotzone,
+    hotzoneAutoHideSec:
+      typeof obj.hotzoneAutoHideSec === "number" && obj.hotzoneAutoHideSec >= 1
+        ? Math.min(obj.hotzoneAutoHideSec, 120)
+        : DEFAULT_SETTINGS.hotzoneAutoHideSec,
+    startMinimized:
+      typeof obj.startMinimized === "boolean"
+        ? obj.startMinimized
+        : DEFAULT_SETTINGS.startMinimized,
     notifications: {
       enabled:
         typeof n.enabled === "boolean" ? n.enabled : DEFAULT_SETTINGS.notifications.enabled,

@@ -7,8 +7,10 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  HOTZONE_EDGES,
   SUPPORTED_LANGUAGES,
   type AppSettings,
+  type HotzoneEdge,
   type Language,
 } from "@homey-toolbox/dashboard-shared";
 import { useI18n } from "../i18n/context";
@@ -22,12 +24,14 @@ const LINKS = {
 
 export function Settings({
   settings,
+  homeys,
   onChange,
   onBack,
   onResetCredentials,
   onSignOut,
 }: {
   settings: AppSettings;
+  homeys: Array<{ id: string; name: string }>;
   onChange: (next: AppSettings) => Promise<void>;
   onBack: () => void;
   onResetCredentials: () => void;
@@ -127,6 +131,108 @@ export function Settings({
         <div className="settings-hint">
           {import.meta.env.DEV ? t.settings_autostart_dev_disabled : t.settings_autostart_hint}
         </div>
+      </div>
+
+      {homeys.length > 1 && (
+        <div className="settings-section">
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="homey">
+              {t.settings_homey}
+            </label>
+            <select
+              id="homey"
+              value={settings.homeyId}
+              onChange={(e) => update({ homeyId: e.target.value })}
+            >
+              {homeys.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className="settings-section">
+        <div className="settings-section-title">{t.settings_window}</div>
+        <div className="settings-row">
+          <label className="settings-label" htmlFor="hotkey">
+            {t.settings_hotkey}
+          </label>
+          <input
+            id="hotkey"
+            type="text"
+            value={settings.hotkey}
+            placeholder="CommandOrControl+Shift+H"
+            onChange={(e) => update({ hotkey: e.target.value })}
+            style={{ width: 200 }}
+          />
+        </div>
+        <div className="settings-hint">{t.settings_hotkey_hint}</div>
+
+        <div className="settings-row" style={{ marginTop: 8 }}>
+          <label className="settings-label" htmlFor="hotzone">
+            {t.settings_hotzone}
+          </label>
+          <select
+            id="hotzone"
+            value={settings.hotzone}
+            onChange={(e) => update({ hotzone: e.target.value as HotzoneEdge })}
+          >
+            {HOTZONE_EDGES.map((edge) => (
+              <option key={edge} value={edge}>
+                {edge === "off"
+                  ? t.settings_hotzone_off
+                  : edge === "left"
+                    ? t.settings_hotzone_left
+                    : edge === "right"
+                      ? t.settings_hotzone_right
+                      : edge === "top"
+                        ? t.settings_hotzone_top
+                        : t.settings_hotzone_bottom}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-hint">{t.settings_hotzone_hint}</div>
+
+        {settings.hotzone !== "off" && (
+          <>
+            <div className="settings-row" style={{ marginTop: 8 }}>
+              <label className="settings-label" htmlFor="hotzone-autohide">
+                {t.settings_hotzone_autohide}
+              </label>
+              <input
+                id="hotzone-autohide"
+                type="number"
+                min={1}
+                max={120}
+                step={1}
+                value={settings.hotzoneAutoHideSec}
+                onChange={(e) => {
+                  const sec = Math.max(1, Math.min(120, parseInt(e.target.value, 10) || 10));
+                  update({ hotzoneAutoHideSec: sec });
+                }}
+                style={{ width: 64 }}
+              />
+            </div>
+            <div className="settings-hint">{t.settings_hotzone_autohide_hint}</div>
+          </>
+        )}
+
+        <div className="settings-row" style={{ marginTop: 8 }}>
+          <label className="settings-label" htmlFor="start-minimized">
+            {t.settings_start_minimized}
+          </label>
+          <input
+            id="start-minimized"
+            type="checkbox"
+            checked={settings.startMinimized}
+            onChange={(e) => update({ startMinimized: e.target.checked })}
+          />
+        </div>
+        <div className="settings-hint">{t.settings_start_minimized_hint}</div>
       </div>
 
       <div className="settings-section">

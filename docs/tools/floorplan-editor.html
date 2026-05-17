@@ -704,16 +704,31 @@ ${groups}
       }
       function loadFromSvg(svgText) {
         try {
-          const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
-          const err = doc.querySelector("parsererror");
-          if (err) throw new Error("Could not parse SVG");
+          // Strip any XML declaration / doctype prefix and BOM.
+          let cleaned = String(svgText ?? "").trim();
+          if (cleaned.charCodeAt(0) === 0xfeff) cleaned = cleaned.slice(1);
+          const svgStart = cleaned.toLowerCase().indexOf("<svg");
+          if (svgStart === -1) throw new Error("No <svg> root in input");
+          cleaned = cleaned.slice(svgStart);
 
-          const floorNodes = doc.querySelectorAll("g[data-floor]");
-          if (floorNodes.length === 0) {
-            // Legacy single-floor SVG: wrap it as one floor.
+          const doc = new DOMParser().parseFromString(cleaned, "image/svg+xml");
+          const err = doc.querySelector("parsererror");
+          if (err) throw new Error("Invalid XML: " + err.textContent);
+
+          // If the SVG has no <g data-floor> groups (legacy), wrap all
+          // top-level content into one synthetic floor.
+          const hasFloorGroups = doc.querySelector("g[data-floor]");
+          if (!hasFloorGroups) {
+            const root = doc.documentElement;
             const synth = doc.createElementNS("http://www.w3.org/2000/svg", "g");
             synth.setAttribute("data-floor", "Ground floor");
-            doc.documentElement.appendChild(synth);
+            const children = Array.from(root.childNodes);
+            for (const child of children) {
+              if (child.nodeType === 1 && child.tagName?.toLowerCase() === "defs") continue;
+              root.removeChild(child);
+              synth.appendChild(child);
+            }
+            root.appendChild(synth);
           }
 
           const newFloors = [];
@@ -724,6 +739,7 @@ ${groups}
           let maxFurnId = 0;
 
           const sources = doc.querySelectorAll("g[data-floor]");
+          if (sources.length === 0) throw new Error("Parsed 0 floors — SVG did not match expected structure");
           sources.forEach((floorNode, idx) => {
             const floorName = floorNode.getAttribute("data-floor") || `Floor ${idx + 1}`;
             const fid = "f" + (idx + 1);
@@ -785,8 +801,11 @@ ${groups}
           state.nextFloorId = maxFloorId + 1;
           renderFloorTabs();
           render();
-          flash(`Imported ${newFloors.length} floor(s), ${Object.values(newRooms).flat().length} rooms`);
+          const totalRooms = Object.values(newRooms).reduce((sum, arr) => sum + arr.length, 0);
+          const totalFurn = Object.values(newFurn).reduce((sum, arr) => sum + arr.length, 0);
+          flash(`Imported ${newFloors.length} floor(s), ${totalRooms} rooms, ${totalFurn} furniture`);
         } catch (e) {
+          console.error("import error", e);
           alert("Failed to import SVG: " + (e.message || e));
         }
       }

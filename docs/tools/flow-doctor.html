@@ -99,6 +99,8 @@
                         <li class="flex gap-3"><span class="font-bold text-blue-600">3.</span><span data-i18n="apiSetup.step3">Give it any name (e.g. "Flow Doctor").</span></li>
                         <li class="flex gap-3"><span class="font-bold text-blue-600">4.</span><span data-i18n="apiSetup.step4">Paste the Redirect URL shown below.</span></li>
                         <li class="flex gap-3"><span class="font-bold text-blue-600">5.</span><span data-i18n="apiSetup.step5">Select scopes: </span><code class="bg-gray-100 px-1 rounded">homey.flow.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.app.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.device.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.zone.readonly</code></li>
+                        <li class="flex gap-3 ml-6 text-xs text-gray-500"><span class="italic" data-i18n="apiSetup.step5Note">These four scopes are enough for the Flows and Apps tabs.</span></li>
+                        <li class="flex gap-3"><span class="font-bold text-purple-600">5b.</span><span class="text-gray-700"><strong data-i18n="apiSetup.step5bOptionalLabel">Optional — only for the Trace tab debug events:</strong> <span data-i18n="apiSetup.step5b">also add these scopes if you want full live event tracing</span>: <code class="bg-gray-100 px-1 rounded">homey.device.control</code> · <code class="bg-gray-100 px-1 rounded">homey.logic</code> · <code class="bg-gray-100 px-1 rounded">homey.presence.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.notifications.readonly</code></span></li>
                         <li class="flex gap-3"><span class="font-bold text-blue-600">6.</span><span data-i18n="apiSetup.step6">Click "Create" and copy the Client ID and Client Secret below.</span></li>
                     </ol>
                 </div>
@@ -274,6 +276,9 @@ const I18N = {
         'apiSetup.step3': 'Give it any name (e.g. "Flow Doctor").',
         'apiSetup.step4': 'Paste the Redirect URL shown below.',
         'apiSetup.step5': 'Select scopes:',
+        'apiSetup.step5Note': 'These four scopes are enough for the Flows and Apps tabs.',
+        'apiSetup.step5bOptionalLabel': 'Optional — only for the Trace tab debug events:',
+        'apiSetup.step5b': 'also add these scopes if you want full live event tracing',
         'apiSetup.step6': 'Click "Create" and copy the Client ID and Client Secret below.',
         'apiSetup.redirectUrlTitle': '🌐 Your Redirect URL',
         'apiSetup.redirectUrlHelp': 'Use this exact URL when creating the API client:',
@@ -293,7 +298,7 @@ const I18N = {
         'filter.allApps': 'All apps',
         'tab.flows': 'Flows',
         'tab.apps': 'Apps',
-        'tab.trace': 'Trace',
+        'tab.trace': 'Trace (0.1)',
         'trace.intro': 'Live trace of events on your Homey. Use this to find cyclic flows or unexpected triggers. Tracing keeps running while you switch to other Flow Doctor tabs.',
         'trace.start': '▶ Start tracing',
         'trace.stop': '■ Stop',
@@ -312,6 +317,9 @@ const I18N = {
         'trace.logicUpdate': 'Logic variable',
         'trace.appUpdate': 'App update',
         'trace.verboseLabel': 'Capture all events (debug)',
+        'trace.hint.setBy': 'set by',
+        'trace.hint.maybeSetBy': 'possibly set by',
+        'trace.hint.triggers': 'may trigger',
         'apps.onlyUpdates': 'Only apps with updates',
         'apps.onlyUnused': 'Only unused apps',
         'apps.hideExtensions': 'Hide extensions',
@@ -389,6 +397,9 @@ const I18N = {
         'apiSetup.step3': 'Gi den et navn (f.eks. "Flow Doctor").',
         'apiSetup.step4': 'Lim inn redirect-URL-en som vises nedenfor.',
         'apiSetup.step5': 'Velg scopes:',
+        'apiSetup.step5Note': 'Disse fire scopene er nok for Flows- og Apper-fanen.',
+        'apiSetup.step5bOptionalLabel': 'Valgfritt — kun for Sporing-fanens debug-events:',
+        'apiSetup.step5b': 'legg også til disse scopene hvis du vil ha full live event-sporing',
         'apiSetup.step6': 'Klikk "Create" og kopier Client ID og Client Secret inn nedenfor.',
         'apiSetup.redirectUrlTitle': '🌐 Din redirect-URL',
         'apiSetup.redirectUrlHelp': 'Bruk denne nøyaktige URL-en når du oppretter API-klienten:',
@@ -408,7 +419,7 @@ const I18N = {
         'filter.allApps': 'Alle apper',
         'tab.flows': 'Flows',
         'tab.apps': 'Apper',
-        'tab.trace': 'Sporing',
+        'tab.trace': 'Sporing (0.1)',
         'trace.intro': 'Live-sporing av hendelser på Homey-en din. Bruk dette til å finne sykliske flows eller uventede triggere. Sporingen fortsetter når du bytter mellom Flow Doctor-faner.',
         'trace.start': '▶ Start sporing',
         'trace.stop': '■ Stopp',
@@ -427,6 +438,9 @@ const I18N = {
         'trace.logicUpdate': 'Logikkvariabel',
         'trace.appUpdate': 'Appoppdatering',
         'trace.verboseLabel': 'Fang alle events (debug)',
+        'trace.hint.setBy': 'satt av',
+        'trace.hint.maybeSetBy': 'mulig satt av',
+        'trace.hint.triggers': 'kan trigge',
         'apps.onlyUpdates': 'Bare apper med oppdateringer',
         'apps.onlyUnused': 'Bare ubrukte apper',
         'apps.hideExtensions': 'Skjul utvidelser',
@@ -504,6 +518,9 @@ const I18N = {
         'apiSetup.step3': 'Vergeben Sie einen beliebigen Namen (z. B. "Flow Doctor").',
         'apiSetup.step4': 'Fügen Sie die unten angezeigte Redirect-URL ein.',
         'apiSetup.step5': 'Wählen Sie folgende Scopes aus:',
+        'apiSetup.step5Note': 'Diese vier Scopes reichen für die Flows- und Apps-Tabs.',
+        'apiSetup.step5bOptionalLabel': 'Optional — nur für die Debug-Events im Trace-Tab:',
+        'apiSetup.step5b': 'fügen Sie diese Scopes hinzu, wenn Sie vollständiges Live-Event-Tracing möchten',
         'apiSetup.step6': 'Klicken Sie auf "Create" und kopieren Sie Client ID und Client Secret unten hinein.',
         'apiSetup.redirectUrlTitle': '🌐 Ihre Redirect-URL',
         'apiSetup.redirectUrlHelp': 'Verwenden Sie genau diese URL beim Erstellen des API-Clients:',
@@ -600,6 +617,9 @@ const I18N = {
         'apiSetup.step3': 'Geef een willekeurige naam (bijv. "Flow Doctor").',
         'apiSetup.step4': 'Plak de hieronder getoonde Redirect-URL.',
         'apiSetup.step5': 'Selecteer de scopes:',
+        'apiSetup.step5Note': 'Deze vier scopes zijn voldoende voor de tabs Flows en Apps.',
+        'apiSetup.step5bOptionalLabel': 'Optioneel — alleen voor de debug-events van het Trace-tabblad:',
+        'apiSetup.step5b': 'voeg ook deze scopes toe als u volledige live event-tracering wilt',
         'apiSetup.step6': 'Klik op "Create" en kopieer Client ID en Client Secret hieronder.',
         'apiSetup.redirectUrlTitle': '🌐 Je Redirect-URL',
         'apiSetup.redirectUrlHelp': 'Gebruik exact deze URL bij het aanmaken van de API-client:',
@@ -689,6 +709,14 @@ class FlowDoctor {
         this.traceFlowsById = new Map();
         this.traceDevicesById = new Map();
         this.traceVerbosePatches = [];
+        // Inference indexes built at trace start from the flow catalog.
+        // We use these to attribute live events ("variable X went true") back to
+        // the flow that almost certainly caused them, since Homey's Web API
+        // doesn't broadcast flow-execution events directly.
+        this.idxVarSet = null;
+        this.idxDeviceAction = null;
+        this.idxTriggerByDevice = null;
+        this.idxTriggerByVar = null;
     }
 
     t(key) { return (I18N[this.lang] && I18N[this.lang][key]) || I18N.en[key] || key; }
@@ -1031,6 +1059,8 @@ class FlowDoctor {
         document.getElementById('tab-flows').classList.toggle('hidden', name !== 'flows');
         document.getElementById('tab-apps').classList.toggle('hidden', name !== 'apps');
         document.getElementById('tab-trace').classList.toggle('hidden', name !== 'trace');
+        // Rescan only makes sense on Flows/Apps; the Trace tab has its own start/stop controls.
+        document.getElementById('rescan-button').classList.toggle('hidden', name === 'trace');
         // Tracing keeps running across internal tab switches — users need to compare with the
         // Flows/Apps tabs while events stream. The hidden log catches up when they switch back.
     }
@@ -1631,6 +1661,9 @@ class FlowDoctor {
             this.traceDevicesById.clear();
             Object.values(devices).forEach(d => this.traceDevicesById.set(d.id, d));
 
+            // Build the inference indexes now that we have the full flow catalog cached.
+            this.buildInferenceIndex();
+
             // Synthetic startup marker so the user can see the log is wired up even if no real
             // events fire yet.
             this.addTraceEvent({
@@ -1801,6 +1834,147 @@ class FlowDoctor {
         }
     }
 
+    // Walks the cached flow catalog and indexes which flows set each logic variable,
+    // act on each device-capability, and trigger on each device/variable change.
+    // We later use these indexes to attribute live events to a probable flow source.
+    buildInferenceIndex() {
+        this.idxVarSet = new Map();          // varId -> [{ flow, value }]
+        this.idxDeviceAction = new Map();    // "devId|cap" -> [flowName]
+        this.idxTriggerByDevice = new Map(); // "devId|cap|value" or "devId|cap" -> [flowName]
+        this.idxTriggerByVar = new Map();    // varId -> [flowName]
+
+        const addVarSet = (varId, value, flow) => {
+            if (!this.idxVarSet.has(varId)) this.idxVarSet.set(varId, []);
+            this.idxVarSet.get(varId).push({ flow, value });
+        };
+        const addDevAction = (devId, cap, flow) => {
+            const key = `${devId}|${cap}`;
+            if (!this.idxDeviceAction.has(key)) this.idxDeviceAction.set(key, []);
+            this.idxDeviceAction.get(key).push(flow);
+        };
+        const addDevTrigger = (devId, cap, value, flow) => {
+            const key = value === undefined ? `${devId}|${cap}` : `${devId}|${cap}|${value}`;
+            if (!this.idxTriggerByDevice.has(key)) this.idxTriggerByDevice.set(key, []);
+            this.idxTriggerByDevice.get(key).push(flow);
+        };
+        const addVarTrigger = (varId, flow) => {
+            if (!this.idxTriggerByVar.has(varId)) this.idxTriggerByVar.set(varId, []);
+            this.idxTriggerByVar.get(varId).push(flow);
+        };
+
+        // Most Homey "action" buttons live under one of:
+        //   homey:device:<DEV_ID>:<CAP>                — e.g. "on", "off", "dim", "toggle", "color"
+        //   homey:manager:logic:variable_set_<type>    — sets a built-in Logic variable
+        //   homey:manager:flow:programmatic_trigger    — calls another flow (NOT indexed here;
+        //   that's a flow→flow edge, not an effect on observable state)
+        const parseAction = (card, flow) => {
+            if (!card || !card.id) return;
+            const id = card.id;
+            if (id.startsWith('homey:manager:logic:variable_set_')) {
+                const varId = card.args && card.args.variable && card.args.variable.id;
+                const val = card.args ? card.args.value : undefined;
+                if (varId) addVarSet(varId, val, flow);
+                return;
+            }
+            if (id.startsWith('homey:device:')) {
+                const rest = id.substring('homey:device:'.length);
+                const m = rest.match(/^([^:]+):(.+)$/);
+                if (!m) return;
+                const devId = m[1];
+                const cap = m[2];
+                // 'on'/'off'/'toggle' all act on the onoff capability — normalize so a
+                // device.update for `onoff` can be matched against an `on` action.
+                if (cap === 'on' || cap === 'off' || cap === 'toggle') addDevAction(devId, 'onoff', flow);
+                else addDevAction(devId, cap, flow);
+            }
+        };
+
+        // Triggers come in patterns like:
+        //   homey:device:<DEV_ID>:onoff_true / onoff_false   — capability flipping
+        //   homey:device:<DEV_ID>:<CAP>_changed              — any change to capability
+        //   homey:device:<DEV_ID>:<custom>                   — app-defined (e.g. plex_playing)
+        //   homey:manager:logic:variable_changed             — args.variable.id tells which
+        const parseTrigger = (card, flow) => {
+            if (!card || !card.id) return;
+            const id = card.id;
+            if (id === 'homey:manager:logic:variable_changed') {
+                const varId = card.args && card.args.variable && card.args.variable.id;
+                if (varId) addVarTrigger(varId, flow);
+                return;
+            }
+            if (id.startsWith('homey:device:')) {
+                const rest = id.substring('homey:device:'.length);
+                const m = rest.match(/^([^:]+):(.+)$/);
+                if (!m) return;
+                const devId = m[1];
+                const trigName = m[2];
+                if (trigName.endsWith('_true')) addDevTrigger(devId, trigName.slice(0, -5), true, flow);
+                else if (trigName.endsWith('_false')) addDevTrigger(devId, trigName.slice(0, -6), false, flow);
+                else if (trigName.endsWith('_changed')) addDevTrigger(devId, trigName.slice(0, -8), undefined, flow);
+                else addDevTrigger(devId, trigName, undefined, flow);
+            }
+        };
+
+        for (const flow of this.traceFlowsById.values()) {
+            const name = flow.name || flow.id;
+            if (flow._type === 'advanced' || flow.cards) {
+                // Advanced flows store everything in a cards map keyed by uuid;
+                // we only care about cards whose type is 'trigger' or 'action'.
+                for (const card of Object.values(flow.cards || {})) {
+                    if (!card || !card.type) continue;
+                    if (card.type === 'trigger') parseTrigger(card, name);
+                    else if (card.type === 'action') parseAction(card, name);
+                }
+            } else {
+                if (flow.trigger) parseTrigger(flow.trigger, name);
+                if (Array.isArray(flow.actions)) {
+                    for (const c of flow.actions) parseAction(c, name);
+                }
+            }
+        }
+    }
+
+    // Given a live event, return a list of "hint" entries pointing at flows that
+    // likely caused it or that listen for it. Returns [] if nothing matches —
+    // in which case the event has no visible flow link (could be an app writing
+    // directly, or a flow we didn't index, or a manual change).
+    inferCauses(ev) {
+        const hints = [];
+        if (!ev || !ev.raw || !this.idxVarSet) return hints;
+        if (ev.cat === 'logic') {
+            const varId = ev.raw.id;
+            const val = ev.raw.value;
+            const candidates = this.idxVarSet.get(varId) || [];
+            // Prefer flows whose set-value exactly matches the observed value; fall
+            // back to "any flow that touches this variable" if no exact match.
+            const exact = [...new Set(candidates.filter(c => c.value === val).map(c => c.flow))];
+            if (exact.length) hints.push({ kind: 'setBy', flows: exact });
+            else {
+                const any = [...new Set(candidates.map(c => c.flow))];
+                if (any.length) hints.push({ kind: 'maybeSetBy', flows: any });
+            }
+            const triggered = [...new Set(this.idxTriggerByVar.get(varId) || [])];
+            if (triggered.length) hints.push({ kind: 'triggers', flows: triggered });
+        } else if (ev.cat === 'device') {
+            const devId = ev.raw.id;
+            const cap = ev.raw.capability;
+            const val = ev.raw.value;
+            if (!devId || !cap) return hints;
+            const actions = [...new Set(this.idxDeviceAction.get(`${devId}|${cap}`) || [])];
+            if (actions.length) hints.push({ kind: 'setBy', flows: actions });
+            const triggerKeys = [];
+            if (val === true) triggerKeys.push(`${devId}|${cap}|true`);
+            if (val === false) triggerKeys.push(`${devId}|${cap}|false`);
+            triggerKeys.push(`${devId}|${cap}`); // _changed-style
+            const triggered = new Set();
+            for (const k of triggerKeys) {
+                for (const f of (this.idxTriggerByDevice.get(k) || [])) triggered.add(f);
+            }
+            if (triggered.size) hints.push({ kind: 'triggers', flows: [...triggered] });
+        }
+        return hints;
+    }
+
     attachManagerListener(managerName, eventName, handler) {
         try {
             const mgr = this.api && this.api[managerName];
@@ -1959,6 +2133,21 @@ class FlowDoctor {
             (ev.subject ? ` <span class="text-white font-semibold">${this.escape(ev.subject)}</span>` : '') +
             (ev.detail ? ` <span class="text-gray-400">${this.escape(ev.detail)}</span>` : '');
         log.appendChild(row);
+
+        // Inferred-cause hints are appended as indented child rows below the event.
+        // We never put more than 3 flow names on one line so a noisy variable doesn't
+        // wallpaper the log; the "+N" suffix tells the user there's more if needed.
+        const hints = this.inferCauses(ev);
+        for (const hint of hints) {
+            const hintRow = document.createElement('div');
+            hintRow.className = 'whitespace-pre-wrap leading-snug pl-8 text-xs';
+            const label = this.t('trace.hint.' + hint.kind) || hint.kind;
+            const shown = hint.flows.slice(0, 3);
+            const extra = hint.flows.length > 3 ? ` (+${hint.flows.length - 3})` : '';
+            hintRow.innerHTML = `<span class="text-gray-500">↳ <span class="italic">${this.escape(label)}:</span></span> ` +
+                `<span class="text-gray-300">${this.escape(shown.join(', '))}${this.escape(extra)}</span>`;
+            log.appendChild(hintRow);
+        }
         if (nearBottom) log.scrollTop = log.scrollHeight;
     }
 

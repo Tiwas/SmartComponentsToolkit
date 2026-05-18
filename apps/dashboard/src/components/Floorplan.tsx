@@ -38,7 +38,7 @@ interface Device {
   >;
 }
 
-type ControlKind = "dim" | "temp" | "enum";
+type ControlKind = "dim" | "temp" | "enum" | "color";
 interface ControlPopup {
   deviceId: string;
   capabilityId: string;
@@ -51,6 +51,14 @@ interface ControlPopup {
 function pickControlCapability(
   dev: Device,
 ): { capabilityId: string; kind: ControlKind | "onoff" } | null {
+  // Colour-capable light gets its own popup (hue/sat/temp/dim in one)
+  if (
+    "light_hue" in dev.capabilities ||
+    "light_saturation" in dev.capabilities ||
+    "light_temperature" in dev.capabilities
+  ) {
+    return { capabilityId: "light_hue", kind: "color" };
+  }
   // Enum (state, mode, …) — covers State Devices + thermostat modes
   for (const [k, info] of Object.entries(dev.capabilityInfo)) {
     if (info.type === "enum" && info.values && info.values.length > 0) {
@@ -67,6 +75,11 @@ function pickControlCapability(
     return { capabilityId: "onoff", kind: "onoff" };
   }
   return null;
+}
+
+/** Convert a (0-1) hue + (0-1) saturation to a CSS HSL fill at 50% lightness. */
+function hsToCss(hue: number, saturation: number): string {
+  return `hsl(${(hue * 360).toFixed(0)}, ${(saturation * 100).toFixed(0)}%, 50%)`;
 }
 
 interface FlowLite {
@@ -708,8 +721,140 @@ function DeviceControlPopup({
             onPick={onPickAndClose}
           />
         )}
+
+        {popup.kind === "color" && (
+          <ColorControl
+            device={device}
+            onSet={(cap, v) => onSetCapability(cap, v)}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+function ColorControl({
+  device,
+  onSet,
+}: {
+  device: Device;
+  onSet: (cap: string, value: unknown) => void;
+}) {
+  const caps = device.capabilities;
+  const hasHue = "light_hue" in caps;
+  const hasSat = "light_saturation" in caps;
+  const hasTemp = "light_temperature" in caps;
+  const hasDim = "dim" in caps;
+  const hasOnoff = "onoff" in caps;
+  const hasMode = "light_mode" in caps;
+
+  const hue = typeof caps.light_hue === "number" ? (caps.light_hue as number) : 0;
+  const sat =
+    typeof caps.light_saturation === "number" ? (caps.light_saturation as number) : 1;
+  const temp =
+    typeof caps.light_temperature === "number" ? (caps.light_temperature as number) : 0.5;
+  const dim = typeof caps.dim === "number" ? (caps.dim as number) : 1;
+  const isOn = !!caps.onoff;
+  const mode = typeof caps.light_mode === "string" ? caps.light_mode : null;
+  const inTempMode = mode === "temperature";
+
+  return (
+    <>
+      {hasOnoff && (
+        <div className="control-popup-row" style={{ justifyContent: "space-between" }}>
+          <span className="muted" style={{ fontSize: 11 }}>Power</span>
+          <button
+            className="icon-btn"
+            onClick={() => onSet("onoff", !isOn)}
+            style={{ fontWeight: isOn ? 700 : 400 }}
+          >
+            {isOn ? "On" : "Off"}
+          </button>
+        </div>
+      )}
+
+      {hasMode && (
+        <div className="control-popup-row" style={{ gap: 4 }}>
+          <button
+            className={`enum-option ${!inTempMode ? "active" : ""}`}
+            style={{ flex: 1, textAlign: "center" }}
+            onClick={() => onSet("light_mode", "color")}
+          >
+            Color
+          </button>
+          <button
+            className={`enum-option ${inTempMode ? "active" : ""}`}
+            style={{ flex: 1, textAlign: "center" }}
+            onClick={() => onSet("light_mode", "temperature")}
+          >
+            White
+          </button>
+        </div>
+      )}
+
+      {(!inTempMode || !hasTemp) && hasHue && (
+        <div>
+          <div className="slider-label">Hue</div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.005}
+            value={hue}
+            onChange={(e) => onSet("light_hue", parseFloat(e.target.value))}
+            className="slider hue-slider"
+          />
+        </div>
+      )}
+
+      {(!inTempMode || !hasTemp) && hasSat && (
+        <div>
+          <div className="slider-label">Saturation</div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={sat}
+            onChange={(e) => onSet("light_saturation", parseFloat(e.target.value))}
+            className="slider sat-slider"
+            style={{
+              background: `linear-gradient(to right, hsl(${(hue * 360).toFixed(0)}, 0%, 50%), hsl(${(hue * 360).toFixed(0)}, 100%, 50%))`,
+            }}
+          />
+        </div>
+      )}
+
+      {hasTemp && (!hasMode || inTempMode) && (
+        <div>
+          <div className="slider-label">Temperature</div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={temp}
+            onChange={(e) => onSet("light_temperature", parseFloat(e.target.value))}
+            className="slider temp-slider"
+          />
+        </div>
+      )}
+
+      {hasDim && (
+        <div>
+          <div className="slider-label">Brightness — {Math.round(dim * 100)}%</div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={dim}
+            onChange={(e) => onSet("dim", parseFloat(e.target.value))}
+            className="slider"
+          />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -881,6 +1026,20 @@ function DevicePlacementIcon({
       <g className="device-icon device alarm">
         <circle cx={p.x} cy={p.y} r={2.2} fill={fill} {...shared} />
         <title>{label}: {triggered ? "alert" : "clear"}</title>
+      </g>
+    );
+  }
+
+  // Coloured light — fill the icon with the device's current colour
+  if ("light_hue" in caps || "light_saturation" in caps) {
+    const hue = typeof caps.light_hue === "number" ? (caps.light_hue as number) : 0;
+    const sat = typeof caps.light_saturation === "number" ? (caps.light_saturation as number) : 1;
+    const on = !!caps.onoff;
+    const fill = on ? hsToCss(hue, sat) : "rgba(76, 179, 255, 0.4)";
+    return (
+      <g className={`device-icon device light-color ${on ? "on" : "off"}`}>
+        <circle cx={p.x} cy={p.y} r={2.2} fill={fill} {...shared} />
+        <title>{label}{on ? "" : " (off)"}</title>
       </g>
     );
   }

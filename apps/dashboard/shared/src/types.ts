@@ -66,6 +66,11 @@ export interface HomeyAPILike {
   };
   devices?: {
     getDevices(opts?: { $skipCache?: boolean }): Promise<Record<string, RawDevice>>;
+    setCapabilityValue(opts: {
+      deviceId: string;
+      capabilityId: string;
+      value: unknown;
+    }): Promise<void>;
   };
   apps?: {
     getApps(opts?: { $skipCache?: boolean }): Promise<Record<string, RawApp>>;
@@ -91,6 +96,18 @@ export interface RawDevice {
   id: string;
   name?: string;
   zone?: string | null;
+  capabilitiesObj?: Record<
+    string,
+    { value?: unknown; type?: string; min?: number; max?: number; units?: string }
+  >;
+}
+
+export interface DeviceState {
+  id: string;
+  name: string;
+  zone: string | null;
+  capabilities: Record<string, unknown>;
+  units: Record<string, string | undefined>;
 }
 
 export interface RawApp {

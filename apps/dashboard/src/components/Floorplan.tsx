@@ -24,6 +24,8 @@ interface Device {
   id: string;
   name: string;
   zone: string | null;
+  capabilities: Record<string, unknown>;
+  units: Record<string, string | undefined>;
 }
 
 interface FlowLite {
@@ -211,7 +213,7 @@ export function Floorplan({
   // via the overlay SVG's CTM.
   const dragRef = useRef<{ id: string; pointerId: number } | null>(null);
 
-  function toViewBox(evt: React.PointerEvent<SVGSVGElement>): { x: number; y: number } | null {
+  function toViewBox(evt: React.PointerEvent<SVGElement>): { x: number; y: number } | null {
     const svg = overlayRef.current;
     if (!svg) return null;
     const pt = svg.createSVGPoint();
@@ -224,6 +226,9 @@ export function Floorplan({
   }
 
   const dragKindRef = useRef<"device" | "flow">("device");
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+  const TAP_THRESHOLD = 1.5; // viewBox units; below this, treat as tap not drag
 
   function onPointerDown(
     e: React.PointerEvent<SVGElement>,
@@ -234,6 +239,8 @@ export function Floorplan({
     overlayRef.current?.setPointerCapture(e.pointerId);
     dragRef.current = { id, pointerId: e.pointerId };
     dragKindRef.current = kind;
+    dragOriginRef.current = toViewBox(e);
+    draggedRef.current = false;
   }
 
   function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
@@ -242,6 +249,13 @@ export function Floorplan({
     if (!coords) return;
     const id = dragRef.current.id;
     const kind = dragKindRef.current;
+    const origin = dragOriginRef.current;
+    if (origin) {
+      const dx = Math.abs(coords.x - origin.x);
+      const dy = Math.abs(coords.y - origin.y);
+      if (dx > TAP_THRESHOLD || dy > TAP_THRESHOLD) draggedRef.current = true;
+    }
+    if (!draggedRef.current) return;
     setData((prev) => {
       const others = prev.placements.filter((p) => !(p.kind === kind && p.id === id));
       return {
@@ -253,13 +267,65 @@ export function Floorplan({
 
   async function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
     if (!dragRef.current) return;
+    const id = dragRef.current.id;
+    const kind = dragKindRef.current;
     overlayRef.current?.releasePointerCapture(dragRef.current.pointerId);
     dragRef.current = null;
-    await saveFloorplan(data).catch((err) =>
-      console.warn("[dashboard] saveFloorplan failed:", err),
-    );
+    if (draggedRef.current) {
+      await saveFloorplan(data).catch((err) =>
+        console.warn("[dashboard] saveFloorplan failed:", err),
+      );
+    } else {
+      handleTap(kind, id);
+    }
+    draggedRef.current = false;
+    dragOriginRef.current = null;
     e.stopPropagation();
   }
+
+  function handleTap(kind: "device" | "flow", id: string) {
+    if (kind === "flow") {
+      const flow = flowById.get(id);
+      if (!flow) return;
+      client
+        .triggerFlow({ id: flow.id, kind: flow.kind })
+        .catch((e) => console.warn("[dashboard] triggerFlow failed:", e));
+      return;
+    }
+    // device
+    const dev = deviceById.get(id);
+    if (!dev) return;
+    if ("onoff" in dev.capabilities) {
+      const next = !dev.capabilities.onoff;
+      // optimistic update
+      setDevices((prev) =>
+        prev.map((d) =>
+          d.id === id ? { ...d, capabilities: { ...d.capabilities, onoff: next } } : d,
+        ),
+      );
+      client
+        .setDeviceCapability(id, "onoff", next)
+        .catch((e) => {
+          console.warn("[dashboard] setDeviceCapability failed:", e);
+          // revert
+          setDevices((prev) =>
+            prev.map((d) =>
+              d.id === id ? { ...d, capabilities: { ...d.capabilities, onoff: !next } } : d,
+            ),
+          );
+        });
+    }
+  }
+
+  // Periodic refresh so on-floor icons reflect external state changes
+  // (e.g. someone toggling a light from elsewhere).
+  useEffect(() => {
+    if (!data.svg) return;
+    const id = window.setInterval(() => {
+      client.listDevices().then(setDevices).catch(() => {});
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [client, data.svg]);
 
   return (
     <>
@@ -363,38 +429,18 @@ export function Floorplan({
                   const flow = p.kind === "flow" ? flowById.get(p.id) : null;
                   const label = dev?.name ?? flow?.name ?? p.id;
                   return (
-                    <g key={`${p.kind}-${p.id}`} className={`device-icon ${p.kind}`}>
-                      {p.kind === "device" ? (
-                        <circle
-                          cx={p.x}
-                          cy={p.y}
-                          r={2.2}
-                          onPointerDown={(e) => onPointerDown(e, "device", p.id)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            if (confirm(`Remove ${label} from the floorplan?`)) {
-                              removePlacement("device", p.id);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <rect
-                          x={p.x - 2.2}
-                          y={p.y - 2.2}
-                          width={4.4}
-                          height={4.4}
-                          rx={0.6}
-                          onPointerDown={(e) => onPointerDown(e, "flow", p.id)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            if (confirm(`Remove ${label} from the floorplan?`)) {
-                              removePlacement("flow", p.id);
-                            }
-                          }}
-                        />
-                      )}
-                      <title>{label}</title>
-                    </g>
+                    <DevicePlacementIcon
+                      key={`${p.kind}-${p.id}`}
+                      placement={p}
+                      device={dev ?? null}
+                      label={label}
+                      onPointerDown={(e) => onPointerDown(e, p.kind, p.id)}
+                      onRemove={() => {
+                        if (confirm(`Remove ${label} from the floorplan?`)) {
+                          removePlacement(p.kind, p.id);
+                        }
+                      }}
+                    />
                   );
                 })}
             </svg>
@@ -512,6 +558,99 @@ function nodeMatchesSearch<I extends { name: string }, C extends { name: string 
   if (node.container && node.container.name.toLowerCase().includes(q)) return true;
   if (node.items.some((i) => i.name.toLowerCase().includes(q))) return true;
   return node.children.some((c) => nodeMatchesSearch(c, q));
+}
+
+/**
+ * Render the on-floor icon for a placement. The visual is chosen from the
+ * device's most informative capability:
+ *   - measure_temperature → a square chip with the value
+ *   - alarm_motion / alarm_contact → red square when alerting, dim otherwise
+ *   - onoff → bright yellow circle when on, dim blue when off
+ *   - flow → yellow rounded square
+ *   - fallback (unknown device) → plain blue circle
+ *
+ * Clicks (vs. drags) are dispatched by the parent's handleTap; this component
+ * only declares the shape and forwards pointer events.
+ */
+function DevicePlacementIcon({
+  placement: p,
+  device: dev,
+  label,
+  onPointerDown,
+  onRemove,
+}: {
+  placement: DevicePlacement;
+  device: Device | null;
+  label: string;
+  onPointerDown: (e: React.PointerEvent<SVGElement>) => void;
+  onRemove: () => void;
+}) {
+  const shared = {
+    onPointerDown,
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault();
+      onRemove();
+    },
+  };
+
+  if (p.kind === "flow") {
+    return (
+      <g className="device-icon flow">
+        <rect x={p.x - 2.2} y={p.y - 2.2} width={4.4} height={4.4} rx={0.6} {...shared} />
+        <title>{label}</title>
+      </g>
+    );
+  }
+
+  const caps = dev?.capabilities ?? {};
+
+  // Temperature display
+  if (typeof caps.measure_temperature === "number") {
+    const t = caps.measure_temperature as number;
+    return (
+      <g className="device-icon device measure">
+        <rect x={p.x - 3} y={p.y - 2} width={6} height={4} rx={0.6} fill="rgba(76,179,255,0.85)" {...shared} />
+        <text x={p.x} y={p.y + 0.1} textAnchor="middle" dominantBaseline="middle" fontSize="2.2" fontWeight="700" fill="white" pointerEvents="none">
+          {t.toFixed(1)}°
+        </text>
+        <title>{label}: {t}°C</title>
+      </g>
+    );
+  }
+
+  // Motion / contact alarm
+  if ("alarm_motion" in caps || "alarm_contact" in caps) {
+    const triggered =
+      caps.alarm_motion === true ||
+      caps.alarm_contact === true;
+    const fill = triggered ? "rgba(239, 68, 68, 0.95)" : "rgba(34, 197, 94, 0.6)";
+    return (
+      <g className="device-icon device alarm">
+        <circle cx={p.x} cy={p.y} r={2.2} fill={fill} {...shared} />
+        <title>{label}: {triggered ? "alert" : "clear"}</title>
+      </g>
+    );
+  }
+
+  // On/off
+  if ("onoff" in caps) {
+    const on = !!caps.onoff;
+    const fill = on ? "rgba(250, 204, 21, 0.95)" : "rgba(76, 179, 255, 0.4)";
+    return (
+      <g className={`device-icon device onoff ${on ? "on" : "off"}`}>
+        <circle cx={p.x} cy={p.y} r={2.2} fill={fill} {...shared} />
+        <title>{label}: {on ? "on" : "off"}</title>
+      </g>
+    );
+  }
+
+  // Fallback
+  return (
+    <g className="device-icon device">
+      <circle cx={p.x} cy={p.y} r={2.2} fill="rgba(76,179,255,0.85)" {...shared} />
+      <title>{label}</title>
+    </g>
+  );
 }
 
 function AddPlacementModal({

@@ -490,19 +490,24 @@ button.primary:hover {
   stroke-width: 0.3;
   cursor: grab;
   pointer-events: auto;
-  transition: fill 0.15s;
+  transition: fill 0.15s, filter 0.15s;
 }
-.device-icon.device circle {
+.device-icon.device circle,
+.device-icon.device rect {
   fill: rgba(76, 179, 255, 0.85);
-}
-.device-icon.device circle:hover {
-  fill: rgba(76, 179, 255, 1);
 }
 .device-icon.flow rect {
   fill: rgba(245, 197, 66, 0.85);
 }
 .device-icon.flow rect:hover {
   fill: rgba(245, 197, 66, 1);
+}
+.device-icon:hover circle,
+.device-icon:hover rect {
+  filter: brightness(1.15);
+}
+.device-icon.onoff.on circle {
+  filter: drop-shadow(0 0 1px rgba(250, 204, 21, 0.7));
 }
 .device-icon circle:active,
 .device-icon rect:active {

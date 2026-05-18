@@ -1,6 +1,7 @@
 import type {
   AthomHomeyLike,
   AthomUserLike,
+  DeviceState,
   Flow,
   FlowFolder,
   HomeyAPILike,
@@ -83,16 +84,36 @@ export class HomeyClient {
     return out;
   }
 
-  /** Full device list with zone id (for floorplan auto-placement). */
-  async listDevices(): Promise<Array<{ id: string; name: string; zone: string | null }>> {
+  /** Full device list with zone id + capability values. */
+  async listDevices(): Promise<DeviceState[]> {
     if (!this.api.devices?.getDevices) return [];
     const map = await this.api.devices.getDevices();
-    const out: Array<{ id: string; name: string; zone: string | null }> = [];
+    const out: DeviceState[] = [];
     for (const d of Object.values(map) as RawDevice[]) {
       if (!d.id) continue;
-      out.push({ id: d.id, name: d.name ?? d.id, zone: d.zone ?? null });
+      const capabilities: Record<string, unknown> = {};
+      const units: Record<string, string | undefined> = {};
+      for (const [k, v] of Object.entries(d.capabilitiesObj ?? {})) {
+        capabilities[k] = (v as { value?: unknown })?.value;
+        units[k] = (v as { units?: string })?.units;
+      }
+      out.push({
+        id: d.id,
+        name: d.name ?? d.id,
+        zone: d.zone ?? null,
+        capabilities,
+        units,
+      });
     }
     return out;
+  }
+
+  /** Set a capability value on a device (e.g. onoff toggle, dim level). */
+  async setDeviceCapability(deviceId: string, capabilityId: string, value: unknown): Promise<void> {
+    if (!this.api.devices?.setCapabilityValue) {
+      throw new Error("setCapabilityValue not supported by this SDK");
+    }
+    await this.api.devices.setCapabilityValue({ deviceId, capabilityId, value });
   }
 
   /** Maps appId → app name. Empty map if apps API not available. */

@@ -509,6 +509,56 @@ button.primary:hover {
 .device-icon.onoff.on circle {
   filter: drop-shadow(0 0 1px rgba(250, 204, 21, 0.7));
 }
+
+.control-popup {
+  position: fixed;
+  width: 240px;
+  background: rgba(30, 32, 38, 0.98);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  z-index: 510;
+}
+.control-popup-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.control-popup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.enum-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.enum-option {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.enum-option:hover {
+  background: var(--bg-hover);
+  border-color: var(--fg-muted);
+}
+.enum-option.active {
+  background: var(--accent);
+  color: #001a2b;
+  border-color: var(--accent);
+  font-weight: 600;
+}
 .device-icon circle:active,
 .device-icon rect:active {
   cursor: grabbing;

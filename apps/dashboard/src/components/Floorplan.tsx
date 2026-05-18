@@ -25,7 +25,48 @@ interface Device {
   name: string;
   zone: string | null;
   capabilities: Record<string, unknown>;
-  units: Record<string, string | undefined>;
+  capabilityInfo: Record<
+    string,
+    {
+      type?: string;
+      min?: number;
+      max?: number;
+      step?: number;
+      units?: string;
+      values?: Array<{ id: string; title: string }>;
+    }
+  >;
+}
+
+type ControlKind = "dim" | "temp" | "enum";
+interface ControlPopup {
+  deviceId: string;
+  capabilityId: string;
+  kind: ControlKind;
+  clientX: number;
+  clientY: number;
+}
+
+/** Pick the most interactive capability for tap-action priority. */
+function pickControlCapability(
+  dev: Device,
+): { capabilityId: string; kind: ControlKind | "onoff" } | null {
+  // Enum (state, mode, …) — covers State Devices + thermostat modes
+  for (const [k, info] of Object.entries(dev.capabilityInfo)) {
+    if (info.type === "enum" && info.values && info.values.length > 0) {
+      return { capabilityId: k, kind: "enum" };
+    }
+  }
+  if ("target_temperature" in dev.capabilities) {
+    return { capabilityId: "target_temperature", kind: "temp" };
+  }
+  if ("dim" in dev.capabilities) {
+    return { capabilityId: "dim", kind: "dim" };
+  }
+  if ("onoff" in dev.capabilities) {
+    return { capabilityId: "onoff", kind: "onoff" };
+  }
+  return null;
 }
 
 interface FlowLite {
@@ -53,6 +94,7 @@ export function Floorplan({
   const [flows, setFlows] = useState<FlowLite[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [folders, setFolders] = useState<FlowFolder[]>([]);
+  const [popup, setPopup] = useState<ControlPopup | null>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -269,6 +311,8 @@ export function Floorplan({
     if (!dragRef.current) return;
     const id = dragRef.current.id;
     const kind = dragKindRef.current;
+    const tapClientX = e.clientX;
+    const tapClientY = e.clientY;
     overlayRef.current?.releasePointerCapture(dragRef.current.pointerId);
     dragRef.current = null;
     if (draggedRef.current) {
@@ -276,14 +320,19 @@ export function Floorplan({
         console.warn("[dashboard] saveFloorplan failed:", err),
       );
     } else {
-      handleTap(kind, id);
+      handleTap(kind, id, tapClientX, tapClientY);
     }
     draggedRef.current = false;
     dragOriginRef.current = null;
     e.stopPropagation();
   }
 
-  function handleTap(kind: "device" | "flow", id: string) {
+  function handleTap(
+    kind: "device" | "flow",
+    id: string,
+    clientX: number,
+    clientY: number,
+  ) {
     if (kind === "flow") {
       const flow = flowById.get(id);
       if (!flow) return;
@@ -292,29 +341,45 @@ export function Floorplan({
         .catch((e) => console.warn("[dashboard] triggerFlow failed:", e));
       return;
     }
-    // device
     const dev = deviceById.get(id);
     if (!dev) return;
-    if ("onoff" in dev.capabilities) {
-      const next = !dev.capabilities.onoff;
-      // optimistic update
+    const ctrl = pickControlCapability(dev);
+    if (!ctrl) return;
+
+    if (ctrl.kind === "onoff") {
+      // Direct toggle, no popup.
+      setCapabilityOptimistic(id, "onoff", !dev.capabilities.onoff);
+      return;
+    }
+    // Open popup near the tap.
+    setPopup({
+      deviceId: id,
+      capabilityId: ctrl.capabilityId,
+      kind: ctrl.kind,
+      clientX,
+      clientY,
+    });
+  }
+
+  function setCapabilityOptimistic(deviceId: string, capId: string, value: unknown) {
+    let previous: unknown;
+    setDevices((prev) =>
+      prev.map((d) => {
+        if (d.id !== deviceId) return d;
+        previous = d.capabilities[capId];
+        return { ...d, capabilities: { ...d.capabilities, [capId]: value } };
+      }),
+    );
+    client.setDeviceCapability(deviceId, capId, value).catch((e) => {
+      console.warn("[dashboard] setDeviceCapability failed:", e);
       setDevices((prev) =>
         prev.map((d) =>
-          d.id === id ? { ...d, capabilities: { ...d.capabilities, onoff: next } } : d,
+          d.id === deviceId
+            ? { ...d, capabilities: { ...d.capabilities, [capId]: previous } }
+            : d,
         ),
       );
-      client
-        .setDeviceCapability(id, "onoff", next)
-        .catch((e) => {
-          console.warn("[dashboard] setDeviceCapability failed:", e);
-          // revert
-          setDevices((prev) =>
-            prev.map((d) =>
-              d.id === id ? { ...d, capabilities: { ...d.capabilities, onoff: !next } } : d,
-            ),
-          );
-        });
-    }
+    });
   }
 
   // Periodic refresh so on-floor icons reflect external state changes
@@ -463,6 +528,25 @@ export function Floorplan({
         )}
       </div>
 
+      {popup && (() => {
+        const dev = deviceById.get(popup.deviceId);
+        if (!dev) return null;
+        return (
+          <DeviceControlPopup
+            popup={popup}
+            device={dev}
+            onClose={() => setPopup(null)}
+            onSetCapability={(capId, value) =>
+              setCapabilityOptimistic(popup.deviceId, capId, value)
+            }
+            onPickAndClose={(value) => {
+              setCapabilityOptimistic(popup.deviceId, popup.capabilityId, value);
+              setPopup(null);
+            }}
+          />
+        );
+      })()}
+
       {showAdd && (
         <AddPlacementModal
           devices={devices.filter((d) => !placedDeviceIds.has(d.id))}
@@ -558,6 +642,175 @@ function nodeMatchesSearch<I extends { name: string }, C extends { name: string 
   if (node.container && node.container.name.toLowerCase().includes(q)) return true;
   if (node.items.some((i) => i.name.toLowerCase().includes(q))) return true;
   return node.children.some((c) => nodeMatchesSearch(c, q));
+}
+
+function DeviceControlPopup({
+  popup,
+  device,
+  onClose,
+  onSetCapability,
+  onPickAndClose,
+}: {
+  popup: ControlPopup;
+  device: Device;
+  onClose: () => void;
+  onSetCapability: (capabilityId: string, value: unknown) => void;
+  onPickAndClose: (value: unknown) => void;
+}) {
+  const info = device.capabilityInfo[popup.capabilityId] ?? {};
+  const currentValue = device.capabilities[popup.capabilityId];
+
+  const POPUP_W = 240;
+  const POPUP_H = 130;
+  const left = Math.min(
+    Math.max(8, popup.clientX - POPUP_W / 2),
+    window.innerWidth - POPUP_W - 8,
+  );
+  const top = Math.min(
+    Math.max(40, popup.clientY + 12),
+    window.innerHeight - POPUP_H - 8,
+  );
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="control-popup"
+        onClick={(e) => e.stopPropagation()}
+        style={{ left, top }}
+      >
+        <div className="control-popup-title">{device.name}</div>
+
+        {popup.kind === "dim" && (
+          <DimControl
+            value={typeof currentValue === "number" ? currentValue : 0}
+            isOn={!!device.capabilities.onoff}
+            hasOnoff={"onoff" in device.capabilities}
+            onChange={(v) => onSetCapability("dim", v)}
+            onToggleOnoff={(on) => onSetCapability("onoff", on)}
+          />
+        )}
+
+        {popup.kind === "temp" && (
+          <TempControl
+            value={typeof currentValue === "number" ? currentValue : 20}
+            min={info.min ?? 5}
+            max={info.max ?? 30}
+            step={info.step ?? 0.5}
+            units={info.units ?? "°C"}
+            onChange={(v) => onSetCapability("target_temperature", v)}
+          />
+        )}
+
+        {popup.kind === "enum" && (
+          <EnumControl
+            options={info.values ?? []}
+            current={typeof currentValue === "string" ? currentValue : ""}
+            onPick={onPickAndClose}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DimControl({
+  value,
+  isOn,
+  hasOnoff,
+  onChange,
+  onToggleOnoff,
+}: {
+  value: number;
+  isOn: boolean;
+  hasOnoff: boolean;
+  onChange: (v: number) => void;
+  onToggleOnoff: (on: boolean) => void;
+}) {
+  return (
+    <>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{ width: "100%" }}
+      />
+      <div className="control-popup-row">
+        <span className="muted">{Math.round(value * 100)}%</span>
+        {hasOnoff && (
+          <button
+            className="icon-btn"
+            onClick={() => onToggleOnoff(!isOn)}
+            style={{ fontWeight: isOn ? 700 : 400 }}
+          >
+            {isOn ? "On" : "Off"}
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function TempControl({
+  value,
+  min,
+  max,
+  step,
+  units,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  units: string;
+  onChange: (v: number) => void;
+}) {
+  const display = `${value.toFixed(step < 1 ? 1 : 0)}${units}`;
+  return (
+    <div className="control-popup-row" style={{ justifyContent: "space-between" }}>
+      <button
+        className="icon-btn"
+        onClick={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
+      >
+        −
+      </button>
+      <span style={{ fontSize: 22, fontWeight: 700 }}>{display}</span>
+      <button
+        className="icon-btn"
+        onClick={() => onChange(Math.min(max, +(value + step).toFixed(2)))}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function EnumControl({
+  options,
+  current,
+  onPick,
+}: {
+  options: Array<{ id: string; title: string }>;
+  current: string;
+  onPick: (id: string) => void;
+}) {
+  if (options.length === 0) return <div className="muted">No options available.</div>;
+  return (
+    <div className="enum-options">
+      {options.map((opt) => (
+        <button
+          key={opt.id}
+          className={`enum-option ${opt.id === current ? "active" : ""}`}
+          onClick={() => onPick(opt.id)}
+        >
+          {opt.title}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /**

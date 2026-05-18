@@ -1,6 +1,7 @@
 import type {
   AthomHomeyLike,
   AthomUserLike,
+  CapabilityInfo,
   DeviceState,
   Flow,
   FlowFolder,
@@ -84,7 +85,7 @@ export class HomeyClient {
     return out;
   }
 
-  /** Full device list with zone id + capability values. */
+  /** Full device list with zone id + capability values + capability metadata. */
   async listDevices(): Promise<DeviceState[]> {
     if (!this.api.devices?.getDevices) return [];
     const map = await this.api.devices.getDevices();
@@ -92,17 +93,30 @@ export class HomeyClient {
     for (const d of Object.values(map) as RawDevice[]) {
       if (!d.id) continue;
       const capabilities: Record<string, unknown> = {};
-      const units: Record<string, string | undefined> = {};
+      const capabilityInfo: Record<string, CapabilityInfo> = {};
       for (const [k, v] of Object.entries(d.capabilitiesObj ?? {})) {
-        capabilities[k] = (v as { value?: unknown })?.value;
-        units[k] = (v as { units?: string })?.units;
+        capabilities[k] = v?.value;
+        capabilityInfo[k] = {
+          type: v?.type,
+          min: v?.min,
+          max: v?.max,
+          step: v?.step,
+          units: v?.units,
+          values: v?.values?.map((opt) => ({
+            id: opt.id,
+            title:
+              typeof opt.title === "string"
+                ? opt.title
+                : (opt.title?.en ?? opt.title?.no ?? opt.id),
+          })),
+        };
       }
       out.push({
         id: d.id,
         name: d.name ?? d.id,
         zone: d.zone ?? null,
         capabilities,
-        units,
+        capabilityInfo,
       });
     }
     return out;

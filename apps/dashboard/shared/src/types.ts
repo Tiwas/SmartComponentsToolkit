@@ -92,14 +92,31 @@ export interface Zone {
   parent: string | null;
 }
 
+export interface RawCapability {
+  value?: unknown;
+  type?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  units?: string;
+  values?: Array<{ id: string; title?: string | Record<string, string> }>;
+  title?: string | Record<string, string>;
+}
+
 export interface RawDevice {
   id: string;
   name?: string;
   zone?: string | null;
-  capabilitiesObj?: Record<
-    string,
-    { value?: unknown; type?: string; min?: number; max?: number; units?: string }
-  >;
+  capabilitiesObj?: Record<string, RawCapability>;
+}
+
+export interface CapabilityInfo {
+  type?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  units?: string;
+  values?: Array<{ id: string; title: string }>;
 }
 
 export interface DeviceState {
@@ -107,7 +124,7 @@ export interface DeviceState {
   name: string;
   zone: string | null;
   capabilities: Record<string, unknown>;
-  units: Record<string, string | undefined>;
+  capabilityInfo: Record<string, CapabilityInfo>;
 }
 
 export interface RawApp {

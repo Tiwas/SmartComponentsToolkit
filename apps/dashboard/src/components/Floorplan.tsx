@@ -147,9 +147,12 @@ export function Floorplan({
 
   // Compute effective placements: persisted (devices + flows), plus
   // auto-placed for devices that have a matching zone but no stored
-  // placement yet.
+  // placement yet. Devices/flows the user has explicitly removed live
+  // in data.hiddenDevices/hiddenFlows and are skipped here.
   const placements: DevicePlacement[] = useMemo(() => {
     if (!data.svg) return [];
+    const hiddenDev = new Set(data.hiddenDevices ?? []);
+    const hiddenFlow = new Set(data.hiddenFlows ?? []);
     const storedDevices = new Map(
       data.placements
         .filter((p) => p.kind === "device")
@@ -162,6 +165,7 @@ export function Floorplan({
     );
     const result: DevicePlacement[] = [];
     for (const dev of devices) {
+      if (hiddenDev.has(dev.id)) continue;
       const existing = storedDevices.get(dev.id);
       if (existing) {
         result.push(existing);
@@ -173,17 +177,18 @@ export function Floorplan({
       }
     }
     for (const flow of flows) {
+      if (hiddenFlow.has(flow.id)) continue;
       const existing = storedFlows.get(flow.id);
       if (existing) result.push(existing);
     }
-    // Keep persisted placements for items that no longer exist on the Homey
-    // (don't silently delete them — could be transient API failure).
     for (const p of data.placements) {
+      if (p.kind === "device" && hiddenDev.has(p.id)) continue;
+      if (p.kind === "flow" && hiddenFlow.has(p.id)) continue;
       if (p.kind === "device" && !devices.find((d) => d.id === p.id)) result.push(p);
       if (p.kind === "flow" && !flows.find((f) => f.id === p.id)) result.push(p);
     }
     return result;
-  }, [data.svg, data.placements, devices, flows, roomsByZone]);
+  }, [data.svg, data.placements, data.hiddenDevices, data.hiddenFlows, devices, flows, roomsByZone]);
 
   const deviceById = useMemo(() => {
     const m = new Map<string, Device>();
@@ -215,8 +220,8 @@ export function Floorplan({
   }
 
   async function resetPlacements() {
-    if (!confirm("Reset all device positions to their room centers?")) return;
-    await persist({ ...data, placements: [] });
+    if (!confirm("Reset all device positions to their room centers? (Also un-hides removed items.)")) return;
+    await persist({ ...data, placements: [], hiddenDevices: [], hiddenFlows: [] });
   }
 
   function viewBoxCenter() {
@@ -231,16 +236,19 @@ export function Floorplan({
   async function addPlacement(kind: "device" | "flow", id: string) {
     const center = viewBoxCenter();
     const others = data.placements.filter((p) => !(p.kind === kind && p.id === id));
+    // Adding it back un-hides it.
+    const hiddenDevices = (data.hiddenDevices ?? []).filter((x) => !(kind === "device" && x === id));
+    const hiddenFlows = (data.hiddenFlows ?? []).filter((x) => !(kind === "flow" && x === id));
     await persist({
       ...data,
       placements: [...others, { kind, id, x: center.x, y: center.y }],
+      hiddenDevices,
+      hiddenFlows,
     });
   }
 
   async function addBulkPlacements(items: Array<{ kind: "device" | "flow"; id: string }>) {
     const center = viewBoxCenter();
-    // Lay them out in a 3-column grid around the centre so they don't all
-    // overlap at one point. Spacing kept tight (~3 viewBox units).
     const SPACING = 3.5;
     const PER_ROW = 3;
     const newOnes = items.map((it, i) => {
@@ -254,13 +262,30 @@ export function Floorplan({
     const others = data.placements.filter(
       (p) => !existingKeys.has(`${p.kind}:${p.id}`),
     );
-    await persist({ ...data, placements: [...others, ...newOnes] });
+    const addedDeviceIds = new Set(items.filter((i) => i.kind === "device").map((i) => i.id));
+    const addedFlowIds = new Set(items.filter((i) => i.kind === "flow").map((i) => i.id));
+    const hiddenDevices = (data.hiddenDevices ?? []).filter((x) => !addedDeviceIds.has(x));
+    const hiddenFlows = (data.hiddenFlows ?? []).filter((x) => !addedFlowIds.has(x));
+    await persist({
+      ...data,
+      placements: [...others, ...newOnes],
+      hiddenDevices,
+      hiddenFlows,
+    });
   }
 
   async function removePlacement(kind: "device" | "flow", id: string) {
+    const hiddenDevices = kind === "device"
+      ? [...new Set([...(data.hiddenDevices ?? []), id])]
+      : data.hiddenDevices;
+    const hiddenFlows = kind === "flow"
+      ? [...new Set([...(data.hiddenFlows ?? []), id])]
+      : data.hiddenFlows;
     await persist({
       ...data,
       placements: data.placements.filter((p) => !(p.kind === kind && p.id === id)),
+      hiddenDevices,
+      hiddenFlows,
     });
   }
 

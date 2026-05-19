@@ -14,9 +14,19 @@ export interface FloorplanData {
   svg: string;
   /** Device/flow placements anchored to SVG coordinates. */
   placements: DevicePlacement[];
+  /** Device ids the user has explicitly removed from the floorplan,
+   *  so auto-placement won't bring them back on the next render. */
+  hiddenDevices?: string[];
+  /** Flow ids the user has explicitly removed. */
+  hiddenFlows?: string[];
 }
 
-export const EMPTY_FLOORPLAN: FloorplanData = { svg: "", placements: [] };
+export const EMPTY_FLOORPLAN: FloorplanData = {
+  svg: "",
+  placements: [],
+  hiddenDevices: [],
+  hiddenFlows: [],
+};
 
 export function normalizeFloorplan(raw: unknown): FloorplanData {
   if (raw == null || typeof raw !== "object") return EMPTY_FLOORPLAN;
@@ -27,7 +37,13 @@ export function normalizeFloorplan(raw: unknown): FloorplanData {
         .map(normalizePlacement)
         .filter((p): p is DevicePlacement => p !== null))
     : [];
-  return { svg, placements };
+  const hiddenDevices = Array.isArray(obj.hiddenDevices)
+    ? obj.hiddenDevices.filter((x): x is string => typeof x === "string")
+    : [];
+  const hiddenFlows = Array.isArray(obj.hiddenFlows)
+    ? obj.hiddenFlows.filter((x): x is string => typeof x === "string")
+    : [];
+  return { svg, placements, hiddenDevices, hiddenFlows };
 }
 
 function normalizePlacement(raw: unknown): DevicePlacement | null {

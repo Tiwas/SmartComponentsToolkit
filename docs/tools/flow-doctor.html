@@ -827,11 +827,10 @@ class FlowDoctor {
         // version comes from the dev CLI, and the Homey Web API does not expose
         // published store versions. We delegate that lookup to a tiny Cloudflare
         // Worker (see worker/ in this repo) which fetches homey.app server-side
-        // and edge-caches for 1 hour. The Worker URL is per-deployment and is
-        // configured by the user via localStorage so this file stays generic:
+        // and edge-caches for 1 hour. Forks can override via:
         //   localStorage.setItem('flowdoctor_versions_worker', 'https://....workers.dev')
-        const workerUrl = localStorage.getItem('flowdoctor_versions_worker');
-        if (!workerUrl) return;
+        const DEFAULT_WORKER = 'https://flow-doctor-versions.tiwas.workers.dev';
+        const workerUrl = localStorage.getItem('flowdoctor_versions_worker') || DEFAULT_WORKER;
         const devApps = (this.appsList || []).filter(a => (a.origin || '').startsWith('devkit'));
         if (!devApps.length) return;
         try {

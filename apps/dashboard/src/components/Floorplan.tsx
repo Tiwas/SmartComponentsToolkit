@@ -24,6 +24,8 @@ interface Device {
   id: string;
   name: string;
   zone: string | null;
+  class?: string;
+  virtualClass?: string;
   capabilities: Record<string, unknown>;
   capabilityInfo: Record<
     string,
@@ -36,6 +38,22 @@ interface Device {
       values?: Array<{ id: string; title: string }>;
     }
   >;
+}
+
+function isLightDevice(dev: Device): boolean {
+  if (dev.class === "light" || dev.virtualClass === "light") return true;
+  if ("light_hue" in dev.capabilities) return true;
+  if ("light_saturation" in dev.capabilities) return true;
+  if ("light_temperature" in dev.capabilities) return true;
+  // Fallback: a switchable dimmable device with no sensor caps is most likely a light
+  if (
+    "onoff" in dev.capabilities &&
+    "dim" in dev.capabilities &&
+    !("measure_temperature" in dev.capabilities)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 type ControlKind = "dim" | "temp" | "enum" | "color";
@@ -721,10 +739,19 @@ function DeviceControlPopup({
   );
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        // Only close if the mousedown started on the backdrop itself.
+        // This prevents the popup from closing when a slider drag ends
+        // outside the popup (the resulting click would otherwise bubble
+        // up here).
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         className="control-popup"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         style={{ left, top }}
       >
         <div className="control-popup-title">{device.name}</div>
@@ -1037,6 +1064,80 @@ function DevicePlacementIcon({
   }
 
   const caps = dev?.capabilities ?? {};
+
+  // Light bulb: drawn as a wireframe when off, glowing colour with rays when on.
+  if (dev && isLightDevice(dev)) {
+    const on = !!caps.onoff;
+    const hue = typeof caps.light_hue === "number" ? (caps.light_hue as number) : null;
+    const sat = typeof caps.light_saturation === "number" ? (caps.light_saturation as number) : 1;
+    const color =
+      hue !== null ? `hsl(${(hue * 360).toFixed(0)}, ${(sat * 100).toFixed(0)}%, 60%)` : "#facc15";
+    const stroke = on ? color : "rgba(255,255,255,0.65)";
+    const fill = on ? color : "transparent";
+    // 6 rays around the bulb, omitting the bottom where the base sits.
+    const rays = on
+      ? [
+          [0, -2.7, 0, -3.9],
+          [2.0, -2.0, 2.9, -2.9],
+          [-2.0, -2.0, -2.9, -2.9],
+          [2.7, 0, 3.9, 0],
+          [-2.7, 0, -3.9, 0],
+          [2.0, 2.0, 2.9, 2.9],
+          [-2.0, 2.0, -2.9, 2.9],
+        ]
+      : [];
+    return (
+      <g
+        className={`device-icon device light ${on ? "on" : "off"}`}
+        transform={`translate(${p.x} ${p.y})`}
+      >
+        {rays.map(([x1, y1, x2, y2], i) => (
+          <line
+            key={i}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke={color}
+            strokeWidth="0.35"
+            strokeLinecap="round"
+            opacity="0.75"
+            pointerEvents="none"
+          />
+        ))}
+        {/* Bulb dome */}
+        <path
+          d="M -1.7 -0.4 A 1.9 1.9 0 1 1 1.7 -0.4 Q 1.5 0.6 1.05 1.1 L -1.05 1.1 Q -1.5 0.6 -1.7 -0.4 Z"
+          fill={fill}
+          stroke={stroke}
+          strokeWidth="0.3"
+          {...shared}
+        />
+        {/* Bulb base */}
+        <rect
+          x="-0.95"
+          y="1.1"
+          width="1.9"
+          height="0.55"
+          fill={stroke}
+          {...shared}
+        />
+        <rect
+          x="-0.85"
+          y="1.65"
+          width="1.7"
+          height="0.18"
+          fill={stroke}
+          opacity="0.7"
+          pointerEvents="none"
+        />
+        <title>
+          {label}
+          {hue !== null ? "" : on ? ": on" : ": off"}
+        </title>
+      </g>
+    );
+  }
 
   // Temperature display
   if (typeof caps.measure_temperature === "number") {

@@ -107,6 +107,8 @@ export interface RawDevice {
   id: string;
   name?: string;
   zone?: string | null;
+  class?: string;
+  virtualClass?: string;
   capabilitiesObj?: Record<string, RawCapability>;
 }
 
@@ -123,6 +125,8 @@ export interface DeviceState {
   id: string;
   name: string;
   zone: string | null;
+  class?: string;
+  virtualClass?: string;
   capabilities: Record<string, unknown>;
   capabilityInfo: Record<string, CapabilityInfo>;
 }

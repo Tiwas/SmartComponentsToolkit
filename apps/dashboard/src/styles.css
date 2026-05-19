@@ -509,6 +509,13 @@ button.primary:hover {
 .device-icon.onoff.on circle {
   filter: drop-shadow(0 0 1px rgba(250, 204, 21, 0.7));
 }
+.device-icon.light.on {
+  filter: drop-shadow(0 0 1.5px currentColor);
+}
+.device-icon.light path,
+.device-icon.light rect {
+  stroke-linejoin: round;
+}
 
 .control-popup {
   position: fixed;

@@ -115,6 +115,8 @@ export class HomeyClient {
         id: d.id,
         name: d.name ?? d.id,
         zone: d.zone ?? null,
+        class: d.class,
+        virtualClass: d.virtualClass,
         capabilities,
         capabilityInfo,
       });

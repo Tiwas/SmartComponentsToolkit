@@ -286,6 +286,11 @@ const I18N = {
         'apps.testChannel': 'Test',
         'apps.appStoreLink': 'App Store ↗',
         'apps.appStoreLinkTest': 'Test Store ↗',
+        'apps.dev': 'Dev',
+        'apps.viewStable': 'Stable ↗',
+        'apps.viewTest': 'Test ↗',
+        'apps.versionStable': 'stable',
+        'apps.versionTest': 'test',
         'apps.crashed': 'Crashed',
         'apps.disabled': 'Disabled',
         'apps.memory': 'Memory',
@@ -382,6 +387,11 @@ const I18N = {
         'apps.testChannel': 'Test',
         'apps.appStoreLink': 'App Store ↗',
         'apps.appStoreLinkTest': 'Test-butikk ↗',
+        'apps.dev': 'Dev',
+        'apps.viewStable': 'Stabil ↗',
+        'apps.viewTest': 'Test ↗',
+        'apps.versionStable': 'stabil',
+        'apps.versionTest': 'test',
         'apps.crashed': 'Krasjet',
         'apps.disabled': 'Deaktivert',
         'apps.memory': 'Minne',
@@ -478,6 +488,11 @@ const I18N = {
         'apps.testChannel': 'Test',
         'apps.appStoreLink': 'App Store ↗',
         'apps.appStoreLinkTest': 'Test-Store ↗',
+        'apps.dev': 'Dev',
+        'apps.viewStable': 'Stabil ↗',
+        'apps.viewTest': 'Test ↗',
+        'apps.versionStable': 'stabil',
+        'apps.versionTest': 'test',
         'apps.crashed': 'Abgestürzt',
         'apps.disabled': 'Deaktiviert',
         'apps.memory': 'Speicher',
@@ -574,6 +589,11 @@ const I18N = {
         'apps.testChannel': 'Test',
         'apps.appStoreLink': 'App Store ↗',
         'apps.appStoreLinkTest': 'Test-store ↗',
+        'apps.dev': 'Dev',
+        'apps.viewStable': 'Stabiel ↗',
+        'apps.viewTest': 'Test ↗',
+        'apps.versionStable': 'stabiel',
+        'apps.versionTest': 'test',
         'apps.crashed': 'Gecrasht',
         'apps.disabled': 'Uitgeschakeld',
         'apps.memory': 'Geheugen',
@@ -810,6 +830,32 @@ class FlowDoctor {
         if (typeof u === 'string') return u;
         if (typeof u === 'object') return u.version || u.latestVersion || null;
         return null;
+    }
+
+    async fetchDevStoreVersions() {
+        // For side-loaded (origin === 'devkit') apps the locally installed version comes
+        // from the dev CLI, and `updateAvailable` doesn't carry meaningful store info.
+        // Try to fetch the latest stable and test versions from Homey's apps manager so
+        // the user can compare against published releases. The exact method name on
+        // homey-api varies across versions, so probe a couple of candidates defensively.
+        const devApps = (this.appsList || []).filter(a => a.origin === 'devkit');
+        if (!devApps.length || !this.api || !this.api.apps) return;
+        const tryFetch = async (id, channel) => {
+            const candidates = ['getStoreApp', 'getAppFromStore', 'getStoreAppById'];
+            for (const fn of candidates) {
+                if (typeof this.api.apps[fn] !== 'function') continue;
+                try {
+                    const info = await this.api.apps[fn]({ id, channel });
+                    if (info) return info.version || info.latestVersion || info.testVersion || null;
+                } catch (_) { /* try next */ }
+            }
+            return null;
+        };
+        await Promise.all(devApps.flatMap(a => [
+            tryFetch(a.id, 'stable').then(v => { a.stableVersion = v; }),
+            tryFetch(a.id, 'test').then(v => { a.testVersion = v; }),
+        ]));
+        this.renderApps();
     }
 
     compareVersions(a, b) {
@@ -1230,6 +1276,9 @@ class FlowDoctor {
             this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
+            // Fire-and-forget: fetch store/test versions for side-loaded apps so the
+            // user can compare their devkit build against published releases.
+            this.fetchDevStoreVersions().catch(() => {});
         } catch (e) {
             this.showError(e.message || String(e));
         }
@@ -1398,18 +1447,24 @@ class FlowDoctor {
         }
 
         for (const a of apps) {
-            let statusBadge, sevClass = '';
-            if (a.hasUpdate) {
-                statusBadge = `<span class="badge badge-warn">${this.t('apps.updateAvailable')}</span>`;
-                sevClass = 'sev-warn';
-            } else {
-                statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
+            const isDev = a.origin === 'devkit';
+            let statusBadge = '', sevClass = '';
+            // Update-available semantics don't apply cleanly to a CLI-installed devkit
+            // build, so suppress the up-to-date/update badges for dev apps.
+            if (!isDev) {
+                if (a.hasUpdate) {
+                    statusBadge = `<span class="badge badge-warn">${this.t('apps.updateAvailable')}</span>`;
+                    sevClass = 'sev-warn';
+                } else {
+                    statusBadge = `<span class="badge badge-ok">${this.t('apps.upToDate')}</span>`;
+                }
             }
             const unusedBadge = this.isAppUnused(a) ? `<span class="badge badge-info">${this.t('apps.unused')}</span>` : '';
             const crashedBadge = a.crashed ? `<span class="badge badge-err">${this.t('apps.crashed')}${a.crashedCount > 1 ? ' ×' + a.crashedCount : ''}</span>` : '';
             const disabledBadge = !a.enabled ? `<span class="badge badge-info">${this.t('apps.disabled')}</span>` : '';
             const isTest = a.channel === 'test';
             const testBadge = isTest ? `<span class="badge" style="background:#ede9fe;color:#5b21b6">${this.t('apps.testChannel')}</span>` : '';
+            const devBadge = isDev ? `<span class="badge" style="background:#fce7f3;color:#9d174d">${this.t('apps.dev')}</span>` : '';
             if (a.crashed) sevClass = 'sev-error';
             else if (this.isAppUnused(a) && !sevClass) sevClass = 'sev-info';
             const memMb = a.mem != null ? (a.mem / 1048576).toFixed(0) : null;
@@ -1418,12 +1473,26 @@ class FlowDoctor {
                 ? `<div class="text-xs text-gray-600 mt-1 flex gap-3">${memMb != null ? `<span>${this.t('apps.memory')}: <strong>${memMb} MB</strong></span>` : ''}${cpuPct != null ? `<span>${this.t('apps.cpu')}: <strong>${cpuPct}%</strong></span>` : ''}</div>`
                 : '';
             const installedTag = `<span class="text-green-700 font-semibold">✓ ${this.t('apps.installed')}</span> <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
-            const storeLabel = isTest ? this.t('apps.storeTest') : this.t('apps.store');
-            const versionInfo = a.storeVersion
-                ? `${installedTag} · ${storeLabel} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`
-                : installedTag;
+            const codeTag = (v) => v
+                ? `<code class="bg-white px-1 rounded border border-gray-200">${this.escape(v)}</code>`
+                : `<span class="text-gray-400">?</span>`;
+            let versionInfo;
+            if (isDev) {
+                versionInfo = `${installedTag} · ${this.t('apps.versionStable')} ${codeTag(a.stableVersion)} · ${this.t('apps.versionTest')} ${codeTag(a.testVersion)}`;
+            } else if (a.storeVersion) {
+                const storeLabel = isTest ? this.t('apps.storeTest') : this.t('apps.store');
+                versionInfo = `${installedTag} · ${storeLabel} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`;
+            } else {
+                versionInfo = installedTag;
+            }
             const storeLink = this.appUrl(a.id, a.channel);
             const storeLinkLabel = isTest ? this.t('apps.appStoreLinkTest') : this.t('apps.appStoreLink');
+            const stableUrl = `https://homey.app/a/${encodeURIComponent(a.id)}`;
+            const testUrl = `${stableUrl}/test`;
+            const storeLinksHtml = isDev
+                ? `<a href="${stableUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewStable')}</a>
+                   <a href="${testUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewTest')}</a>`
+                : `<a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${storeLinkLabel}</a>`;
             const flowsCount = a.usage || 0;
             const devicesCount = a.deviceCount || 0;
             const flowsHtml = flowsCount > 0
@@ -1482,6 +1551,7 @@ class FlowDoctor {
                             <span class="font-semibold text-gray-900">${this.escape(a.name)}</span>
                             ${crashedBadge}
                             ${statusBadge}
+                            ${devBadge}
                             ${testBadge}
                             ${unusedBadge}
                             ${disabledBadge}
@@ -1493,7 +1563,7 @@ class FlowDoctor {
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         ${usageHtml}
-                        <a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${storeLinkLabel}</a>
+                        ${storeLinksHtml}
                     </div>
                 </div>
                 ${devicesPanelHtml}

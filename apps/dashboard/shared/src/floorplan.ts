@@ -1,3 +1,5 @@
+export type LightIconType = "bulb" | "led" | "led-strip";
+
 export interface DevicePlacement {
   kind: "device" | "flow";
   /** Homey device id or flow id. */
@@ -7,6 +9,8 @@ export interface DevicePlacement {
   y: number;
   /** Optional icon override; uses default if absent. */
   icon?: string;
+  /** For light devices: which kind of bulb/strip to render. */
+  lightIconType?: LightIconType;
 }
 
 export interface FloorplanData {
@@ -57,12 +61,18 @@ function normalizePlacement(raw: unknown): DevicePlacement | null {
   ) {
     return null;
   }
+  const validIconTypes = ["bulb", "led", "led-strip"];
   return {
     kind: obj.kind,
     id: obj.id,
     x: obj.x,
     y: obj.y,
     icon: typeof obj.icon === "string" ? obj.icon : undefined,
+    lightIconType:
+      typeof obj.lightIconType === "string" &&
+      validIconTypes.includes(obj.lightIconType)
+        ? (obj.lightIconType as LightIconType)
+        : undefined,
   };
 }
 

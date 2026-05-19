@@ -11,9 +11,11 @@ import {
   type DevicePlacement,
   type FloorplanData,
   type FlowFolder,
+  type LightIconType,
   type RoomGeometry,
   type Zone,
 } from "@homey-toolbox/dashboard-shared";
+import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
 import { loadFloorplan, saveFloorplan } from "../lib/floorplan-tauri";
 import { useI18n } from "../i18n/context";
 
@@ -126,6 +128,11 @@ export function Floorplan({
   const [zones, setZones] = useState<Zone[]>([]);
   const [folders, setFolders] = useState<FlowFolder[]>([]);
   const [popup, setPopup] = useState<ControlPopup | null>(null);
+  const [iconMenu, setIconMenu] = useState<{
+    x: number;
+    y: number;
+    placement: DevicePlacement;
+  } | null>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -305,6 +312,24 @@ export function Floorplan({
       hiddenDevices,
       hiddenFlows,
     });
+  }
+
+  async function setLightIconType(deviceId: string, iconType: LightIconType) {
+    // Ensure the device has a stored placement (auto-placed have no entry yet).
+    const existing = data.placements.find(
+      (p) => p.kind === "device" && p.id === deviceId,
+    );
+    let next: DevicePlacement[];
+    if (existing) {
+      next = data.placements.map((p) =>
+        p.kind === "device" && p.id === deviceId ? { ...p, lightIconType: iconType } : p,
+      );
+    } else {
+      const auto = placements.find((p) => p.kind === "device" && p.id === deviceId);
+      if (!auto) return;
+      next = [...data.placements, { ...auto, lightIconType: iconType }];
+    }
+    await persist({ ...data, placements: next });
   }
 
   // SVG drag using pointer events. We convert client coords to viewBox coords
@@ -556,10 +581,9 @@ export function Floorplan({
                       device={dev ?? null}
                       label={label}
                       onPointerDown={(e) => onPointerDown(e, p.kind, p.id)}
-                      onRemove={() => {
-                        if (confirm(`Remove ${label} from the floorplan?`)) {
-                          removePlacement(p.kind, p.id);
-                        }
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setIconMenu({ x: e.clientX, y: e.clientY, placement: p });
                       }}
                     />
                   );
@@ -583,6 +607,40 @@ export function Floorplan({
           </div>
         )}
       </div>
+
+      {iconMenu && (() => {
+        const p = iconMenu.placement;
+        const dev = p.kind === "device" ? deviceById.get(p.id) : null;
+        const isLight = !!(dev && isLightDevice(dev));
+        const currentIconType = p.lightIconType ?? "bulb";
+        const items: ContextMenuEntry[] = [];
+        if (isLight) {
+          items.push({ kind: "header", label: "Light icon" });
+          (["bulb", "led", "led-strip"] as const).forEach((t) => {
+            items.push({
+              kind: "item",
+              label:
+                (t === currentIconType ? "✓ " : "  ") +
+                (t === "bulb" ? "Bulb" : t === "led" ? "LED" : "LED strip"),
+              onClick: () => setLightIconType(p.id, t),
+            });
+          });
+          items.push({ kind: "divider" });
+        }
+        items.push({
+          kind: "item",
+          label: "Remove from floorplan",
+          onClick: () => removePlacement(p.kind, p.id),
+        });
+        return (
+          <ContextMenu
+            x={iconMenu.x}
+            y={iconMenu.y}
+            items={items}
+            onClose={() => setIconMenu(null)}
+          />
+        );
+      })()}
 
       {popup && (() => {
         const dev = deviceById.get(popup.deviceId);
@@ -1038,20 +1096,17 @@ function DevicePlacementIcon({
   device: dev,
   label,
   onPointerDown,
-  onRemove,
+  onContextMenu,
 }: {
   placement: DevicePlacement;
   device: Device | null;
   label: string;
   onPointerDown: (e: React.PointerEvent<SVGElement>) => void;
-  onRemove: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const shared = {
     onPointerDown,
-    onContextMenu: (e: React.MouseEvent) => {
-      e.preventDefault();
-      onRemove();
-    },
+    onContextMenu,
   };
 
   if (p.kind === "flow") {
@@ -1065,7 +1120,7 @@ function DevicePlacementIcon({
 
   const caps = dev?.capabilities ?? {};
 
-  // Light bulb: drawn as a wireframe when off, glowing colour with rays when on.
+  // Light: render as bulb / LED / LED-strip depending on placement.lightIconType.
   if (dev && isLightDevice(dev)) {
     const on = !!caps.onoff;
     const hue = typeof caps.light_hue === "number" ? (caps.light_hue as number) : null;
@@ -1074,7 +1129,75 @@ function DevicePlacementIcon({
       hue !== null ? `hsl(${(hue * 360).toFixed(0)}, ${(sat * 100).toFixed(0)}%, 60%)` : "#facc15";
     const stroke = on ? color : "rgba(255,255,255,0.65)";
     const fill = on ? color : "transparent";
-    // 6 rays around the bulb, omitting the bottom where the base sits.
+    const iconType = p.lightIconType ?? "bulb";
+
+    if (iconType === "led") {
+      // Small rounded square chip with a glowing dot in the centre.
+      return (
+        <g
+          className={`device-icon device light led ${on ? "on" : "off"}`}
+          transform={`translate(${p.x} ${p.y})`}
+        >
+          {on && (
+            <circle cx="0" cy="0" r="2.6" fill={color} opacity="0.25" pointerEvents="none" />
+          )}
+          <rect
+            x="-1.6"
+            y="-1.6"
+            width="3.2"
+            height="3.2"
+            rx="0.6"
+            fill={on ? "rgba(0,0,0,0.4)" : "transparent"}
+            stroke={stroke}
+            strokeWidth="0.3"
+            {...shared}
+          />
+          <circle cx="0" cy="0" r="0.8" fill={on ? color : "transparent"} stroke={stroke} strokeWidth="0.2" pointerEvents="none" />
+          <title>{label}{on ? "" : " (off)"}</title>
+        </g>
+      );
+    }
+
+    if (iconType === "led-strip") {
+      // Long thin strip with multiple LEDs along its length.
+      const ledPositions = [-3, -1.5, 0, 1.5, 3];
+      return (
+        <g
+          className={`device-icon device light led-strip ${on ? "on" : "off"}`}
+          transform={`translate(${p.x} ${p.y})`}
+        >
+          {on && (
+            <rect x="-4" y="-1.4" width="8" height="2.8" rx="0.5" fill={color} opacity="0.2" pointerEvents="none" />
+          )}
+          <rect
+            x="-3.8"
+            y="-0.8"
+            width="7.6"
+            height="1.6"
+            rx="0.3"
+            fill={on ? "rgba(0,0,0,0.35)" : "transparent"}
+            stroke={stroke}
+            strokeWidth="0.25"
+            {...shared}
+          />
+          {ledPositions.map((lx, i) => (
+            <circle
+              key={i}
+              cx={lx}
+              cy="0"
+              r="0.35"
+              fill={on ? color : "transparent"}
+              stroke={stroke}
+              strokeWidth="0.15"
+              pointerEvents="none"
+            />
+          ))}
+          <title>{label}{on ? "" : " (off)"}</title>
+        </g>
+      );
+    }
+
+    // Default: bulb shape with rays
     const rays = on
       ? [
           [0, -2.7, 0, -3.9],
@@ -1088,7 +1211,7 @@ function DevicePlacementIcon({
       : [];
     return (
       <g
-        className={`device-icon device light ${on ? "on" : "off"}`}
+        className={`device-icon device light bulb ${on ? "on" : "off"}`}
         transform={`translate(${p.x} ${p.y})`}
       >
         {rays.map(([x1, y1, x2, y2], i) => (
@@ -1105,7 +1228,6 @@ function DevicePlacementIcon({
             pointerEvents="none"
           />
         ))}
-        {/* Bulb dome */}
         <path
           d="M -1.7 -0.4 A 1.9 1.9 0 1 1 1.7 -0.4 Q 1.5 0.6 1.05 1.1 L -1.05 1.1 Q -1.5 0.6 -1.7 -0.4 Z"
           fill={fill}
@@ -1113,24 +1235,8 @@ function DevicePlacementIcon({
           strokeWidth="0.3"
           {...shared}
         />
-        {/* Bulb base */}
-        <rect
-          x="-0.95"
-          y="1.1"
-          width="1.9"
-          height="0.55"
-          fill={stroke}
-          {...shared}
-        />
-        <rect
-          x="-0.85"
-          y="1.65"
-          width="1.7"
-          height="0.18"
-          fill={stroke}
-          opacity="0.7"
-          pointerEvents="none"
-        />
+        <rect x="-0.95" y="1.1" width="1.9" height="0.55" fill={stroke} {...shared} />
+        <rect x="-0.85" y="1.65" width="1.7" height="0.18" fill={stroke} opacity="0.7" pointerEvents="none" />
         <title>
           {label}
           {hue !== null ? "" : on ? ": on" : ": off"}

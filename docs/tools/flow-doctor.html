@@ -836,10 +836,11 @@ class FlowDoctor {
         const workerUrl = localStorage.getItem('flowdoctor_versions_worker') || DEFAULT_WORKER;
         const apps = this.appsList || [];
         if (!apps.length) return;
-        // POST /versions caps at 10 ids per request (Cloudflare Workers free
-        // tier allows 50 subrequests per invocation; each id costs up to 2).
+        // POST /versions caps at 5 ids per request. Each invocation handles
+        // its ids serially upstream (homey.app rate-limits parallel fan-out),
+        // so larger batches time out. Many small chunks in parallel work well.
         const chunks = [];
-        for (let i = 0; i < apps.length; i += 10) chunks.push(apps.slice(i, i + 10));
+        for (let i = 0; i < apps.length; i += 5) chunks.push(apps.slice(i, i + 5));
         try {
             const results = await Promise.all(chunks.map(chunk =>
                 fetch(workerUrl.replace(/\/$/, '') + '/versions', {

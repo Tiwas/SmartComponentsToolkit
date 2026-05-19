@@ -8,11 +8,13 @@
 //   →  { "no.tiwas.booleantoolbox": { "stable": "1.10.8", "test": "1.10.9-rc.2" } }
 
 const CACHE_TTL_SECONDS = 3600;
-// Cloudflare Workers free tier allows 50 subrequests per invocation. Each
-// id triggers up to 2 upstream fetches (stable + test), so cap at 10 ids
-// per request to keep plenty of headroom for cache ops and retries. The
-// Flow Doctor client chunks larger batches client-side.
-const MAX_IDS_PER_REQUEST = 10;
+// We process ids serially inside an invocation (parallel fan-out caused
+// homey.app to rate-limit us). 10 ids serial × 2 fetches each was slow
+// enough to time out, so cap at 5. The Flow Doctor client fans out across
+// invocations instead — each batch is a separate Worker invocation with
+// its own subrequest budget and gets to homey.app from a different edge
+// connection.
+const MAX_IDS_PER_REQUEST = 5;
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
 
 const CORS_HEADERS = {
@@ -48,18 +50,21 @@ export default {
 
         if (!ids.length) return json({}, 200);
 
+        // Serialize across ids inside one invocation. Earlier parallel
+        // fan-out (20 upstream fetches in flight at once per Worker) caused
+        // homey.app to rate-limit our edge IP, leaving most results null.
+        // Inside getVersions stable+test still fire in parallel — that's
+        // only 2 concurrent requests per id, which homey.app tolerates.
         const out = {};
-        await Promise.all(
-            ids.map(async (id) => {
-                out[id] = await getVersions(id, ctx);
-            })
-        );
+        for (const id of ids) {
+            out[id] = await getVersions(id, ctx);
+        }
         return json(out, 200);
     },
 };
 
 async function getVersions(id, ctx) {
-    const cacheKey = new Request(`https://flow-doctor-versions.cache/v4/${encodeURIComponent(id)}`);
+    const cacheKey = new Request(`https://flow-doctor-versions.cache/v5/${encodeURIComponent(id)}`);
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
     if (cached) {

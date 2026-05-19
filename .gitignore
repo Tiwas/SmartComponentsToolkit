@@ -28,6 +28,7 @@ extra_images/
 .claude/
 
 # Misc
+tmp/
 codebase.*
 codebase-manifest.*
 .codebaseignore

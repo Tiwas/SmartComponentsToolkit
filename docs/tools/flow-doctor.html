@@ -822,6 +822,38 @@ class FlowDoctor {
         }
     }
 
+    async fetchDevStoreVersions() {
+        // For side-loaded (origin starts with 'devkit') apps the locally-installed
+        // version comes from the dev CLI, and the Homey Web API does not expose
+        // published store versions. We delegate that lookup to a tiny Cloudflare
+        // Worker (see worker/ in this repo) which fetches homey.app server-side
+        // and edge-caches for 1 hour. The Worker URL is per-deployment and is
+        // configured by the user via localStorage so this file stays generic:
+        //   localStorage.setItem('flowdoctor_versions_worker', 'https://....workers.dev')
+        const workerUrl = localStorage.getItem('flowdoctor_versions_worker');
+        if (!workerUrl) return;
+        const devApps = (this.appsList || []).filter(a => (a.origin || '').startsWith('devkit'));
+        if (!devApps.length) return;
+        try {
+            const res = await fetch(workerUrl.replace(/\/$/, '') + '/versions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: devApps.map(a => a.id) }),
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            for (const a of devApps) {
+                const entry = data[a.id];
+                if (!entry) continue;
+                a.stableVersion = entry.stable || null;
+                a.testVersion = entry.test || null;
+            }
+            this.renderApps();
+        } catch (_) {
+            // Worker unreachable — leave versions blank. Dev badge + links still render.
+        }
+    }
+
     extractStoreVersion(app) {
         // Homey itself sets `updateAvailable` on the app payload when a newer version
         // is in the App Store. The shape varies: sometimes a string, sometimes an object.
@@ -1251,6 +1283,9 @@ class FlowDoctor {
             this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
+            // Lazy-load stable + test versions for side-loaded apps via the
+            // companion Cloudflare Worker. Fire-and-forget; re-renders when done.
+            this.fetchDevStoreVersions().catch(() => {});
         } catch (e) {
             this.showError(e.message || String(e));
         }
@@ -1445,10 +1480,16 @@ class FlowDoctor {
                 ? `<div class="text-xs text-gray-600 mt-1 flex gap-3">${memMb != null ? `<span>${this.t('apps.memory')}: <strong>${memMb} MB</strong></span>` : ''}${cpuPct != null ? `<span>${this.t('apps.cpu')}: <strong>${cpuPct}%</strong></span>` : ''}</div>`
                 : '';
             const installedTag = `<span class="text-green-700 font-semibold">✓ ${this.t('apps.installed')}</span> <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
+            const codeTag = (v) => `<code class="bg-white px-1 rounded border border-gray-200">${this.escape(v)}</code>`;
             let versionInfo;
-            if (!isDev && a.storeVersion) {
+            if (isDev) {
+                const parts = [installedTag];
+                if (a.stableVersion) parts.push(`${this.t('apps.versionStable')} ${codeTag(a.stableVersion)}`);
+                if (a.testVersion) parts.push(`${this.t('apps.versionTest')} ${codeTag(a.testVersion)}`);
+                versionInfo = parts.join(' · ');
+            } else if (a.storeVersion) {
                 const storeLabel = isTest ? this.t('apps.storeTest') : this.t('apps.store');
-                versionInfo = `${installedTag} · ${storeLabel} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`;
+                versionInfo = `${installedTag} · ${storeLabel} ${codeTag(a.storeVersion)}`;
             } else {
                 versionInfo = installedTag;
             }

@@ -1,0 +1,5 @@
+name = "flow-doctor-versions"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+# No bindings needed — uses the global edge cache (caches.default).

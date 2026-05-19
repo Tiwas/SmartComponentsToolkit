@@ -589,6 +589,14 @@ export function Floorplan({
         <AddPlacementModal
           devices={devices.filter((d) => !placedDeviceIds.has(d.id))}
           flows={flows.filter((f) => !placedFlowIds.has(f.id))}
+          placedItems={placements.map((p) => ({
+            kind: p.kind,
+            id: p.id,
+            name:
+              p.kind === "device"
+                ? (deviceById.get(p.id)?.name ?? `(unknown device ${p.id.slice(0, 8)})`)
+                : (flowById.get(p.id)?.name ?? `(unknown flow ${p.id.slice(0, 8)})`),
+          }))}
           zones={zones}
           folders={folders}
           onClose={() => setShowAdd(false)}
@@ -599,6 +607,9 @@ export function Floorplan({
           onPickGroup={(items) => {
             addBulkPlacements(items);
             setShowAdd(false);
+          }}
+          onRemove={(kind, id) => {
+            removePlacement(kind, id);
           }}
         />
       )}
@@ -1093,21 +1104,25 @@ function DevicePlacementIcon({
 function AddPlacementModal({
   devices,
   flows,
+  placedItems,
   zones,
   folders,
   onClose,
   onPick,
   onPickGroup,
+  onRemove,
 }: {
   devices: Device[];
   flows: FlowLite[];
+  placedItems: Array<{ kind: "device" | "flow"; id: string; name: string }>;
   zones: Zone[];
   folders: FlowFolder[];
   onClose: () => void;
   onPick: (kind: "device" | "flow", id: string) => void;
   onPickGroup: (items: Array<{ kind: "device" | "flow"; id: string }>) => void;
+  onRemove: (kind: "device" | "flow", id: string) => void;
 }) {
-  const [tab, setTab] = useState<"device" | "flow">("device");
+  const [tab, setTab] = useState<"device" | "flow" | "placed">("device");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const q = search.trim().toLowerCase();
@@ -1245,6 +1260,13 @@ function AddPlacementModal({
           >
             Flows ({flows.length})
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "placed" ? "active" : ""}`}
+            onClick={() => setTab("placed")}
+          >
+            Placed ({placedItems.length})
+          </button>
         </div>
         <input
           type="text"
@@ -1254,9 +1276,39 @@ function AddPlacementModal({
           style={{ width: "100%" }}
         />
         <div style={{ overflowY: "auto", maxHeight: "50vh", paddingRight: 4 }}>
-          {tab === "device"
-            ? renderNode(deviceTree, "device", 0, !!q)
-            : renderNode(flowTree, "flow", 0, !!q)}
+          {tab === "device" && renderNode(deviceTree, "device", 0, !!q)}
+          {tab === "flow" && renderNode(flowTree, "flow", 0, !!q)}
+          {tab === "placed" && (
+            placedItems.length === 0 ? (
+              <div className="muted">Nothing placed yet.</div>
+            ) : (
+              placedItems
+                .filter((it) => !q || it.name.toLowerCase().includes(q))
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((it) => (
+                  <div
+                    key={`${it.kind}-${it.id}`}
+                    className="flow-row"
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span style={{ fontSize: 13, flex: 1 }}>
+                      {it.kind === "device" ? "●" : "▢"} {it.name}
+                    </span>
+                    <button
+                      className="icon-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove(it.kind, it.id);
+                      }}
+                      title="Remove from floorplan"
+                      style={{ color: "#f28b82" }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+            )
+          )}
         </div>
         <div className="muted" style={{ fontSize: 11 }}>
           Items appear at the canvas centre; drag to position. Right-click an icon to remove.

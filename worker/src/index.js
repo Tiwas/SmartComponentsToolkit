@@ -55,7 +55,7 @@ export default {
 };
 
 async function getVersions(id, ctx) {
-    const cacheKey = new Request(`https://flow-doctor-versions.cache/${encodeURIComponent(id)}`);
+    const cacheKey = new Request(`https://flow-doctor-versions.cache/v2/${encodeURIComponent(id)}`);
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
     if (cached) {
@@ -80,10 +80,12 @@ async function getVersions(id, ctx) {
 }
 
 async function fetchChannelVersion(id, channel) {
-    // homey.app/a/<id>[/test] is the public app page. Server-rendered HTML
-    // embeds a Next.js __NEXT_DATA__ JSON blob containing the app payload
-    // with the `version` field. Parsing this is the most reliable path —
-    // there is no documented public JSON endpoint as of 2026-05.
+    // homey.app/a/<id>[/test] is the public app page. It redirects through
+    // a locale prefix to e.g. /no-no/app/<id>/<App-Title>/ (or .../test/ if
+    // there is a separately-published test build). Apps without a test build
+    // have their /test URL silently redirected to the regular page, so we
+    // verify the final redirected URL contains '/test' before trusting the
+    // returned version as the test-channel one.
     const path = channel === 'test' ? `${encodeURIComponent(id)}/test` : encodeURIComponent(id);
     const upstream = `https://homey.app/a/${path}`;
     try {
@@ -92,6 +94,10 @@ async function fetchChannelVersion(id, channel) {
             headers: { 'User-Agent': 'flow-doctor-versions/1.0 (+https://tiwas.github.io/SmartComponentsToolkit/)' },
         });
         if (!res.ok) return null;
+        if (channel === 'test' && !/\/test\/?$/i.test(new URL(res.url).pathname)) {
+            // Redirected away from /test → no separate test build published.
+            return null;
+        }
         const html = await res.text();
         return extractVersion(html);
     } catch {
@@ -100,31 +106,14 @@ async function fetchChannelVersion(id, channel) {
 }
 
 function extractVersion(html) {
-    // Try Next.js data blob first — most reliable.
-    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (m) {
-        try {
-            const data = JSON.parse(m[1]);
-            const v = deepFindVersion(data);
-            if (v) return v;
-        } catch {
-            /* fall through */
-        }
-    }
-    // Fallback: look for "version":"x.y.z" anywhere in the HTML.
-    const fb = html.match(/"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.\-+]*)"/);
-    return fb ? fb[1] : null;
-}
-
-function deepFindVersion(obj, depth = 0) {
-    if (!obj || typeof obj !== 'object' || depth > 8) return null;
-    if (typeof obj.version === 'string' && /^[0-9]+\.[0-9]+\.[0-9]+/.test(obj.version)) {
-        return obj.version;
-    }
-    for (const key of Object.keys(obj)) {
-        const found = deepFindVersion(obj[key], depth + 1);
-        if (found) return found;
-    }
+    // Most reliable: the data-hy-app-version="x.y.z" attribute on the page's
+    // app container. Stable on homey.app for years; survives Next.js / Nuxt
+    // shifts since it's a server-rendered HTML data attribute.
+    const dataAttr = html.match(/data-hy-app-version="([0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.\-+]*)"/);
+    if (dataAttr) return dataAttr[1];
+    // Fallback: the AddSearch meta tag carries the same value in a different shape.
+    const meta = html.match(/hy_app_version=([0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.\-+]*)/);
+    if (meta) return meta[1];
     return null;
 }
 

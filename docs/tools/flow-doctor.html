@@ -832,31 +832,6 @@ class FlowDoctor {
         return null;
     }
 
-    async fetchDevStoreVersions() {
-        // For side-loaded (origin === 'devkit') apps the locally installed version comes
-        // from the dev CLI, and `updateAvailable` doesn't carry meaningful store info.
-        // Try to fetch the latest stable and test versions from Homey's apps manager so
-        // the user can compare against published releases. The exact method name on
-        // homey-api varies across versions, so probe a couple of candidates defensively.
-        const devApps = (this.appsList || []).filter(a => a.origin === 'devkit');
-        if (!devApps.length || !this.api || !this.api.apps) return;
-        const tryFetch = async (id, channel) => {
-            const candidates = ['getStoreApp', 'getAppFromStore', 'getStoreAppById'];
-            for (const fn of candidates) {
-                if (typeof this.api.apps[fn] !== 'function') continue;
-                try {
-                    const info = await this.api.apps[fn]({ id, channel });
-                    if (info) return info.version || info.latestVersion || info.testVersion || null;
-                } catch (_) { /* try next */ }
-            }
-            return null;
-        };
-        await Promise.all(devApps.flatMap(a => [
-            tryFetch(a.id, 'stable').then(v => { a.stableVersion = v; }),
-            tryFetch(a.id, 'test').then(v => { a.testVersion = v; }),
-        ]));
-        this.renderApps();
-    }
 
     compareVersions(a, b) {
         const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
@@ -1276,9 +1251,6 @@ class FlowDoctor {
             this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
-            // Fire-and-forget: fetch store/test versions for side-loaded apps so the
-            // user can compare their devkit build against published releases.
-            this.fetchDevStoreVersions().catch(() => {});
         } catch (e) {
             this.showError(e.message || String(e));
         }
@@ -1447,7 +1419,7 @@ class FlowDoctor {
         }
 
         for (const a of apps) {
-            const isDev = a.origin === 'devkit';
+            const isDev = (a.origin || '').startsWith('devkit');
             let statusBadge = '', sevClass = '';
             // Update-available semantics don't apply cleanly to a CLI-installed devkit
             // build, so suppress the up-to-date/update badges for dev apps.
@@ -1473,13 +1445,8 @@ class FlowDoctor {
                 ? `<div class="text-xs text-gray-600 mt-1 flex gap-3">${memMb != null ? `<span>${this.t('apps.memory')}: <strong>${memMb} MB</strong></span>` : ''}${cpuPct != null ? `<span>${this.t('apps.cpu')}: <strong>${cpuPct}%</strong></span>` : ''}</div>`
                 : '';
             const installedTag = `<span class="text-green-700 font-semibold">✓ ${this.t('apps.installed')}</span> <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
-            const codeTag = (v) => v
-                ? `<code class="bg-white px-1 rounded border border-gray-200">${this.escape(v)}</code>`
-                : `<span class="text-gray-400">?</span>`;
             let versionInfo;
-            if (isDev) {
-                versionInfo = `${installedTag} · ${this.t('apps.versionStable')} ${codeTag(a.stableVersion)} · ${this.t('apps.versionTest')} ${codeTag(a.testVersion)}`;
-            } else if (a.storeVersion) {
+            if (!isDev && a.storeVersion) {
                 const storeLabel = isTest ? this.t('apps.storeTest') : this.t('apps.store');
                 versionInfo = `${installedTag} · ${storeLabel} <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.storeVersion)}</code>`;
             } else {

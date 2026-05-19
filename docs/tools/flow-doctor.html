@@ -836,10 +836,10 @@ class FlowDoctor {
         const workerUrl = localStorage.getItem('flowdoctor_versions_worker') || DEFAULT_WORKER;
         const apps = this.appsList || [];
         if (!apps.length) return;
-        // POST /versions caps at 20 ids per request (Cloudflare Workers free
+        // POST /versions caps at 10 ids per request (Cloudflare Workers free
         // tier allows 50 subrequests per invocation; each id costs up to 2).
         const chunks = [];
-        for (let i = 0; i < apps.length; i += 20) chunks.push(apps.slice(i, i + 20));
+        for (let i = 0; i < apps.length; i += 10) chunks.push(apps.slice(i, i + 10));
         try {
             const results = await Promise.all(chunks.map(chunk =>
                 fetch(workerUrl.replace(/\/$/, '') + '/versions', {

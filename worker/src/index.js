@@ -9,10 +9,10 @@
 
 const CACHE_TTL_SECONDS = 3600;
 // Cloudflare Workers free tier allows 50 subrequests per invocation. Each
-// id triggers up to 2 upstream fetches (stable + test), so cap at 20 ids
-// per request to keep us safely under the limit. The Flow Doctor client
-// chunks larger batches client-side.
-const MAX_IDS_PER_REQUEST = 20;
+// id triggers up to 2 upstream fetches (stable + test), so cap at 10 ids
+// per request to keep plenty of headroom for cache ops and retries. The
+// Flow Doctor client chunks larger batches client-side.
+const MAX_IDS_PER_REQUEST = 10;
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
 
 const CORS_HEADERS = {
@@ -59,7 +59,7 @@ export default {
 };
 
 async function getVersions(id, ctx) {
-    const cacheKey = new Request(`https://flow-doctor-versions.cache/v3/${encodeURIComponent(id)}`);
+    const cacheKey = new Request(`https://flow-doctor-versions.cache/v4/${encodeURIComponent(id)}`);
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
     if (cached) {
@@ -73,13 +73,20 @@ async function getVersions(id, ctx) {
     const [stable, test] = await Promise.all([fetchChannelVersion(id, 'stable'), fetchChannelVersion(id, 'test')]);
     const result = { stable, test };
 
-    const cacheResponse = new Response(JSON.stringify(result), {
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': `public, max-age=${CACHE_TTL_SECONDS}`,
-        },
-    });
-    ctx.waitUntil(cache.put(cacheKey, cacheResponse));
+    // Only cache when the stable lookup succeeded. A null stable usually
+    // means the upstream fetch failed (timeout, subrequest exhaustion, or
+    // homey.app being unhappy with us) — caching that would lock in a bad
+    // answer for an hour. test=null is common and legitimate (most apps
+    // don't publish a separate test build), so we don't gate on it.
+    if (stable) {
+        const cacheResponse = new Response(JSON.stringify(result), {
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': `public, max-age=${CACHE_TTL_SECONDS}`,
+            },
+        });
+        ctx.waitUntil(cache.put(cacheKey, cacheResponse));
+    }
     return result;
 }
 

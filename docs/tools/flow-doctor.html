@@ -822,34 +822,41 @@ class FlowDoctor {
         }
     }
 
-    async fetchDevStoreVersions() {
-        // For side-loaded (origin starts with 'devkit') apps the locally-installed
-        // version comes from the dev CLI, and the Homey Web API does not expose
-        // published store versions. We delegate that lookup to a tiny Cloudflare
-        // Worker (see worker/ in this repo) which fetches homey.app server-side
-        // and edge-caches for 1 hour. Forks can override via:
+    async fetchStoreVersions() {
+        // For every installed app, look up the public stable + test versions
+        // via the companion Cloudflare Worker (worker/ in this repo) which
+        // resolves them server-side and edge-caches for 1 hour. This is the
+        // only way to surface "what's on the store" for side-loaded apps
+        // (Homey's Web API does not expose store data), and it also lets us
+        // show the off-channel version for apps installed from stable/test
+        // (the local payload only carries the channel the user is on).
+        // Forks can override via:
         //   localStorage.setItem('flowdoctor_versions_worker', 'https://....workers.dev')
         const DEFAULT_WORKER = 'https://flow-doctor-versions.tiwas.workers.dev';
         const workerUrl = localStorage.getItem('flowdoctor_versions_worker') || DEFAULT_WORKER;
-        const devApps = (this.appsList || []).filter(a => (a.origin || '').startsWith('devkit'));
-        if (!devApps.length) return;
+        const apps = this.appsList || [];
+        if (!apps.length) return;
+        // POST /versions caps at 50 ids per request — chunk if needed.
+        const chunks = [];
+        for (let i = 0; i < apps.length; i += 50) chunks.push(apps.slice(i, i + 50));
         try {
-            const res = await fetch(workerUrl.replace(/\/$/, '') + '/versions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: devApps.map(a => a.id) }),
-            });
-            if (!res.ok) return;
-            const data = await res.json();
-            for (const a of devApps) {
-                const entry = data[a.id];
+            const results = await Promise.all(chunks.map(chunk =>
+                fetch(workerUrl.replace(/\/$/, '') + '/versions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: chunk.map(a => a.id) }),
+                }).then(r => r.ok ? r.json() : {}).catch(() => ({}))
+            ));
+            const merged = Object.assign({}, ...results);
+            for (const a of apps) {
+                const entry = merged[a.id];
                 if (!entry) continue;
                 a.stableVersion = entry.stable || null;
                 a.testVersion = entry.test || null;
             }
             this.renderApps();
         } catch (_) {
-            // Worker unreachable — leave versions blank. Dev badge + links still render.
+            // Worker unreachable — leave versions blank, everything else still renders.
         }
     }
 
@@ -1282,9 +1289,9 @@ class FlowDoctor {
             this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
-            // Lazy-load stable + test versions for side-loaded apps via the
-            // companion Cloudflare Worker. Fire-and-forget; re-renders when done.
-            this.fetchDevStoreVersions().catch(() => {});
+            // Lazy-load stable + test store versions via the companion
+            // Cloudflare Worker. Fire-and-forget; re-renders when done.
+            this.fetchStoreVersions().catch(() => {});
         } catch (e) {
             this.showError(e.message || String(e));
         }
@@ -1480,18 +1487,10 @@ class FlowDoctor {
                 : '';
             const installedTag = `<span class="text-green-700 font-semibold">✓ ${this.t('apps.installed')}</span> <code class="bg-white px-1 rounded border border-gray-200">${this.escape(a.version)}</code>`;
             const codeTag = (v) => `<code class="bg-white px-1 rounded border border-gray-200">${this.escape(v)}</code>`;
-            let versionInfo;
-            if (isDev) {
-                const parts = [installedTag];
-                if (a.stableVersion) parts.push(`${this.t('apps.versionStable')} ${codeTag(a.stableVersion)}`);
-                if (a.testVersion) parts.push(`${this.t('apps.versionTest')} ${codeTag(a.testVersion)}`);
-                versionInfo = parts.join(' · ');
-            } else if (a.storeVersion) {
-                const storeLabel = isTest ? this.t('apps.storeTest') : this.t('apps.store');
-                versionInfo = `${installedTag} · ${storeLabel} ${codeTag(a.storeVersion)}`;
-            } else {
-                versionInfo = installedTag;
-            }
+            const parts = [installedTag];
+            if (a.stableVersion) parts.push(`${this.t('apps.versionStable')} ${codeTag(a.stableVersion)}`);
+            if (a.testVersion) parts.push(`${this.t('apps.versionTest')} ${codeTag(a.testVersion)}`);
+            const versionInfo = parts.join(' · ');
             const storeLink = this.appUrl(a.id, a.channel);
             const storeLinkLabel = isTest ? this.t('apps.appStoreLinkTest') : this.t('apps.appStoreLink');
             const stableUrl = `https://homey.app/a/${encodeURIComponent(a.id)}`;

@@ -8,7 +8,11 @@
 //   →  { "no.tiwas.booleantoolbox": { "stable": "1.10.8", "test": "1.10.9-rc.2" } }
 
 const CACHE_TTL_SECONDS = 3600;
-const MAX_IDS_PER_REQUEST = 50;
+// Cloudflare Workers free tier allows 50 subrequests per invocation. Each
+// id triggers up to 2 upstream fetches (stable + test), so cap at 20 ids
+// per request to keep us safely under the limit. The Flow Doctor client
+// chunks larger batches client-side.
+const MAX_IDS_PER_REQUEST = 20;
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
 
 const CORS_HEADERS = {
@@ -55,7 +59,7 @@ export default {
 };
 
 async function getVersions(id, ctx) {
-    const cacheKey = new Request(`https://flow-doctor-versions.cache/v2/${encodeURIComponent(id)}`);
+    const cacheKey = new Request(`https://flow-doctor-versions.cache/v3/${encodeURIComponent(id)}`);
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
     if (cached) {

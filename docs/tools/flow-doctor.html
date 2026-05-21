@@ -291,6 +291,22 @@ const I18N = {
         'apps.viewTest': 'Test ↗',
         'apps.versionStable': 'stable',
         'apps.versionTest': 'test',
+        'apps.storeUnavailable': 'Not available in App Store',
+        'apps.storeLookupFailed': 'App Store lookup failed',
+        'apps.sdk': 'SDK',
+        'apps.runtime': 'runtime',
+        'apps.platforms': 'platforms',
+        'apps.compatibility': 'requires',
+        'apps.permissions': 'permissions',
+        'apps.category': 'category',
+        'apps.author': 'author',
+        'apps.private': 'private',
+        'apps.changelog': 'Changelog',
+        'apps.changelogHeader': 'App Store changelog',
+        'apps.changelogLoading': 'Loading changelog…',
+        'apps.changelogUnavailable': 'Not available',
+        'apps.changelogTest': 'test',
+        'apps.changelogStable': 'stable',
         'apps.crashed': 'Crashed',
         'apps.disabled': 'Disabled',
         'apps.memory': 'Memory',
@@ -392,6 +408,22 @@ const I18N = {
         'apps.viewTest': 'Test ↗',
         'apps.versionStable': 'stabil',
         'apps.versionTest': 'test',
+        'apps.storeUnavailable': 'Ikke tilgjengelig i App Store',
+        'apps.storeLookupFailed': 'Oppslag mot App Store feilet',
+        'apps.sdk': 'SDK',
+        'apps.runtime': 'runtime',
+        'apps.platforms': 'plattformer',
+        'apps.compatibility': 'krever',
+        'apps.permissions': 'tillatelser',
+        'apps.category': 'kategori',
+        'apps.author': 'utvikler',
+        'apps.private': 'privat',
+        'apps.changelog': 'Endringslogg',
+        'apps.changelogHeader': 'Endringslogg fra App Store',
+        'apps.changelogLoading': 'Laster endringslogg…',
+        'apps.changelogUnavailable': 'Ikke tilgjengelig',
+        'apps.changelogTest': 'test',
+        'apps.changelogStable': 'stabil',
         'apps.crashed': 'Krasjet',
         'apps.disabled': 'Deaktivert',
         'apps.memory': 'Minne',
@@ -493,6 +525,22 @@ const I18N = {
         'apps.viewTest': 'Test ↗',
         'apps.versionStable': 'stabil',
         'apps.versionTest': 'test',
+        'apps.storeUnavailable': 'Nicht im App Store verfügbar',
+        'apps.storeLookupFailed': 'App-Store-Abfrage fehlgeschlagen',
+        'apps.sdk': 'SDK',
+        'apps.runtime': 'runtime',
+        'apps.platforms': 'Plattformen',
+        'apps.compatibility': 'erfordert',
+        'apps.permissions': 'Berechtigungen',
+        'apps.category': 'Kategorie',
+        'apps.author': 'Entwickler',
+        'apps.private': 'privat',
+        'apps.changelog': 'Änderungslog',
+        'apps.changelogHeader': 'Änderungslog aus dem App Store',
+        'apps.changelogLoading': 'Änderungslog wird geladen…',
+        'apps.changelogUnavailable': 'Nicht verfügbar',
+        'apps.changelogTest': 'Test',
+        'apps.changelogStable': 'stabil',
         'apps.crashed': 'Abgestürzt',
         'apps.disabled': 'Deaktiviert',
         'apps.memory': 'Speicher',
@@ -594,6 +642,22 @@ const I18N = {
         'apps.viewTest': 'Test ↗',
         'apps.versionStable': 'stabiel',
         'apps.versionTest': 'test',
+        'apps.storeUnavailable': 'Niet beschikbaar in de App Store',
+        'apps.storeLookupFailed': 'App Store-opzoeking mislukt',
+        'apps.sdk': 'SDK',
+        'apps.runtime': 'runtime',
+        'apps.platforms': 'platformen',
+        'apps.compatibility': 'vereist',
+        'apps.permissions': 'machtigingen',
+        'apps.category': 'categorie',
+        'apps.author': 'ontwikkelaar',
+        'apps.private': 'privé',
+        'apps.changelog': 'Wijzigingslog',
+        'apps.changelogHeader': 'Wijzigingslog uit de App Store',
+        'apps.changelogLoading': 'Wijzigingslog laden…',
+        'apps.changelogUnavailable': 'Niet beschikbaar',
+        'apps.changelogTest': 'test',
+        'apps.changelogStable': 'stabiel',
         'apps.crashed': 'Gecrasht',
         'apps.disabled': 'Uitgeschakeld',
         'apps.memory': 'Geheugen',
@@ -833,11 +897,32 @@ class FlowDoctor {
             try {
                 const url = `https://apps-api.athom.com/api/v1/app/${encodeURIComponent(a.id)}`;
                 const response = await fetch(url, { headers: { Accept: 'application/json' } });
-                if (!response.ok) return;
+                if (!response.ok) {
+                    a.storeStatus = response.status === 404 ? 'missing' : 'error';
+                    return;
+                }
                 const entry = await response.json();
+                const liveBuild = entry.liveBuild || {};
+                const testBuild = entry.testBuild || {};
+                const permissions = this.normalizeStoreArray(liveBuild.permissions || entry.permissions);
+                const platforms = this.normalizeStoreArray(liveBuild.platforms || entry.platforms);
+                a.storeStatus = 'available';
                 a.stableVersion = this.normalizeVersionValue(entry.liveVersion || (entry.liveBuild && entry.liveBuild.version) || entry.version);
                 a.testVersion = this.normalizeVersionValue(entry.testVersion || (entry.testBuild && entry.testBuild.version));
+                a.storeMeta = {
+                    author: entry.author && entry.author.name ? entry.author.name : null,
+                    category: liveBuild.category || entry.category || null,
+                    compatibility: liveBuild.compatibility || entry.compatibility || null,
+                    runtime: liveBuild.runtime || entry.runtime || null,
+                    sdk: liveBuild.sdk || entry.sdk || null,
+                    platforms,
+                    permissionsCount: permissions.length,
+                    private: !!entry.private,
+                    liveState: liveBuild.state || null,
+                    testState: testBuild.state || null,
+                };
             } catch (_) {
+                a.storeStatus = 'error';
                 // Missing/private apps or transient network errors should not block the scan.
             }
         };
@@ -850,11 +935,105 @@ class FlowDoctor {
         this.renderApps();
     }
 
+    normalizeStoreArray(value) {
+        if (!value) return [];
+        if (Array.isArray(value)) return value.filter(v => v != null && v !== '');
+        return [value];
+    }
+
     normalizeVersionValue(value) {
         if (!value) return null;
         if (typeof value === 'string') return value;
         if (typeof value === 'object') return value.version || value.latestVersion || null;
         return String(value);
+    }
+
+    localizeStoreValue(value) {
+        if (!value) return null;
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            return value[this.lang] || value.en || Object.values(value).find(Boolean) || null;
+        }
+        return String(value);
+    }
+
+    appStoreChangelogUrl(appId) {
+        return `https://apps-api.athom.com/api/v1/app/${encodeURIComponent(appId)}/changelog`;
+    }
+
+    chooseAppChangelog(app, changelog) {
+        const entries = changelog && typeof changelog === 'object' ? changelog : {};
+        const byVersion = (version) => version && entries[version] ? { version, entry: entries[version] } : null;
+        const byState = (state) => {
+            const matches = Object.entries(entries)
+                .filter(([, entry]) => entry && entry.state === state)
+                .sort((a, b) => new Date(b[1].createdAt || 0) - new Date(a[1].createdAt || 0));
+            return matches.length ? { version: matches[0][0], entry: matches[0][1] } : null;
+        };
+        const test = byVersion(app.testVersion) || (app.testVersion ? byState('test') : null);
+        if (test) return { channel: 'test', ...test };
+        const stable = byVersion(app.stableVersion) || (app.stableVersion ? byState('live') : null);
+        if (stable) return { channel: 'stable', ...stable };
+        return null;
+    }
+
+    renderAppChangelog(app) {
+        if (!app.stableVersion && !app.testVersion) {
+            return `<span class="text-gray-500">${this.t('apps.changelogUnavailable')}</span>`;
+        }
+        if (app.changelogStatus === 'loading') {
+            return `<span class="text-gray-500">${this.t('apps.changelogLoading')}</span>`;
+        }
+        if (app.changelogStatus === 'loaded' && app.changelogText) {
+            const label = app.changelogChannel === 'test' ? this.t('apps.changelogTest') : this.t('apps.changelogStable');
+            const text = this.escape(app.changelogText).replace(/\n/g, '<br>');
+            return `<div class="flex items-center gap-2 mb-2">
+                        <span class="badge ${app.changelogChannel === 'test' ? '' : 'badge-ok'}">${label} ${this.escape(app.changelogVersion || '')}</span>
+                    </div>
+                    <div class="text-xs text-gray-700 leading-relaxed">${text}</div>`;
+        }
+        if (app.changelogStatus === 'loaded' || app.changelogStatus === 'error') {
+            return `<span class="text-gray-500">${this.t('apps.changelogUnavailable')}</span>`;
+        }
+        return `<span class="text-gray-500">${this.t('apps.changelogLoading')}</span>`;
+    }
+
+    async loadAppChangelog(appId, panel) {
+        const app = (this.appsList || []).find(a => a.id === appId);
+        if (!app) return;
+        const content = panel ? panel.querySelector('[data-changelog-content]') : null;
+        const update = () => { if (content) content.innerHTML = this.renderAppChangelog(app); };
+        if (!app.stableVersion && !app.testVersion) {
+            app.changelogStatus = 'loaded';
+            update();
+            return;
+        }
+        if (app.changelogStatus === 'loading' || app.changelogStatus === 'loaded') {
+            update();
+            return;
+        }
+        app.changelogStatus = 'loading';
+        update();
+        try {
+            const response = await fetch(this.appStoreChangelogUrl(app.id), { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const changelog = await response.json();
+            const selected = this.chooseAppChangelog(app, changelog);
+            if (!selected) {
+                app.changelogStatus = 'loaded';
+                app.changelogText = null;
+                update();
+                return;
+            }
+            const rawText = this.localizeStoreValue(selected.entry && selected.entry.changelog);
+            app.changelogStatus = 'loaded';
+            app.changelogChannel = selected.channel;
+            app.changelogVersion = selected.version;
+            app.changelogText = rawText || null;
+            update();
+        } catch (_) {
+            app.changelogStatus = 'error';
+            update();
+        }
     }
 
     extractStoreVersion(app) {
@@ -924,6 +1103,10 @@ class FlowDoctor {
         const apps = (this.appsList || []).map(a => ({
             id: a.id, name: a.name, version: a.version,
             storeVersion: a.storeVersion || null,
+            stableVersion: a.stableVersion || null,
+            testVersion: a.testVersion || null,
+            storeStatus: a.storeStatus || null,
+            storeMeta: a.storeMeta || null,
             channel: a.channel || null,
             origin: a.origin || null,
             hasUpdate: !!a.hasUpdate, enabled: !!a.enabled,
@@ -1498,6 +1681,25 @@ class FlowDoctor {
                 storeLinks.push(`<a href="${testUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewTest')}</a>`);
             }
             const storeLinksHtml = storeLinks.join('');
+            const meta = a.storeMeta || {};
+            const storeMetaParts = [];
+            if (a.storeStatus === 'available') {
+                if (meta.sdk) storeMetaParts.push(`${this.t('apps.sdk')} ${this.escape(meta.sdk)}`);
+                if (meta.runtime) storeMetaParts.push(`${this.t('apps.runtime')} ${this.escape(meta.runtime)}`);
+                if (meta.platforms && meta.platforms.length) storeMetaParts.push(`${this.t('apps.platforms')} ${this.escape(meta.platforms.join(', '))}`);
+                if (meta.compatibility) storeMetaParts.push(`${this.t('apps.compatibility')} ${this.escape(meta.compatibility)}`);
+                if (meta.category) storeMetaParts.push(`${this.t('apps.category')} ${this.escape(this.localizeStoreValue(meta.category))}`);
+                if (meta.author) storeMetaParts.push(`${this.t('apps.author')} ${this.escape(meta.author)}`);
+                if (meta.permissionsCount) storeMetaParts.push(`${meta.permissionsCount} ${this.t('apps.permissions')}`);
+                if (meta.private) storeMetaParts.push(this.t('apps.private'));
+            } else if (a.storeStatus === 'missing') {
+                storeMetaParts.push(this.t('apps.storeUnavailable'));
+            } else if (a.storeStatus === 'error') {
+                storeMetaParts.push(this.t('apps.storeLookupFailed'));
+            }
+            const storeMetaHtml = storeMetaParts.length
+                ? `<div class="text-xs text-gray-500 mt-1">${storeMetaParts.join(' · ')}</div>`
+                : '';
             const flowsCount = a.usage || 0;
             const devicesCount = a.deviceCount || 0;
             const flowsHtml = flowsCount > 0
@@ -1506,7 +1708,8 @@ class FlowDoctor {
             const devicesHtml = devicesCount > 0
                 ? `<button type="button" data-toggle-app="${this.escape(a.id)}" data-toggle-kind="devices" class="app-toggle text-xs text-blue-600 hover:underline">${devicesCount} ${this.t('apps.devices')} <span class="chevron">▸</span></button>`
                 : `<span class="text-xs text-gray-400">0 ${this.t('apps.devices')}</span>`;
-            const usageHtml = `${devicesHtml}${flowsHtml}`;
+            const changelogButtonHtml = `<button type="button" data-toggle-app="${this.escape(a.id)}" data-toggle-kind="changelog" class="app-toggle text-xs text-blue-600 hover:underline">${this.t('apps.changelog')} <span class="chevron">▸</span></button>`;
+            const usageHtml = `${devicesHtml}${flowsHtml}${changelogButtonHtml}`;
             const extendsHtml = a.parentAppId
                 ? `<div class="text-xs text-gray-500 mt-1 italic">${this.t('apps.extends')} ${this.escape(a.parentAppName || a.parentAppId)}</div>`
                 : '';
@@ -1545,6 +1748,10 @@ class FlowDoctor {
                        }).join('')}</ul>
                    </div>`
                 : '';
+            const changelogPanelHtml = `<div class="app-panel hidden mt-3 pt-3 border-t border-gray-100" data-panel-kind="changelog">
+                       <div class="text-xs font-semibold text-gray-700 mb-1">${this.t('apps.changelogHeader')}</div>
+                       <div data-changelog-content>${this.renderAppChangelog(a)}</div>
+                   </div>`;
 
             const div = document.createElement('div');
             const isExt = !!a.parentAppId;
@@ -1562,6 +1769,7 @@ class FlowDoctor {
                             ${disabledBadge}
                         </div>
                         <div class="text-xs text-gray-600 mt-1">${versionInfo}</div>
+                        ${storeMetaHtml}
                         ${extendsHtml}
                         ${resourceHtml}
                         <div class="text-xs text-gray-400 mt-1 font-mono">${this.escape(a.id)}</div>
@@ -1573,6 +1781,7 @@ class FlowDoctor {
                 </div>
                 ${devicesPanelHtml}
                 ${flowsPanelHtml}
+                ${changelogPanelHtml}
             `;
             list.appendChild(div);
         }
@@ -1587,6 +1796,9 @@ class FlowDoctor {
                 const nowHidden = panel.classList.toggle('hidden');
                 const chev = btn.querySelector('.chevron');
                 if (chev) chev.textContent = nowHidden ? '▸' : '▾';
+                if (!nowHidden && kind === 'changelog') {
+                    this.loadAppChangelog(btn.getAttribute('data-toggle-app'), panel);
+                }
             });
         });
     }

@@ -1334,7 +1334,7 @@ class FlowDoctor {
             const describeCard = (card, def) => {
                 const id = card.id || card.uri || '';
                 const titleRaw = def && (def.title || def.titleFormatted);
-                const title = typeof titleRaw === 'object' ? (titleRaw.en || Object.values(titleRaw)[0]) : titleRaw;
+                const title = this.localizeStoreValue(titleRaw);
                 if (id.startsWith('homey:device:')) {
                     const devId = id.substring('homey:device:'.length).split(':')[0];
                     const devName = devices[devId]?.name || devId;

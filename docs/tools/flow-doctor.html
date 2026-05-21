@@ -823,43 +823,38 @@ class FlowDoctor {
     }
 
     async fetchStoreVersions() {
-        // For every installed app, look up the public stable + test versions
-        // via the companion Cloudflare Worker (worker/ in this repo) which
-        // resolves them server-side and edge-caches for 1 hour. This is the
-        // only way to surface "what's on the store" for side-loaded apps
-        // (Homey's Web API does not expose store data), and it also lets us
-        // show the off-channel version for apps installed from stable/test
-        // (the local payload only carries the channel the user is on).
-        // Forks can override via:
-        //   localStorage.setItem('flowdoctor_versions_worker', 'https://....workers.dev')
-        const DEFAULT_WORKER = 'https://flow-doctor-versions.tiwas.workers.dev';
-        const workerUrl = localStorage.getItem('flowdoctor_versions_worker') || DEFAULT_WORKER;
+        // Look up public stable + test versions directly from Athom's Apps API.
+        // The endpoint sends Access-Control-Allow-Origin: *, so the static tool
+        // can call it from the browser without a proxy.
         const apps = this.appsList || [];
         if (!apps.length) return;
-        // POST /versions caps at 5 ids per request. Each invocation handles
-        // its ids serially upstream (homey.app rate-limits parallel fan-out),
-        // so larger batches time out. Many small chunks in parallel work well.
-        const chunks = [];
-        for (let i = 0; i < apps.length; i += 5) chunks.push(apps.slice(i, i + 5));
-        try {
-            const results = await Promise.all(chunks.map(chunk =>
-                fetch(workerUrl.replace(/\/$/, '') + '/versions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: chunk.map(a => a.id) }),
-                }).then(r => r.ok ? r.json() : {}).catch(() => ({}))
-            ));
-            const merged = Object.assign({}, ...results);
-            for (const a of apps) {
-                const entry = merged[a.id];
-                if (!entry) continue;
-                a.stableVersion = entry.stable || null;
-                a.testVersion = entry.test || null;
+        const queue = apps.slice();
+        const fetchOne = async (a) => {
+            try {
+                const url = `https://apps-api.athom.com/api/v1/app/${encodeURIComponent(a.id)}`;
+                const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!response.ok) return;
+                const entry = await response.json();
+                a.stableVersion = this.normalizeVersionValue(entry.liveVersion || (entry.liveBuild && entry.liveBuild.version) || entry.version);
+                a.testVersion = this.normalizeVersionValue(entry.testVersion || (entry.testBuild && entry.testBuild.version));
+            } catch (_) {
+                // Missing/private apps or transient network errors should not block the scan.
             }
-            this.renderApps();
-        } catch (_) {
-            // Worker unreachable — leave versions blank, everything else still renders.
-        }
+        };
+        const workers = Array.from({ length: Math.min(6, queue.length) }, async () => {
+            while (queue.length) {
+                await fetchOne(queue.shift());
+            }
+        });
+        await Promise.all(workers);
+        this.renderApps();
+    }
+
+    normalizeVersionValue(value) {
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object') return value.version || value.latestVersion || null;
+        return String(value);
     }
 
     extractStoreVersion(app) {
@@ -1291,8 +1286,8 @@ class FlowDoctor {
             this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
-            // Lazy-load stable + test store versions via the companion
-            // Cloudflare Worker. Fire-and-forget; re-renders when done.
+            // Lazy-load stable + test store versions from Athom's Apps API.
+            // Fire-and-forget; re-renders when done.
             this.fetchStoreVersions().catch(() => {});
         } catch (e) {
             this.showError(e.message || String(e));

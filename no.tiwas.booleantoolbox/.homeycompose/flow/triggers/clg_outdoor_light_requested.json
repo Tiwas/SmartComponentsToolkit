@@ -12,7 +12,7 @@
     {
       "type": "device",
       "name": "device",
-      "filter": "driver_id=circadian-light-group"
+      "filter": "driver_id=circadian-light-group|circadian-light-group-collection"
     }
   ]
 }

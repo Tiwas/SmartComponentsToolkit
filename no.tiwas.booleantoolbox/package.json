@@ -13,12 +13,12 @@
     "jest": "^30.2.0"
   },
   "scripts": {
-    "test": "jest --testPathIgnorePatterns=tests/",
+    "test": "jest",
     "test:all": "jest",
-    "test:watch": "jest --watch --testPathIgnorePatterns=tests/",
-    "test:coverage": "jest --coverage --testPathIgnorePatterns=tests/",
-    "test:verbose": "jest --verbose --testPathIgnorePatterns=tests/",
-    "test:formula": "jest FormulaEvaluator.test.js"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose",
+    "test:formula": "jest --runTestsByPath FormulaEvaluator.test.js"
   },
   "keywords": [
     "boolean",

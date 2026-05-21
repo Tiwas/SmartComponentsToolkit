@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; }
+        .homey-header { margin-bottom: 20px; }
+        .homey-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+        .homey-subtitle { font-size: 16px; color: #666; }
+        .field-row { margin-bottom: 15px; }
+        label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; }
+        input[type="text"] { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; background: #fff; }
+        .device-list { max-height: 350px; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-bottom: 15px; background: white; border-radius: 5px; }
+        .device-item { padding: 10px 5px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0; }
+        .device-item:last-child { border-bottom: none; }
+        .device-item input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
+        .device-item label { margin-left: 12px; cursor: pointer; flex-grow: 1; display: flex; flex-direction: column; gap: 2px; line-height: 1.3; }
+        .device-name { font-size: 15px; color: #222; }
+        .zone-name, .cap-summary { color: #999; font-size: 12px; }
+        .toolbar { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .toolbar a { color: #4CAF50; text-decoration: none; font-size: 14px; cursor: pointer; }
+        button { padding: 15px 40px; background-color: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; width: 100%; font-weight: 500; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <header class="homey-header">
+        <h1 class="homey-title">Circadian Light Group Collection</h1>
+        <p class="homey-subtitle">Select the Circadian Light Groups this collection should control together.</p>
+    </header>
+
+    <div class="field-row">
+        <label for="device-name">Device name</label>
+        <input id="device-name" type="text" value="Circadian Light Group Collection">
+    </div>
+
+    <div class="toolbar">
+        <a id="select-all">Select All</a>
+        <a id="deselect-all">Deselect All</a>
+    </div>
+    <div id="devices-list-container" class="device-list">
+        <p>Loading Circadian Light Groups...</p>
+    </div>
+
+    <div class="homey-view-buttons">
+        <button id="create-button">Create Device</button>
+    </div>
+
+    <script type="text/javascript">
+    (function () {
+        const devicesContainer = document.getElementById('devices-list-container');
+        const createButton = document.getElementById('create-button');
+        const selectAllBtn = document.getElementById('select-all');
+        const deselectAllBtn = document.getElementById('deselect-all');
+        const nameInput = document.getElementById('device-name');
+        let candidateDevices = [];
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function renderDevices() {
+            devicesContainer.innerHTML = '';
+            if (candidateDevices.length === 0) {
+                devicesContainer.innerHTML = '<p style="padding:10px;">No Circadian Light Groups found.</p>';
+                return;
+            }
+
+            candidateDevices.forEach(device => {
+                const div = document.createElement('div');
+                div.className = 'device-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = device.id;
+                checkbox.id = 'device-' + device.id;
+                checkbox.checked = true;
+
+                const label = document.createElement('label');
+                label.htmlFor = checkbox.id;
+                label.innerHTML = '<span class="device-name">' + esc(device.name) + '</span>' +
+                    (device.zoneName ? '<span class="zone-name">' + esc(device.zoneName) + '</span>' : '') +
+                    (device.capabilitySummary ? '<span class="cap-summary">' + esc(device.capabilitySummary) + '</span>' : '');
+
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                devicesContainer.appendChild(div);
+            });
+        }
+
+        function waitForHomey() {
+            if (typeof Homey === 'undefined') {
+                setTimeout(waitForHomey, 100);
+                return;
+            }
+
+            Homey.setTitle('Circadian Light Group Collection');
+            Homey.emit('get_snapshot_candidates', {}, function(err, result) {
+                if (err) {
+                    Homey.alert(err.message || 'Error loading Circadian Light Groups');
+                    return;
+                }
+                candidateDevices = Array.isArray(result) ? result : [];
+                renderDevices();
+            });
+        }
+
+        selectAllBtn.addEventListener('click', () => {
+            devicesContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        });
+
+        deselectAllBtn.addEventListener('click', () => {
+            devicesContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        });
+
+        createButton.addEventListener('click', function() {
+            const selectedIds = [];
+            devicesContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => selectedIds.push(cb.value));
+            if (selectedIds.length === 0) {
+                Homey.alert('Select at least one Circadian Light Group.');
+                return;
+            }
+
+            const name = nameInput.value.trim();
+            if (!name) {
+                Homey.alert('Enter a device name.');
+                return;
+            }
+
+            createButton.disabled = true;
+            createButton.innerText = 'Creating...';
+
+            Homey.emit('create_device', { name, selectedIds }, function(err, deviceData) {
+                if (err) {
+                    Homey.alert(err.message || 'Error preparing device');
+                    createButton.disabled = false;
+                    createButton.innerText = 'Create Device';
+                    return;
+                }
+                Homey.createDevice(deviceData, function(createErr) {
+                    if (createErr) {
+                        Homey.alert(createErr.message || 'Error creating device');
+                        createButton.disabled = false;
+                        createButton.innerText = 'Create Device';
+                        return;
+                    }
+                    Homey.done();
+                });
+            });
+        });
+
+        waitForHomey();
+    })();
+    </script>
+</body>
+</html>

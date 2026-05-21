@@ -10,7 +10,9 @@ const PREWARM_ONOFF_WAIT_MS = 4000;
 const PREWARM_ONOFF_POLL_MS = 100;
 const RECENT_OFF_REVERT_WINDOW_MS = 10000;
 const DEVICE_TASK_CONCURRENCY = 5;
-const DEVICE_TASK_MAX_RETRIES = 1;
+const DEVICE_TASK_RETRY_CONCURRENCY = 2;
+const DEVICE_TASK_MAX_RETRIES = 2;
+const CAPABILITY_VERIFY_EPSILON = 0.03;
 const CLG_ONOFF_STORE_KEY = 'clg_onoff_state';
 const CLG_ONOFF_LEGACY_STORE_KEY = 'clg_onoff';
 const CLG_PAUSE_STORE_KEY = 'clg_pause_state';
@@ -38,6 +40,15 @@ function temperatureToWarmColor(temperature) {
   const hue = WARM_COLOR_HUE * clamp(temp / RED_BLEND_TEMPERATURE);
   const saturation = clamp(1 - (temp / FULLY_DESATURATED_TEMPERATURE));
   return { hue, saturation };
+}
+
+function capabilityValueMatches(actual, expected) {
+  const actualNumber = Number(actual);
+  const expectedNumber = Number(expected);
+  if (Number.isFinite(actualNumber) && Number.isFinite(expectedNumber)) {
+    return Math.abs(actualNumber - expectedNumber) <= CAPABILITY_VERIFY_EPSILON;
+  }
+  return actual === expected;
 }
 
 class CircadianLightGroupDevice extends Homey.Device {
@@ -651,15 +662,15 @@ class CircadianLightGroupDevice extends Homey.Device {
     };
   }
 
-  // Run an async task per device with bounded concurrency (preserves config order via
-  // a shared index — workers pull next-in-line, so the first N start in order).
-  // After the first pass, any failures or items where verifyFn returned false are retried
-  // serially up to opts.maxRetries times.
+  // Run an async task per device with staged backoff:
+  // first bounded parallelism, then serial verification, then a smaller parallel retry,
+  // then a final serial retry for anything still not confirmed.
   async runDeviceTasksParallel(items, taskFn, opts = {}) {
     const list = Array.isArray(items) ? items : [];
     if (list.length === 0) return { ok: [], failed: [] };
 
     const concurrency = Math.max(1, Math.min(opts.concurrency || DEVICE_TASK_CONCURRENCY, list.length));
+    const retryConcurrency = Math.max(1, Math.min(opts.retryConcurrency || DEVICE_TASK_RETRY_CONCURRENCY, list.length));
     const maxRetries = Number.isFinite(opts.maxRetries) ? opts.maxRetries : DEVICE_TASK_MAX_RETRIES;
     const label = opts.label || 'device-task';
     const verifyFn = typeof opts.verifyFn === 'function' ? opts.verifyFn : null;
@@ -667,103 +678,123 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     const results = new Array(list.length); // { ok, error?, item }
 
-    let cursor = 0;
-    const worker = async () => {
-      while (true) {
+    const allIndexes = list.map((_, index) => index);
+    const itemLabel = (item) => item.name || item.id || '<unknown>';
+    const pendingIndexes = () => allIndexes.filter(index => {
+      const res = results[index];
+      if (!res) return true;
+      return !res.ok && res.retryable !== false;
+    });
+
+    const summarize = (superseded = false) => {
+      const ok = [];
+      const failed = [];
+      for (let index = 0; index < list.length; index += 1) {
+        const res = results[index] || {
+          ok: false,
+          item: list[index],
+          error: new Error('not processed'),
+          retryable: true,
+        };
+        (res.ok ? ok : failed).push(res);
+      }
+      return { ok, failed, superseded };
+    };
+
+    const runPass = async (indexes, passConcurrency, attempt, passLabel) => {
+      let cursor = 0;
+      const worker = async () => {
+        while (true) {
+          if (!isCurrent()) return;
+          const localCursor = cursor;
+          cursor += 1;
+          if (localCursor >= indexes.length) return;
+
+          const index = indexes[localCursor];
+          const item = list[index];
+          try {
+            await taskFn(item, attempt);
+            results[index] = { ok: true, item };
+          } catch (error) {
+            const retryable = verifyFn ? true : isTransientDeviceError(error);
+            results[index] = { ok: false, item, error, retryable };
+            if (retryable) {
+              this.debug(`${label}[${itemLabel(item)}]: ${passLabel} failed, will verify/retry - ${error.message}`);
+            } else {
+              this.error(`${label}[${itemLabel(item)}] failed (no retry):`, error);
+            }
+          }
+        }
+      };
+
+      const workerCount = Math.max(1, Math.min(passConcurrency, indexes.length));
+      await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    };
+
+    const verifyIndexesSerial = async (indexes, passLabel) => {
+      if (!verifyFn) return;
+
+      for (const index of indexes) {
         if (!isCurrent()) return;
-        const index = cursor;
-        cursor += 1;
-        if (index >= list.length) return;
         const item = list[index];
         try {
-          await taskFn(item, 0);
-          results[index] = { ok: true, item };
-        } catch (error) {
-          const retryable = isTransientDeviceError(error);
-          results[index] = { ok: false, item, error, retryable };
-          if (retryable) {
-            this.debug(`${label}[${item.name || item.id}]: transient error in parallel pass — ${error.message}`);
+          const verified = await verifyFn(item);
+          if (verified) {
+            if (!results[index]?.ok) {
+              this.debug(`${label}[${itemLabel(item)}]: verified OK after ${passLabel}`);
+            }
+            results[index] = { ok: true, item };
           } else {
-            this.error(`${label}[${item.name || item.id}] failed (no retry):`, error);
+            const previous = results[index];
+            results[index] = {
+              ok: false,
+              item,
+              error: previous?.error || new Error(`verify failed after ${passLabel}`),
+              retryable: true,
+            };
+            this.debug(`${label}[${itemLabel(item)}]: verify failed after ${passLabel}`);
           }
+        } catch (error) {
+          results[index] = { ok: false, item, error, retryable: true };
+          this.debug(`${label}[${itemLabel(item)}]: verify threw after ${passLabel} - ${error.message}`);
         }
       }
     };
 
-    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    await runPass(allIndexes, concurrency, 0, 'parallel pass');
 
     if (!isCurrent()) {
-      this.debug(`${label}: superseded after parallel pass — skipping verify/retry`);
-      const ok = [];
-      const failed = [];
-      for (const res of results) {
-        if (!res) continue;
-        (res.ok ? ok : failed).push(res);
-      }
-      return { ok, failed, superseded: true };
+      this.debug(`${label}: superseded after parallel pass - skipping verify/retry`);
+      return summarize(true);
     }
 
-    // Verify pass — runs in parallel since it's read-only.
-    if (verifyFn) {
-      await Promise.all(results.map(async (res, index) => {
-        if (!res || !res.ok) return;
-        try {
-          const verified = await verifyFn(res.item);
-          if (!verified) {
-            results[index] = { ok: false, item: res.item, error: new Error('verify failed'), retryable: true };
-            this.debug(`${label}[${res.item.name || res.item.id}]: verify failed after parallel pass`);
-          }
-        } catch (error) {
-          results[index] = { ok: false, item: res.item, error, retryable: true };
-          this.debug(`${label}[${res.item.name || res.item.id}]: verify threw — ${error.message}`);
-        }
-      }));
+    await verifyIndexesSerial(allIndexes, 'parallel pass');
+
+    if (!isCurrent()) {
+      this.debug(`${label}: superseded after parallel verify - skipping retry`);
+      return summarize(true);
     }
 
-    // Serial retry pass — only retry transient errors and verify-failures, in original order.
-    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
-      if (!isCurrent()) {
-        this.debug(`${label}: superseded — skipping retry attempt ${attempt}`);
-        break;
-      }
-      const pending = [];
-      for (let i = 0; i < results.length; i += 1) {
-        if (results[i] && !results[i].ok && results[i].retryable) pending.push(i);
-      }
-      if (pending.length === 0) break;
-      this.debug(`${label}: retry attempt ${attempt} for ${pending.length} device(s)`);
-      for (const index of pending) {
-        if (!isCurrent()) break;
-        const item = list[index];
-        try {
-          await taskFn(item, attempt);
-          if (verifyFn) {
-            const verified = await verifyFn(item);
-            results[index] = verified
-              ? { ok: true, item }
-              : { ok: false, item, error: new Error('verify failed after retry'), retryable: true };
-          } else {
-            results[index] = { ok: true, item };
-          }
-        } catch (error) {
-          const retryable = isTransientDeviceError(error);
-          results[index] = { ok: false, item, error, retryable };
-          if (retryable) {
-            this.debug(`${label}[${item.name || item.id}]: transient error on retry ${attempt} — ${error.message}`);
-          } else {
-            this.error(`${label}[${item.name || item.id}] retry ${attempt} failed (no further retry):`, error);
-          }
-        }
-      }
+    let pending = pendingIndexes();
+    if (pending.length > 0 && maxRetries >= 1) {
+      this.debug(`${label}: reduced parallel retry for ${pending.length} device(s), concurrency=${Math.min(retryConcurrency, pending.length)}`);
+      await runPass(pending, retryConcurrency, 1, 'reduced parallel retry');
+      await verifyIndexesSerial(pending, 'reduced parallel retry');
     }
 
-    const ok = [];
-    const failed = [];
-    for (const res of results) {
-      if (!res) continue;
-      (res.ok ? ok : failed).push(res);
+    if (!isCurrent()) {
+      this.debug(`${label}: superseded after reduced retry - skipping final serial retry`);
+      return summarize(true);
     }
-    return { ok, failed };
+
+    pending = pendingIndexes();
+    if (pending.length > 0 && maxRetries >= 2) {
+      this.debug(`${label}: final serial retry for ${pending.length} device(s)`);
+      await runPass(pending, 1, 2, 'final serial retry');
+      await verifyIndexesSerial(pending, 'final serial retry');
+    }
+
+    return summarize(false);
   }
 
   async applyTargetToDevice(item, target, debugCtx) {
@@ -1064,9 +1095,40 @@ class CircadianLightGroupDevice extends Homey.Device {
       const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
       const cap = apiDevice.capabilitiesObj?.onoff;
       if (!cap || cap.setable !== true) return true; // can't verify — treat as OK
-      return cap.value === expected;
+      const matches = cap.value === expected;
+      if (!matches) {
+        this.debug(`verifyMemberOnoff[${item.name || item.id}]: expected=${expected} actual=${cap.value}`);
+      }
+      return matches;
     } catch (error) {
       this.debug(`verifyMemberOnoff[${item.name || item.id}]: read failed — ${error.message}`);
+      return false;
+    }
+  }
+
+  async verifyMemberTarget(item, target) {
+    if (!item?.id) return true;
+    try {
+      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+      const caps = apiDevice.capabilitiesObj || {};
+      const onoff = caps.onoff;
+      if (onoff?.setable === true && onoff.value !== true) {
+        this.debug(`verifyMemberTarget[${item.name || item.id}]: onoff expected=true actual=${onoff.value}`);
+        return false;
+      }
+
+      const expectedWrites = this.getCapabilitiesToSet(item, target, caps, true);
+      for (const [capability, expected] of expectedWrites) {
+        const cap = caps[capability];
+        if (!cap || cap.setable !== true) continue;
+        if (!capabilityValueMatches(cap.value, expected)) {
+          this.debug(`verifyMemberTarget[${item.name || item.id}]: ${capability} expected=${expected} actual=${cap.value}`);
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      this.debug(`verifyMemberTarget[${item.name || item.id}]: read failed - ${error.message}`);
       return false;
     }
   }
@@ -1081,11 +1143,14 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     const op = this.acquireOp('turn_on_member');
     const target = await this.computeCurrentTarget(config);
+    const verifyFn = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true
+      ? (member) => this.verifyMemberTarget(member, target)
+      : (member) => this.verifyMemberOnoff(member, true);
     await this.runDeviceTasksParallel([item], async (member) => {
       await this.turnOnMemberToTarget(member, target);
     }, {
       label: 'turn_on_member',
-      verifyFn: (member) => this.verifyMemberOnoff(member, true),
+      verifyFn,
       isCurrent: op.isCurrent,
     });
     return true;
@@ -1098,11 +1163,14 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     const op = this.acquireOp('turn_on_all_members');
     const target = await this.computeCurrentTarget(config);
+    const verifyFn = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true
+      ? (item) => this.verifyMemberTarget(item, target)
+      : (item) => this.verifyMemberOnoff(item, true);
     await this.runDeviceTasksParallel(members, async (item) => {
       await this.turnOnMemberToTarget(item, target);
     }, {
       label: 'turn_on_all_members',
-      verifyFn: (item) => this.verifyMemberOnoff(item, true),
+      verifyFn,
       isCurrent: op.isCurrent,
     });
     return true;

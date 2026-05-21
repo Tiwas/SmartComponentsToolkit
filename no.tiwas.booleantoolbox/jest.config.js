@@ -8,11 +8,12 @@ module.exports = {
     '**/?(*.)+(spec|test).js'
   ],
 
-  // Ignore patterns - eksluder .homeybuild og node_modules
+  // Ignore patterns. Keep these path-separator neutral so they work on Windows too.
   testPathIgnorePatterns: [
-    '/node_modules/',
-    '/.homeybuild/',
-    '/coverage/'
+    '[/\\\\]node_modules[/\\\\]',
+    '[/\\\\]\\.homeybuild[/\\\\]',
+    '[/\\\\]coverage[/\\\\]',
+    '[/\\\\]tests[/\\\\]',
   ],
 
   // Coverage configuration

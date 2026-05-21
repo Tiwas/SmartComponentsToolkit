@@ -4,13 +4,15 @@ const { calculateTarget } = require('./lib/CircadianProfile');
 const { createOutdoorValue, estimateAstronomicalLux, estimateLuxFromRadiation, isFreshOutdoorValue } = require('./lib/OutdoorLightProvider');
 
 describe('CircadianProfile', () => {
-  test('returns day settings during the day plateau', () => {
+  test('smoothly moves from day toward evening between those anchors', () => {
     const target = calculateTarget({}, null, new Date('2026-04-30T12:00:00'));
 
     expect(target.phase).toBe('day');
     expect(target.mode).toBe('temperature');
-    expect(target.dim).toBeCloseTo(1, 2);
-    expect(target.temperature).toBeCloseTo(0.85, 2);
+    expect(target.dim).toBeLessThan(1);
+    expect(target.dim).toBeGreaterThan(0.45);
+    expect(target.temperature).toBeLessThan(0.85);
+    expect(target.temperature).toBeGreaterThan(0.25);
   });
 
   test('uses red color mode when temperature drops below redThreshold', () => {
@@ -26,12 +28,12 @@ describe('CircadianProfile', () => {
     expect(target.saturation).toBeLessThanOrEqual(1);
   });
 
-  test('stays in temperature mode when temperature is above redThreshold', () => {
-    // 23:30 is just past the night anchor, but interpolation keeps temperature
-    // close to the evening value (0.25), still above the default threshold (0.2).
-    const target = calculateTarget({}, null, new Date('2026-04-30T23:30:00'));
+  test('stays in temperature mode while early evening is above redThreshold', () => {
+    // Early evening is transitioning from day toward evening, but the
+    // calculated temperature is still above the default threshold (0.2).
+    const target = calculateTarget({}, null, new Date('2026-04-30T20:00:00'));
 
-    expect(target.phase).toBe('night');
+    expect(target.phase).toBe('evening');
     expect(target.mode).toBe('temperature');
     expect(target.temperature).toBeGreaterThanOrEqual(0.2);
   });

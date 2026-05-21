@@ -1,0 +1,81 @@
+{
+  "name": {
+    "en": "Circadian Light Group Collection",
+    "no": "Dognrytme-lysgruppe-samling"
+  },
+  "class": "light",
+  "capabilities": [
+    "onoff",
+    "dim",
+    "light_temperature",
+    "measure_outdoor_lux",
+    "clg_paused",
+    "alarm_config"
+  ],
+  "settings": [
+    {
+      "id": "config_json",
+      "type": "textarea",
+      "label": {
+        "en": "Configuration (JSON)",
+        "no": "Konfigurasjon (JSON)"
+      },
+      "value": "{\n  \"_meta\": {\n    \"device\": \"Circadian Light Group Collection\",\n    \"version\": 1,\n    \"collection\": true\n  },\n  \"profile\": {\n    \"updateIntervalSeconds\": 120\n  },\n  \"devices\": []\n}"
+    },
+    {
+      "id": "log_errors",
+      "type": "checkbox",
+      "label": {
+        "en": "Log errors to Timeline",
+        "no": "Logg feil til Tidslinjen"
+      },
+      "value": true
+    }
+  ],
+  "images": {
+    "large": "/assets/images_circadian_light_group/large.png",
+    "small": "/assets/images_circadian_light_group/small.png"
+  },
+  "pair": [
+    {
+      "id": "select_devices"
+    }
+  ],
+  "flow": {
+    "triggers": [
+      { "id": "clg_target_changed" },
+      { "id": "clg_error_occurred" },
+      { "id": "clg_outdoor_light_requested" },
+      { "id": "clg_phase_changed" },
+      { "id": "clg_red_mode_started" },
+      { "id": "clg_red_mode_ended" },
+      { "id": "clg_paused" },
+      { "id": "clg_resumed" },
+      { "id": "clg_turned_on" },
+      { "id": "clg_turned_off" }
+    ],
+    "conditions": [
+      { "id": "clg_is_in_phase" },
+      { "id": "clg_red_mode_active" },
+      { "id": "clg_is_paused" },
+      { "id": "clg_is_on" }
+    ],
+    "actions": [
+      { "id": "clg_apply_now" },
+      { "id": "clg_pause" },
+      { "id": "clg_pause_until_time" },
+      { "id": "clg_pause_until_solar" },
+      { "id": "clg_resume" },
+      { "id": "clg_set_external_lux" },
+      { "id": "clg_turn_on" },
+      { "id": "clg_turn_off" },
+      { "id": "clg_toggle" },
+      { "id": "clg_set_red_threshold" },
+      { "id": "clg_apply_state" },
+      { "id": "clg_force_red_mode" },
+      { "id": "clg_turn_on_member" },
+      { "id": "clg_turn_on_all_members" },
+      { "id": "clg_turn_off_all_members" }
+    ]
+  }
+}

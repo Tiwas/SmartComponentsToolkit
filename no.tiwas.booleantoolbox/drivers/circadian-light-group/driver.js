@@ -79,18 +79,29 @@ function pickProbeValue(capId, currentValue) {
 }
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+let flowCardsRegistered = false;
+let solarSchedulerOwner = null;
 
 class CircadianLightGroupDriver extends Homey.Driver {
   async onInit() {
     this.debug('CircadianLightGroupDriver has been initialized');
-    this.registerFlowCards();
-    this.startSolarEventScheduler();
+    if (!flowCardsRegistered) {
+      this.registerFlowCards();
+      flowCardsRegistered = true;
+    } else {
+      this.debug('CircadianLightGroupDriver flow cards already registered');
+    }
+    if (!solarSchedulerOwner) {
+      this.startSolarEventScheduler();
+      solarSchedulerOwner = this;
+    }
   }
 
   async onUninit() {
-    if (this.solarTimer) {
+    if (solarSchedulerOwner === this && this.solarTimer) {
       clearInterval(this.solarTimer);
       this.solarTimer = null;
+      solarSchedulerOwner = null;
     }
   }
 
@@ -482,7 +493,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
     session.setHandler('get_lux_sensors', async () => this.getLuxSensors());
 
     session.setHandler('create_device', async (data) => {
-      const name = data.name || 'Circadian Light Group';
+      const name = data.name || this.getDefaultDeviceName();
       const configJson = data.json_data;
 
       JSON.parse(configJson);
@@ -490,7 +501,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
       return {
         name,
         data: {
-          id: `circadian-light-group-${Date.now()}`,
+          id: this.createDeviceId(),
         },
         settings: {
           config_json: configJson,
@@ -498,6 +509,14 @@ class CircadianLightGroupDriver extends Homey.Driver {
         },
       };
     });
+  }
+
+  getDefaultDeviceName() {
+    return 'Circadian Light Group';
+  }
+
+  createDeviceId() {
+    return `circadian-light-group-${Date.now()}`;
   }
 
   async onRepair(session, device) {
@@ -641,10 +660,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
 
   createDefaultConfig(devices) {
     return {
-      _meta: {
-        device: 'Circadian Light Group',
-        version: 2,
-      },
+      _meta: this.getDefaultConfigMeta(),
       profile: {
         updateIntervalSeconds: 120,
         transitionSeconds: 90,
@@ -701,6 +717,13 @@ class CircadianLightGroupDriver extends Homey.Driver {
           testedAt: null,
         },
       })),
+    };
+  }
+
+  getDefaultConfigMeta() {
+    return {
+      device: 'Circadian Light Group',
+      version: 2,
     };
   }
 }

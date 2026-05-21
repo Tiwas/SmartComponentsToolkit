@@ -73,5 +73,11 @@
   },
   "1.10.8": {
     "en": "Fixed persistency with timers"
+  },
+  "1.10.9": {
+    "en": "Fixing some logic flaws, i.e. deprecated some cards"
+  },
+  "1.10.10": {
+    "en": "Added Circadian Light Group collections and more reliable member command handling."
   }
 }

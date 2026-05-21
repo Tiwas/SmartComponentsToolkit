@@ -301,6 +301,15 @@ const I18N = {
         'apps.category': 'category',
         'apps.author': 'author',
         'apps.private': 'private',
+        'apps.tooltipSdk': 'Homey Apps SDK major version used by this app.',
+        'apps.tooltipRuntime': 'Runtime declared by the App Store build.',
+        'apps.tooltipPlatforms': 'Homey platforms this App Store build supports.',
+        'apps.tooltipCategory': 'App Store category.',
+        'apps.tooltipCompatibility': 'Minimum Homey firmware version required by this App Store build.',
+        'apps.tooltipPermissions': 'Permissions requested by this App Store build.',
+        'apps.tooltipPrivate': 'The App Store marks this app as private.',
+        'apps.tooltipStoreUnavailable': 'Athom Apps API did not find a public App Store entry for this app.',
+        'apps.tooltipStoreLookupFailed': 'Athom Apps API lookup failed for this app.',
         'apps.changelog': 'Changelog',
         'apps.changelogHeader': 'App Store changelog',
         'apps.changelogLoading': 'Loading changelog…',
@@ -418,6 +427,15 @@ const I18N = {
         'apps.category': 'kategori',
         'apps.author': 'utvikler',
         'apps.private': 'privat',
+        'apps.tooltipSdk': 'Hovedversjon av Homey Apps SDK som appen bruker.',
+        'apps.tooltipRuntime': 'Runtime som er deklarert for denne App Store-builden.',
+        'apps.tooltipPlatforms': 'Homey-plattformer denne App Store-builden støtter.',
+        'apps.tooltipCategory': 'Kategori i App Store.',
+        'apps.tooltipCompatibility': 'Laveste Homey firmware-versjon denne App Store-builden krever.',
+        'apps.tooltipPermissions': 'Tillatelser denne App Store-builden ber om.',
+        'apps.tooltipPrivate': 'App Store markerer denne appen som privat.',
+        'apps.tooltipStoreUnavailable': 'Athom Apps API fant ingen offentlig App Store-oppføring for denne appen.',
+        'apps.tooltipStoreLookupFailed': 'Oppslag mot Athom Apps API feilet for denne appen.',
         'apps.changelog': 'Endringslogg',
         'apps.changelogHeader': 'Endringslogg fra App Store',
         'apps.changelogLoading': 'Laster endringslogg…',
@@ -535,6 +553,15 @@ const I18N = {
         'apps.category': 'Kategorie',
         'apps.author': 'Entwickler',
         'apps.private': 'privat',
+        'apps.tooltipSdk': 'Homey Apps SDK-Hauptversion, die diese App verwendet.',
+        'apps.tooltipRuntime': 'Runtime, die dieser App-Store-Build deklariert.',
+        'apps.tooltipPlatforms': 'Homey-Plattformen, die dieser App-Store-Build unterstützt.',
+        'apps.tooltipCategory': 'App-Store-Kategorie.',
+        'apps.tooltipCompatibility': 'Minimale Homey-Firmware-Version, die dieser App-Store-Build benötigt.',
+        'apps.tooltipPermissions': 'Berechtigungen, die dieser App-Store-Build anfordert.',
+        'apps.tooltipPrivate': 'Der App Store markiert diese App als privat.',
+        'apps.tooltipStoreUnavailable': 'Die Athom Apps API fand keinen öffentlichen App-Store-Eintrag für diese App.',
+        'apps.tooltipStoreLookupFailed': 'Die Abfrage der Athom Apps API ist für diese App fehlgeschlagen.',
         'apps.changelog': 'Änderungslog',
         'apps.changelogHeader': 'Änderungslog aus dem App Store',
         'apps.changelogLoading': 'Änderungslog wird geladen…',
@@ -652,6 +679,15 @@ const I18N = {
         'apps.category': 'categorie',
         'apps.author': 'ontwikkelaar',
         'apps.private': 'privé',
+        'apps.tooltipSdk': 'Hoofdversie van de Homey Apps SDK die deze app gebruikt.',
+        'apps.tooltipRuntime': 'Runtime die door deze App Store-build is gedeclareerd.',
+        'apps.tooltipPlatforms': 'Homey-platformen die deze App Store-build ondersteunt.',
+        'apps.tooltipCategory': 'App Store-categorie.',
+        'apps.tooltipCompatibility': 'Minimale Homey-firmwareversie die deze App Store-build vereist.',
+        'apps.tooltipPermissions': 'Machtigingen die deze App Store-build aanvraagt.',
+        'apps.tooltipPrivate': 'De App Store markeert deze app als privé.',
+        'apps.tooltipStoreUnavailable': 'Athom Apps API heeft geen openbare App Store-vermelding voor deze app gevonden.',
+        'apps.tooltipStoreLookupFailed': 'Athom Apps API-opzoeking is mislukt voor deze app.',
         'apps.changelog': 'Wijzigingslog',
         'apps.changelogHeader': 'Wijzigingslog uit de App Store',
         'apps.changelogLoading': 'Wijzigingslog laden…',
@@ -916,6 +952,7 @@ class FlowDoctor {
                     runtime: liveBuild.runtime || entry.runtime || null,
                     sdk: liveBuild.sdk || entry.sdk || null,
                     platforms,
+                    permissions,
                     permissionsCount: permissions.length,
                     private: !!entry.private,
                     liveState: liveBuild.state || null,
@@ -1730,20 +1767,34 @@ class FlowDoctor {
             const storeLinksHtml = storeLinks.join('');
             const meta = a.storeMeta || {};
             const metaBadges = [];
-            const metaBadge = (label, value, className = 'badge-info') =>
-                `<span class="badge ${className}">${this.escape(label)}${value ? ` <strong>${this.escape(value)}</strong>` : ''}</span>`;
+            const metaBadge = (label, value, tooltip, className = 'badge-info') => {
+                const title = tooltip ? ` title="${this.escape(tooltip)}"` : '';
+                return `<span class="badge ${className}"${title}>${this.escape(label)}${value ? `: <strong>${this.escape(value)}</strong>` : ''}</span>`;
+            };
             if (a.storeStatus === 'available') {
-                if (meta.sdk) metaBadges.push(metaBadge(this.t('apps.sdk'), meta.sdk));
-                if (meta.runtime) metaBadges.push(metaBadge(this.t('apps.runtime'), meta.runtime));
-                if (meta.platforms && meta.platforms.length) metaBadges.push(metaBadge(this.t('apps.platforms'), meta.platforms.join(', ')));
-                if (meta.category) metaBadges.push(metaBadge(this.t('apps.category'), this.localizeStoreValue(meta.category)));
-                if (meta.compatibility) metaBadges.push(metaBadge(this.t('apps.compatibility'), meta.compatibility));
-                if (meta.permissionsCount) metaBadges.push(metaBadge(this.t('apps.permissions'), String(meta.permissionsCount)));
-                if (meta.private) metaBadges.push(metaBadge(this.t('apps.private'), ''));
+                if (meta.sdk) metaBadges.push(metaBadge(this.t('apps.sdk'), meta.sdk, this.t('apps.tooltipSdk')));
+                if (meta.runtime) metaBadges.push(metaBadge(this.t('apps.runtime'), meta.runtime, this.t('apps.tooltipRuntime')));
+                if (meta.platforms && meta.platforms.length) {
+                    const platforms = meta.platforms.join(', ');
+                    metaBadges.push(metaBadge(this.t('apps.platforms'), platforms, `${this.t('apps.tooltipPlatforms')} ${platforms}`));
+                }
+                if (meta.category) {
+                    const category = this.localizeStoreValue(meta.category);
+                    metaBadges.push(metaBadge(this.t('apps.category'), category, `${this.t('apps.tooltipCategory')} ${category}`));
+                }
+                if (meta.compatibility) metaBadges.push(metaBadge(this.t('apps.compatibility'), meta.compatibility, `${this.t('apps.tooltipCompatibility')} ${meta.compatibility}`));
+                if (meta.permissionsCount) {
+                    const permissionList = (meta.permissions || []).join(', ');
+                    const tooltip = permissionList
+                        ? `${this.t('apps.tooltipPermissions')} ${permissionList}`
+                        : this.t('apps.tooltipPermissions');
+                    metaBadges.push(metaBadge(this.t('apps.permissions'), String(meta.permissionsCount), tooltip));
+                }
+                if (meta.private) metaBadges.push(metaBadge(this.t('apps.private'), '', this.t('apps.tooltipPrivate')));
             } else if (a.storeStatus === 'missing') {
-                metaBadges.push(metaBadge(this.t('apps.storeUnavailable'), '', 'badge-info'));
+                metaBadges.push(metaBadge(this.t('apps.storeUnavailable'), '', this.t('apps.tooltipStoreUnavailable'), 'badge-info'));
             } else if (a.storeStatus === 'error') {
-                metaBadges.push(metaBadge(this.t('apps.storeLookupFailed'), '', 'badge-warn'));
+                metaBadges.push(metaBadge(this.t('apps.storeLookupFailed'), '', this.t('apps.tooltipStoreLookupFailed'), 'badge-warn'));
             }
             const authorHtml = meta.author
                 ? `<div class="text-xs text-gray-700 mt-1"><span class="font-semibold">${this.t('apps.author')}:</span> ${this.escape(meta.author)}</div>`

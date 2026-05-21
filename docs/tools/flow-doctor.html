@@ -960,7 +960,7 @@ class FlowDoctor {
         return `https://apps-api.athom.com/api/v1/app/${encodeURIComponent(appId)}/changelog`;
     }
 
-    chooseAppChangelog(app, changelog) {
+    chooseAppChangelogEntries(app, changelog) {
         const entries = changelog && typeof changelog === 'object' ? changelog : {};
         const byVersion = (version) => version && entries[version] ? { version, entry: entries[version] } : null;
         const byState = (state) => {
@@ -969,11 +969,52 @@ class FlowDoctor {
                 .sort((a, b) => new Date(b[1].createdAt || 0) - new Date(a[1].createdAt || 0));
             return matches.length ? { version: matches[0][0], entry: matches[0][1] } : null;
         };
-        const test = byVersion(app.testVersion) || (app.testVersion ? byState('test') : null);
-        if (test) return { channel: 'test', ...test };
-        const stable = byVersion(app.stableVersion) || (app.stableVersion ? byState('live') : null);
-        if (stable) return { channel: 'stable', ...stable };
-        return null;
+        const selected = [];
+        const seen = new Set();
+        const add = (channel, item) => {
+            if (!item || !item.version || seen.has(item.version)) return;
+            selected.push({ channel, ...item });
+            seen.add(item.version);
+        };
+        if (app.testVersion) {
+            add('test', byVersion(app.testVersion) || byState('test'));
+            add('stable', byVersion(app.stableVersion) || (app.stableVersion ? byState('live') : null));
+        } else if (app.stableVersion) {
+            add('stable', byVersion(app.stableVersion) || byState('live'));
+        }
+        return selected;
+    }
+
+    decodeHtmlEntities(value) {
+        if (typeof document === 'undefined') return value;
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = value;
+        return textarea.value;
+    }
+
+    normalizeChangelogText(value) {
+        if (!value) return '';
+        let text = String(value)
+            .replace(/\r/g, '')
+            .replace(/<\s*br\s*\/?>/gi, '\n')
+            .replace(/<\s*li\b[^>]*>/gi, '\n- ')
+            .replace(/<\s*\/\s*(p|div|li|ul|ol|h[1-6])\s*>/gi, '\n')
+            .replace(/<\s*(p|div|ul|ol|h[1-6])\b[^>]*>/gi, '\n')
+            .replace(/<[^>]+>/g, '');
+        text = this.decodeHtmlEntities(text);
+        return text
+            .split('\n')
+            .map(line => line.replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .join('\n');
+    }
+
+    renderChangelogBody(value) {
+        const lines = this.normalizeChangelogText(value).split('\n').filter(Boolean);
+        if (!lines.length) return `<span class="text-gray-500">${this.t('apps.changelogUnavailable')}</span>`;
+        return `<div class="text-xs text-gray-700 leading-relaxed space-y-1">
+                    ${lines.map(line => `<div>${this.escape(line)}</div>`).join('')}
+                </div>`;
     }
 
     renderAppChangelog(app) {
@@ -983,13 +1024,16 @@ class FlowDoctor {
         if (app.changelogStatus === 'loading') {
             return `<span class="text-gray-500">${this.t('apps.changelogLoading')}</span>`;
         }
-        if (app.changelogStatus === 'loaded' && app.changelogText) {
-            const label = app.changelogChannel === 'test' ? this.t('apps.changelogTest') : this.t('apps.changelogStable');
-            const text = this.escape(app.changelogText).replace(/\n/g, '<br>');
-            return `<div class="flex items-center gap-2 mb-2">
-                        <span class="badge ${app.changelogChannel === 'test' ? '' : 'badge-ok'}">${label} ${this.escape(app.changelogVersion || '')}</span>
-                    </div>
-                    <div class="text-xs text-gray-700 leading-relaxed">${text}</div>`;
+        if (app.changelogStatus === 'loaded' && app.changelogEntries && app.changelogEntries.length) {
+            return app.changelogEntries.map(entry => {
+                const label = entry.channel === 'test' ? this.t('apps.changelogTest') : this.t('apps.changelogStable');
+                return `<div class="mb-4 last:mb-0">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="badge ${entry.channel === 'test' ? '' : 'badge-ok'}">${label} ${this.escape(entry.version || '')}</span>
+                            </div>
+                            ${this.renderChangelogBody(entry.text)}
+                        </div>`;
+            }).join('');
         }
         if (app.changelogStatus === 'loaded' || app.changelogStatus === 'error') {
             return `<span class="text-gray-500">${this.t('apps.changelogUnavailable')}</span>`;
@@ -1017,18 +1061,21 @@ class FlowDoctor {
             const response = await fetch(this.appStoreChangelogUrl(app.id), { headers: { Accept: 'application/json' } });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const changelog = await response.json();
-            const selected = this.chooseAppChangelog(app, changelog);
-            if (!selected) {
+            const selected = this.chooseAppChangelogEntries(app, changelog);
+            if (!selected.length) {
                 app.changelogStatus = 'loaded';
-                app.changelogText = null;
+                app.changelogEntries = [];
                 update();
                 return;
             }
-            const rawText = this.localizeStoreValue(selected.entry && selected.entry.changelog);
             app.changelogStatus = 'loaded';
-            app.changelogChannel = selected.channel;
-            app.changelogVersion = selected.version;
-            app.changelogText = rawText || null;
+            app.changelogEntries = selected
+                .map(entry => ({
+                    channel: entry.channel,
+                    version: entry.version,
+                    text: this.localizeStoreValue(entry.entry && entry.entry.changelog) || '',
+                }))
+                .filter(entry => entry.text);
             update();
         } catch (_) {
             app.changelogStatus = 'error';
@@ -1682,23 +1729,27 @@ class FlowDoctor {
             }
             const storeLinksHtml = storeLinks.join('');
             const meta = a.storeMeta || {};
-            const storeMetaParts = [];
+            const metaBadges = [];
+            const metaBadge = (label, value, className = 'badge-info') =>
+                `<span class="badge ${className}">${this.escape(label)}${value ? ` <strong>${this.escape(value)}</strong>` : ''}</span>`;
             if (a.storeStatus === 'available') {
-                if (meta.sdk) storeMetaParts.push(`${this.t('apps.sdk')} ${this.escape(meta.sdk)}`);
-                if (meta.runtime) storeMetaParts.push(`${this.t('apps.runtime')} ${this.escape(meta.runtime)}`);
-                if (meta.platforms && meta.platforms.length) storeMetaParts.push(`${this.t('apps.platforms')} ${this.escape(meta.platforms.join(', '))}`);
-                if (meta.compatibility) storeMetaParts.push(`${this.t('apps.compatibility')} ${this.escape(meta.compatibility)}`);
-                if (meta.category) storeMetaParts.push(`${this.t('apps.category')} ${this.escape(this.localizeStoreValue(meta.category))}`);
-                if (meta.author) storeMetaParts.push(`${this.t('apps.author')} ${this.escape(meta.author)}`);
-                if (meta.permissionsCount) storeMetaParts.push(`${meta.permissionsCount} ${this.t('apps.permissions')}`);
-                if (meta.private) storeMetaParts.push(this.t('apps.private'));
+                if (meta.sdk) metaBadges.push(metaBadge(this.t('apps.sdk'), meta.sdk));
+                if (meta.runtime) metaBadges.push(metaBadge(this.t('apps.runtime'), meta.runtime));
+                if (meta.platforms && meta.platforms.length) metaBadges.push(metaBadge(this.t('apps.platforms'), meta.platforms.join(', ')));
+                if (meta.category) metaBadges.push(metaBadge(this.t('apps.category'), this.localizeStoreValue(meta.category)));
+                if (meta.compatibility) metaBadges.push(metaBadge(this.t('apps.compatibility'), meta.compatibility));
+                if (meta.permissionsCount) metaBadges.push(metaBadge(this.t('apps.permissions'), String(meta.permissionsCount)));
+                if (meta.private) metaBadges.push(metaBadge(this.t('apps.private'), ''));
             } else if (a.storeStatus === 'missing') {
-                storeMetaParts.push(this.t('apps.storeUnavailable'));
+                metaBadges.push(metaBadge(this.t('apps.storeUnavailable'), '', 'badge-info'));
             } else if (a.storeStatus === 'error') {
-                storeMetaParts.push(this.t('apps.storeLookupFailed'));
+                metaBadges.push(metaBadge(this.t('apps.storeLookupFailed'), '', 'badge-warn'));
             }
-            const storeMetaHtml = storeMetaParts.length
-                ? `<div class="text-xs text-gray-500 mt-1">${storeMetaParts.join(' · ')}</div>`
+            const authorHtml = meta.author
+                ? `<div class="text-xs text-gray-700 mt-1"><span class="font-semibold">${this.t('apps.author')}:</span> ${this.escape(meta.author)}</div>`
+                : '';
+            const storeMetaHtml = metaBadges.length
+                ? `<div class="mt-2 flex flex-wrap gap-1">${metaBadges.join('')}</div>`
                 : '';
             const flowsCount = a.usage || 0;
             const devicesCount = a.deviceCount || 0;
@@ -1769,6 +1820,7 @@ class FlowDoctor {
                             ${disabledBadge}
                         </div>
                         <div class="text-xs text-gray-600 mt-1">${versionInfo}</div>
+                        ${authorHtml}
                         ${storeMetaHtml}
                         ${extendsHtml}
                         ${resourceHtml}

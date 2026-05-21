@@ -1488,14 +1488,16 @@ class FlowDoctor {
             if (a.stableVersion) parts.push(`${this.t('apps.versionStable')} ${codeTag(a.stableVersion)}`);
             if (a.testVersion) parts.push(`${this.t('apps.versionTest')} ${codeTag(a.testVersion)}`);
             const versionInfo = parts.join(' · ');
-            const storeLink = this.appUrl(a.id, a.channel);
-            const storeLinkLabel = isTest ? this.t('apps.appStoreLinkTest') : this.t('apps.appStoreLink');
             const stableUrl = `https://homey.app/a/${encodeURIComponent(a.id)}`;
             const testUrl = `${stableUrl}/test`;
-            const storeLinksHtml = isDev
-                ? `<a href="${stableUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewStable')}</a>
-                   <a href="${testUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewTest')}</a>`
-                : `<a href="${storeLink}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${storeLinkLabel}</a>`;
+            const storeLinks = [];
+            if (a.stableVersion) {
+                storeLinks.push(`<a href="${stableUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewStable')}</a>`);
+            }
+            if (a.testVersion) {
+                storeLinks.push(`<a href="${testUrl}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">${this.t('apps.viewTest')}</a>`);
+            }
+            const storeLinksHtml = storeLinks.join('');
             const flowsCount = a.usage || 0;
             const devicesCount = a.deviceCount || 0;
             const flowsHtml = flowsCount > 0

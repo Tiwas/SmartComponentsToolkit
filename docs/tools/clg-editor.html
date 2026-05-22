@@ -159,6 +159,7 @@
 
 <script>
 const DEFAULT_CONFIG = {
+    _meta: { device: 'Circadian Light Group', version: 2 },
     profile: {
         updateIntervalSeconds: 120,
         transitionSeconds: 90,
@@ -174,7 +175,7 @@ const DEFAULT_CONFIG = {
         night:   { dim: 0.08, temperature: 0 },
         outdoor: { enabled: true, minLux: 0, maxLux: 20000, minDimFactor: 0.65, maxDimFactor: 1.15 }
     },
-    outdoorLight: { provider: 'met_no', fallbackProvider: 'astronomical', cacheMinutes: 15, staleAfterMinutes: 20 },
+    outdoorLight: { provider: 'astronomical', fallbackProvider: 'astronomical', cacheMinutes: 15, staleAfterMinutes: 20 },
     devices: []
 };
 
@@ -194,6 +195,7 @@ function load(jsonText) {
         return;
     }
     state = {
+        _meta: parsed._meta ? deepCopy(parsed._meta) : deepCopy(DEFAULT_CONFIG._meta),
         profile: Object.assign(deepCopy(DEFAULT_CONFIG.profile), parsed.profile || {}),
         outdoorLight: Object.assign(deepCopy(DEFAULT_CONFIG.outdoorLight), parsed.outdoorLight || {}),
         devices: Array.isArray(parsed.devices) ? deepCopy(parsed.devices) : []

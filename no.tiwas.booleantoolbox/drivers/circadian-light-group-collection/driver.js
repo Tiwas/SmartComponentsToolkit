@@ -121,8 +121,10 @@ class CircadianLightGroupCollectionDriver extends CircadianLightGroupDriver {
         };
       }
 
+      const dataId = homeyDevice.data?.id || homeyDevice.id;
       candidates.push({
-        id: homeyDevice.id,
+        id: dataId,
+        homeyDeviceId: homeyDevice.id,
         name: homeyDevice.name,
         zoneName: allZones[homeyDevice.zone] ? allZones[homeyDevice.zone].name : 'Unknown',
         capabilities: supportedCapabilities,

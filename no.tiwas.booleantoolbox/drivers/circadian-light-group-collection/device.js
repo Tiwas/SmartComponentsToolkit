@@ -24,17 +24,21 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
   }
 
   resolveMemberEntries() {
-    const byId = new Map();
+    const byDataId = new Map();
+    const byHomeyId = new Map();
     this.getAvailableCircadianGroups().forEach(device => {
       const dataId = device.getData?.().id;
-      if (dataId) byId.set(dataId, device);
+      if (dataId) byDataId.set(dataId, device);
+      // device.id is the Homey-wide UUID exposed on local device instances
+      const homeyId = device.id;
+      if (homeyId) byHomeyId.set(homeyId, device);
     });
 
     return this.getMemberItems().map(item => ({
       id: item.id,
       name: item.name || item.id,
       item,
-      memberDevice: byId.get(item.id) || null,
+      memberDevice: byDataId.get(item.id) || byHomeyId.get(item.id) || null,
     }));
   }
 

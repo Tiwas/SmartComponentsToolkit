@@ -79,5 +79,8 @@
   },
   "1.10.10": {
     "en": "Added Circadian Light Group collections and more reliable member command handling."
+  },
+  "1.10.11": {
+    "en": "Fix: Circadian Light Group Collection now correctly forwards pause/resume/turn-on/apply and other flow actions to each member group."
   }
 }

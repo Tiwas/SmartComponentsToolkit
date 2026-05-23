@@ -91,5 +91,8 @@
   },
   "1.10.14": {
     "en": "Fix: Circadian Light Group Collection no longer shows a 'Timeout after 10000ms' toast when a single lamp inside a member group is unresponsive. Member fanout now runs in the background, and the timeline error names which groups had unresponsive members."
+  },
+  "1.10.15": {
+    "en": "Cleaned up the app store description (removed redundant intro)."
   }
 }

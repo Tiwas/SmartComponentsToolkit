@@ -1,7 +1,3 @@
-Smart (Components) Toolkit - Advanced Logic & State Management for Homey
-
-Create advanced, state-aware logic units for your Homey flows. Move beyond simple AND/OR cards and build powerful logic modules based on dynamic boolean expressions.
-
 == DEVICES ==
 
 Logic Unit (2-10 inputs)

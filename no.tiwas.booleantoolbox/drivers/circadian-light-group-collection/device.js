@@ -163,16 +163,18 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
   }
 
   async onFlowTurnOnAllMembers() {
+    // For a Collection, "all members" = the member CLG devices themselves.
+    // Use onFlowTurnOn so each member's onoff capability flips and its lights follow.
     await this.runForMemberGroups('turn_on_all_members', async (device) => {
-      await device.onFlowTurnOnAllMembers();
-    });
+      await device.onFlowTurnOn();
+    }, async (device) => device.getCapabilityValue('onoff') === true);
     return true;
   }
 
   async onFlowTurnOffAllMembers() {
     await this.runForMemberGroups('turn_off_all_members', async (device) => {
-      await device.onFlowTurnOffAllMembers();
-    });
+      await device.onFlowTurnOff();
+    }, async (device) => device.getCapabilityValue('onoff') === false);
     return true;
   }
 

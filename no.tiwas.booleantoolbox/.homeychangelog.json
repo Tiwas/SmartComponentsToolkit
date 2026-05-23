@@ -85,5 +85,8 @@
   },
   "1.10.12": {
     "en": "Fix: Circadian Light Group Collection now resolves existing UUID-based members via Homey API, so toggling the Collection actually turns each member group on/off."
+  },
+  "1.10.13": {
+    "en": "Fix: Toggling a Circadian Light Group Collection now flips each member group's own on/off state (not only the underlying lamps), so the member tiles update as expected."
   }
 }

@@ -99,9 +99,19 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     const failed = result.failed || [];
     await this.setCapabilityValue('alarm_config', failed.length > 0).catch(this.error);
     if (failed.length > 0) {
-      await this.triggerError(`${failed.length} Circadian Light Group member(s) failed during ${label}`);
+      const names = failed.map(e => e.name || e.id).join(', ');
+      await this.triggerError(`${label}: ${failed.length} group(s) had unresponsive members: ${names}`);
     }
     return result;
+  }
+
+  fanoutInBackground(label, taskFn, verifyFn = null) {
+    // Capability listeners and several Flow actions must return within Homey's 10 s
+    // budget — but lamps behind a member group can take 20-30 s on retries. Drop the
+    // fanout into the background; failures surface via alarm_config + triggerError.
+    this.runForMemberGroups(label, taskFn, verifyFn).catch(err => {
+      this.error(`Collection background fanout '${label}' failed:`, err);
+    });
   }
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
@@ -130,7 +140,7 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
 
   async onFlowTurnOn() {
     await this.setCollectionOnoff(true);
-    await this.runForMemberGroups('turn_on', async (device) => {
+    this.fanoutInBackground('turn_on', async (device) => {
       await device.onFlowTurnOn();
     }, async (device) => device.getCapabilityValue('onoff') === true);
     return true;
@@ -138,7 +148,7 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
 
   async onFlowTurnOff() {
     await this.setCollectionOnoff(false);
-    await this.runForMemberGroups('turn_off', async (device) => {
+    this.fanoutInBackground('turn_off', async (device) => {
       await device.onFlowTurnOff();
     }, async (device) => device.getCapabilityValue('onoff') === false);
     return true;
@@ -164,15 +174,16 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
 
   async onFlowTurnOnAllMembers() {
     // For a Collection, "all members" = the member CLG devices themselves.
-    // Use onFlowTurnOn so each member's onoff capability flips and its lights follow.
-    await this.runForMemberGroups('turn_on_all_members', async (device) => {
+    // Fire-and-forget so the caller (capability listener or Flow action) returns within
+    // Homey's 10 s budget even when an underlying lamp doesn't respond.
+    this.fanoutInBackground('turn_on_all_members', async (device) => {
       await device.onFlowTurnOn();
     }, async (device) => device.getCapabilityValue('onoff') === true);
     return true;
   }
 
   async onFlowTurnOffAllMembers() {
-    await this.runForMemberGroups('turn_off_all_members', async (device) => {
+    this.fanoutInBackground('turn_off_all_members', async (device) => {
       await device.onFlowTurnOff();
     }, async (device) => device.getCapabilityValue('onoff') === false);
     return true;
@@ -180,14 +191,14 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
 
   async onFlowPause(args) {
     await super.onFlowPause(args);
-    await this.runForMemberGroups('pause', async (device) => {
+    this.fanoutInBackground('pause', async (device) => {
       await device.onFlowPause(args);
     }, async (device) => device.getCapabilityValue('clg_paused') === true);
     return true;
   }
 
   async onFlowResume() {
-    await this.runForMemberGroups('resume', async (device) => {
+    this.fanoutInBackground('resume', async (device) => {
       await device.onFlowResume();
     }, async (device) => device.getCapabilityValue('clg_paused') !== true);
     await super.onFlowResume();
@@ -195,28 +206,28 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
   }
 
   async onFlowSetExternalLux(args) {
-    await this.runForMemberGroups('set_external_lux', async (device) => {
+    this.fanoutInBackground('set_external_lux', async (device) => {
       await device.onFlowSetExternalLux(args);
     });
     return true;
   }
 
   async onFlowSetRedThreshold(args) {
-    await this.runForMemberGroups('set_red_threshold', async (device) => {
+    this.fanoutInBackground('set_red_threshold', async (device) => {
       await device.onFlowSetRedThreshold(args);
     });
     return true;
   }
 
   async onFlowApplyState(args) {
-    await this.runForMemberGroups('apply_state', async (device) => {
+    this.fanoutInBackground('apply_state', async (device) => {
       await device.onFlowApplyState(args);
     });
     return true;
   }
 
   async onFlowForceRedMode(args) {
-    await this.runForMemberGroups('force_red_mode', async (device) => {
+    this.fanoutInBackground('force_red_mode', async (device) => {
       await device.onFlowForceRedMode(args);
     });
     return true;

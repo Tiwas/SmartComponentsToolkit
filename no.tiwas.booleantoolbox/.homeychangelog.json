@@ -88,5 +88,8 @@
   },
   "1.10.13": {
     "en": "Fix: Toggling a Circadian Light Group Collection now flips each member group's own on/off state (not only the underlying lamps), so the member tiles update as expected."
+  },
+  "1.10.14": {
+    "en": "Fix: Circadian Light Group Collection no longer shows a 'Timeout after 10000ms' toast when a single lamp inside a member group is unresponsive. Member fanout now runs in the background, and the timeline error names which groups had unresponsive members."
   }
 }

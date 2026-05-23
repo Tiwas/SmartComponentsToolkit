@@ -23,27 +23,59 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     return driver && typeof driver.getDevices === 'function' ? driver.getDevices() : [];
   }
 
-  resolveMemberEntries() {
+  async resolveMemberEntries() {
     const byDataId = new Map();
-    const byHomeyId = new Map();
     this.getAvailableCircadianGroups().forEach(device => {
       const dataId = device.getData?.().id;
       if (dataId) byDataId.set(dataId, device);
-      // device.id is the Homey-wide UUID exposed on local device instances
-      const homeyId = device.id;
-      if (homeyId) byHomeyId.set(homeyId, device);
     });
 
-    return this.getMemberItems().map(item => ({
-      id: item.id,
-      name: item.name || item.id,
-      item,
-      memberDevice: byDataId.get(item.id) || byHomeyId.get(item.id) || null,
-    }));
+    const items = this.getMemberItems();
+    const unresolved = items.filter(item => !byDataId.has(item.id));
+
+    let uuidToDataId = null;
+    if (unresolved.length > 0) {
+      try {
+        const api = this.homey.app && this.homey.app.api;
+        if (api) {
+          const all = await api.devices.getDevices();
+          uuidToDataId = new Map();
+          Object.values(all).forEach(d => {
+            const driverRef = `${d.driverUri || ''}|${d.driverId || ''}|${d.driver?.id || ''}`;
+            if (!driverRef.includes('circadian-light-group')) return;
+            if (driverRef.includes('circadian-light-group-collection')) return;
+            const dataId = d.data?.id;
+            if (d.id && dataId) uuidToDataId.set(d.id, dataId);
+          });
+        }
+      } catch (error) {
+        this.debug(`resolveMemberEntries: API lookup failed: ${error.message}`);
+      }
+    }
+
+    const entries = items.map(item => {
+      let memberDevice = byDataId.get(item.id) || null;
+      if (!memberDevice && uuidToDataId) {
+        const dataId = uuidToDataId.get(item.id);
+        if (dataId) memberDevice = byDataId.get(dataId) || null;
+      }
+      return {
+        id: item.id,
+        name: item.name || item.id,
+        item,
+        memberDevice,
+      };
+    });
+
+    const missing = entries.filter(e => !e.memberDevice).map(e => e.name || e.id);
+    if (missing.length > 0) {
+      this.debug(`resolveMemberEntries: ${missing.length} member(s) not found locally: ${missing.join(', ')}`);
+    }
+    return entries;
   }
 
   async runForMemberGroups(label, taskFn, verifyFn = null) {
-    const entries = this.resolveMemberEntries();
+    const entries = await this.resolveMemberEntries();
     if (entries.length === 0) {
       this.debug(`${label}: no Circadian Light Group members configured`);
       return { ok: [], failed: [] };
@@ -122,7 +154,8 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     const memberId = args.member?.id;
     if (!memberId) throw new Error('No Circadian Light Group selected');
 
-    const entry = this.resolveMemberEntries().find(candidate => candidate.id === memberId);
+    const entries = await this.resolveMemberEntries();
+    const entry = entries.find(candidate => candidate.id === memberId);
     if (!entry || !entry.memberDevice) throw new Error('Circadian Light Group member not found');
 
     await entry.memberDevice.onFlowTurnOn();
@@ -188,13 +221,14 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
   }
 
   async onConditionIsInPhase(args) {
-    const entries = this.resolveMemberEntries().filter(entry => entry.memberDevice);
+    const entries = (await this.resolveMemberEntries()).filter(entry => entry.memberDevice);
     if (entries.length === 0) return false;
     return entries.every(entry => entry.memberDevice.previousPhase === args.phase);
   }
 
   async onConditionRedModeActive() {
-    return this.resolveMemberEntries()
+    const entries = await this.resolveMemberEntries();
+    return entries
       .filter(entry => entry.memberDevice)
       .some(entry => entry.memberDevice.previousRedMode === true);
   }

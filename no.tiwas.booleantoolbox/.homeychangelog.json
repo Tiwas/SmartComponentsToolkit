@@ -82,5 +82,8 @@
   },
   "1.10.11": {
     "en": "Fix: Circadian Light Group Collection now correctly forwards pause/resume/turn-on/apply and other flow actions to each member group."
+  },
+  "1.10.12": {
+    "en": "Fix: Circadian Light Group Collection now resolves existing UUID-based members via Homey API, so toggling the Collection actually turns each member group on/off."
   }
 }

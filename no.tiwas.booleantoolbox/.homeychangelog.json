@@ -94,5 +94,8 @@
   },
   "1.10.15": {
     "en": "Cleaned up the app store description (removed redundant intro)."
+  },
+  "1.10.16": {
+    "en": "Captures Homey device IDs and names so Flow Doctor can resolve references to previously deleted devices."
   }
 }

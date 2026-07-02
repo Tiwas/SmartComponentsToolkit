@@ -6,9 +6,17 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.16] - July 2026
+
+### Added
+- Captures Homey device IDs and names in the app so Flow Doctor can resolve references to previously deleted devices.
+- Flow Doctor now shows resolved device names, or `N/A (ID: ...)` when a deleted device was never captured.
+
+---
+
 ## [1.10.0] - May 2026 (Test channel)
 
-> Available only via [the test channel](https://homey.app/a/no.tiwas.booleantoolbox/test/). Stable channel still ships v1.9.2.
+> Initial 1.10.x test-channel release.
 
 ### ✨ New Device: Circadian Light Group
 A virtual light device that follows a circadian rhythm — adjusts dim and color temperature for a group of real lights based on time, sun position or ambient lux, with optional red mode at night.
@@ -29,7 +37,7 @@ A virtual light device that follows a circadian rhythm — adjusts dim and color
 
 ---
 
-## [1.9.2] - February 2026 (Current stable)
+## [1.9.2] - February 2026
 
 ### 🐛 Bug Fixes
 - Fixed conditional gate condition cards to correctly return boolean values

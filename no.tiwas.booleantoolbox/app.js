@@ -5,6 +5,15 @@ const Logger = require("./lib/Logger");
 const WaiterManager = require("./lib/WaiterManager");
 const CapturedStateManager = require("./lib/CapturedStateManager");
 
+const DEVICE_REGISTRY_KEY = "device_registry";
+const DEVICE_REGISTRY_REFRESH_REQUEST_KEY = "device_registry_refresh_requested_at";
+const DEVICE_REGISTRY_PURGE_REQUEST_KEY = "device_registry_purge_requested_at";
+const DEVICE_REGISTRY_RETENTION_MONTHS_KEY = "device_registry_retention_months";
+const DEVICE_REGISTRY_DEFAULT_RETENTION_MONTHS = 12;
+const DEVICE_REGISTRY_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const HOMEY_API_MANAGER_MAX_LISTENERS = 50;
+const API_DEVICES_CACHE_TTL_MS = 1000;
+
 // Import autocomplete helpers from BaseLogicDriver
 // NOTE: Requires BaseLogicDriver to export them correctly
 const {
@@ -109,6 +118,18 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 const level = value ? 'DEBUG' : 'INFO';
                 this.logger.setLevel(level);
                 this.logger.info(`Log level updated to ${level}`);
+            } else if (key === DEVICE_REGISTRY_REFRESH_REQUEST_KEY) {
+                this.refreshDeviceRegistry("manual").catch((error) => {
+                    this.logger.error("Device registry refresh failed", error);
+                });
+            } else if (key === DEVICE_REGISTRY_PURGE_REQUEST_KEY) {
+                this.purgeAndRebuildDeviceRegistry().catch((error) => {
+                    this.logger.error("Device registry purge failed", error);
+                });
+            } else if (key === DEVICE_REGISTRY_RETENTION_MONTHS_KEY) {
+                this.refreshDeviceRegistry("retention_changed").catch((error) => {
+                    this.logger.error("Device registry retention refresh failed", error);
+                });
             }
         });
 
@@ -127,7 +148,9 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
             if (typeof HomeyAPI.forCurrentHomey === "function") {
                 this.logger.debug("app.initializing_homey_api");
-                this.api = await HomeyAPI.forCurrentHomey(this.homey);
+                this.api = this.configureHomeyApi(
+                    await HomeyAPI.forCurrentHomey(this.homey),
+                );
             } else {
                 this.logger.error("app.homey_api_not_function");
 
@@ -145,6 +168,13 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             });
         }
 
+        if (this.homey.settings.get(DEVICE_REGISTRY_RETENTION_MONTHS_KEY) === undefined) {
+            this.homey.settings.set(
+                DEVICE_REGISTRY_RETENTION_MONTHS_KEY,
+                DEVICE_REGISTRY_DEFAULT_RETENTION_MONTHS,
+            );
+        }
+
         // Initialize WaiterManager
         this.waiterManager = new WaiterManager(this.homey, this.logger);
 
@@ -154,10 +184,25 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         // Register ALL Flow Cards here using generic methods
         await this.registerAllFlowCards();
 
+        await this.refreshDeviceRegistry("startup").catch((error) => {
+            this.logger.error("Device registry startup refresh failed", error);
+        });
+
+        this.deviceRegistryInterval = setInterval(() => {
+            this.refreshDeviceRegistry("scheduled").catch((error) => {
+                this.logger.error("Device registry scheduled refresh failed", error);
+            });
+        }, DEVICE_REGISTRY_REFRESH_INTERVAL_MS);
+
         this.logger.info("App initialization complete.", {});
     }
 
     async onUninit() {
+        if (this.deviceRegistryInterval) {
+            clearInterval(this.deviceRegistryInterval);
+            this.deviceRegistryInterval = null;
+        }
+
         // Cleanup WaiterManager
         if (this.waiterManager) {
             this.waiterManager.destroy();
@@ -165,14 +210,251 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         this.logger.info("App uninitialized.", {});
     }
 
+    async ensureHomeyApi() {
+        if (this.api) {
+            return this.configureHomeyApi(this.api);
+        }
+
+        if (this.homeyApiPromise) {
+            return this.homeyApiPromise;
+        }
+
+        this.homeyApiPromise = (async () => {
+            const athomApi = require("athom-api");
+            const { HomeyAPI } = athomApi;
+            this.api = this.configureHomeyApi(
+                await HomeyAPI.forCurrentHomey(this.homey),
+            );
+            return this.api;
+        })().finally(() => {
+            this.homeyApiPromise = null;
+        });
+
+        return this.homeyApiPromise;
+    }
+
+    configureHomeyApi(api) {
+        if (!api || api.__sctConfigured) return api;
+
+        [
+            api.devices,
+            api.zones,
+            api.flow,
+            api.flowAdv,
+            api.apps,
+        ].forEach((manager) => {
+            if (!manager || typeof manager.setMaxListeners !== "function") {
+                return;
+            }
+
+            if (typeof manager.getMaxListeners !== "function") {
+                manager.setMaxListeners(HOMEY_API_MANAGER_MAX_LISTENERS);
+                return;
+            }
+
+            const currentMax = manager.getMaxListeners();
+            if (currentMax !== 0 && currentMax < HOMEY_API_MANAGER_MAX_LISTENERS) {
+                manager.setMaxListeners(HOMEY_API_MANAGER_MAX_LISTENERS);
+            }
+        });
+
+        Object.defineProperty(api, "__sctConfigured", {
+            value: true,
+            enumerable: false,
+            configurable: true,
+        });
+        return api;
+    }
+
+    async getApiDevices(options = {}) {
+        const maxAgeMs = typeof options.maxAgeMs === "number"
+            ? options.maxAgeMs
+            : API_DEVICES_CACHE_TTL_MS;
+        const now = Date.now();
+
+        if (
+            maxAgeMs > 0 &&
+            this.apiDevicesCache &&
+            now - this.apiDevicesCache.createdAt <= maxAgeMs
+        ) {
+            return this.apiDevicesCache.devices;
+        }
+
+        if (this.apiDevicesPromise) {
+            return this.apiDevicesPromise;
+        }
+
+        this.apiDevicesPromise = (async () => {
+            const api = await this.ensureHomeyApi();
+            const devices = await api.devices.getDevices();
+            this.apiDevicesCache = {
+                createdAt: Date.now(),
+                devices,
+            };
+            return devices;
+        })().finally(() => {
+            this.apiDevicesPromise = null;
+        });
+
+        return this.apiDevicesPromise;
+    }
+
+    async getApiDevice(id, options = {}) {
+        const deviceId = String(id || "").trim();
+        if (!deviceId) return null;
+
+        const devices = await this.getApiDevices(options);
+        if (devices && devices[deviceId]) {
+            return devices[deviceId];
+        }
+
+        const api = await this.ensureHomeyApi();
+        return api.devices.getDevice({ id: deviceId });
+    }
+
+    getDeviceRegistryRetentionMonths() {
+        const raw = this.homey.settings.get(DEVICE_REGISTRY_RETENTION_MONTHS_KEY);
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value < 0) {
+            return DEVICE_REGISTRY_DEFAULT_RETENTION_MONTHS;
+        }
+        return Math.floor(value);
+    }
+
+    async refreshDeviceRegistry(reason = "manual") {
+        if (this.deviceRegistryRefreshPromise) {
+            return this.deviceRegistryRefreshPromise;
+        }
+
+        this.deviceRegistryRefreshPromise = this._refreshDeviceRegistry(reason)
+            .finally(() => {
+                this.deviceRegistryRefreshPromise = null;
+            });
+
+        return this.deviceRegistryRefreshPromise;
+    }
+
+    async _refreshDeviceRegistry(reason) {
+        const api = await this.ensureHomeyApi();
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const retentionMonths = this.getDeviceRegistryRetentionMonths();
+        const previous = this.homey.settings.get(DEVICE_REGISTRY_KEY) || {};
+        const previousEntries = previous.entries && typeof previous.entries === "object"
+            ? previous.entries
+            : {};
+
+        const entries = {};
+        Object.keys(previousEntries).forEach((id) => {
+            entries[id] = { ...previousEntries[id], id };
+        });
+
+        let zones = {};
+        try {
+            zones = await api.zones.getZones();
+        } catch (error) {
+            this.logger.warn("Device registry could not load zones", {
+                message: error.message,
+            });
+        }
+
+        const devices = await this.getApiDevices({ maxAgeMs: 0 });
+        const currentIds = new Set(Object.keys(devices || {}));
+
+        for (const [id, device] of Object.entries(devices || {})) {
+            const existing = entries[id] || {};
+            const zoneId = device.zone || existing.zoneId || null;
+            const zoneName = zoneId && zones[zoneId] ? zones[zoneId].name : existing.zoneName || null;
+            const driverUri = device.driverUri || existing.driverUri || null;
+
+            entries[id] = {
+                id,
+                name: device.name || existing.name || id,
+                zoneId,
+                zoneName,
+                class: device.class || existing.class || null,
+                driverUri,
+                driverId: driverUri ? String(driverUri).split(":").pop() : existing.driverId || null,
+                appUri: device.ownerUri || device.appUri || existing.appUri || null,
+                appName: device.ownerName || device.appName || null,
+                firstSeenAt: existing.firstSeenAt || nowIso,
+                lastSeenAt: nowIso,
+                missingSince: null,
+                present: true,
+            };
+        }
+
+        Object.keys(entries).forEach((id) => {
+            if (currentIds.has(id)) return;
+            const entry = entries[id];
+            entries[id] = {
+                ...entry,
+                present: false,
+                missingSince: entry.missingSince || nowIso,
+            };
+        });
+
+        let prunedCount = 0;
+        if (retentionMonths > 0) {
+            const cutoff = new Date(now.getTime());
+            cutoff.setMonth(cutoff.getMonth() - retentionMonths);
+
+            Object.keys(entries).forEach((id) => {
+                const entry = entries[id];
+                if (entry.present !== false) return;
+
+                const lastSeen = entry.lastSeenAt ? new Date(entry.lastSeenAt) : null;
+                if (!lastSeen || Number.isNaN(lastSeen.getTime()) || lastSeen < cutoff) {
+                    delete entries[id];
+                    prunedCount += 1;
+                }
+            });
+        }
+
+        const knownCount = Object.keys(entries).length;
+        const missingCount = Object.values(entries).filter((entry) => entry.present === false).length;
+        const registry = {
+            version: 1,
+            updatedAt: nowIso,
+            updateReason: reason,
+            retentionMonths,
+            currentCount: currentIds.size,
+            knownCount,
+            missingCount,
+            prunedCount,
+            entries,
+        };
+
+        this.homey.settings.set(DEVICE_REGISTRY_KEY, registry);
+        this.logger.info(
+            `Device registry refreshed (${reason}): ${currentIds.size} current, ${knownCount} known, ${missingCount} missing, ${prunedCount} pruned`,
+        );
+
+        return registry;
+    }
+
+    async purgeAndRebuildDeviceRegistry() {
+        const nowIso = new Date().toISOString();
+        this.homey.settings.set(DEVICE_REGISTRY_KEY, {
+            version: 1,
+            updatedAt: nowIso,
+            updateReason: "purged",
+            retentionMonths: this.getDeviceRegistryRetentionMonths(),
+            currentCount: 0,
+            knownCount: 0,
+            missingCount: 0,
+            prunedCount: 0,
+            entries: {},
+        });
+
+        this.logger.warn("Device registry purged by user request");
+        return this.refreshDeviceRegistry("purge_rebuild");
+    }
+
     async getAvailableZones() {
         this.logger.debug("app.getting_zones");
         try {
-            if (!this.api) {
-                const athomApi = require("athom-api");
-                const { HomeyAPI } = athomApi;
-                this.api = await HomeyAPI.forCurrentHomey(this.homey);
-            }
+            await this.ensureHomeyApi();
 
             const zones = await this.api.zones.getZones();
             
@@ -204,13 +486,9 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         });
         const deviceList = [];
         try {
-            if (!this.api) {
-                const athomApi = require("athom-api");
-                const { HomeyAPI } = athomApi;
-                this.api = await HomeyAPI.forCurrentHomey(this.homey);
-            }
+            await this.ensureHomeyApi();
 
-            const allDevices = await this.api.devices.getDevices();
+            const allDevices = await this.getApiDevices();
             for (const deviceId in allDevices) {
                 const device = allDevices[deviceId];
                 if (device.zone !== zoneId) continue;
@@ -549,13 +827,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             // Register autocomplete for device argument
             waitUntilCard.registerArgumentAutocompleteListener('device', async (query, args) => {
                 try {
-                    if (!this.api) {
-                        const athomApi = require("athom-api");
-                        const { HomeyAPI } = athomApi;
-                        this.api = await HomeyAPI.forCurrentHomey(this.homey);
-                    }
-
-                    const allDevices = await this.api.devices.getDevices();
+                    const allDevices = await this.getApiDevices();
 
                     return Object.values(allDevices)
                         .filter(device => {
@@ -655,16 +927,9 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                         // Use IIFE to allow async/await inside Promise constructor
                         (async () => {
                             try {
-                                // Initialize Homey API if needed
-                                if (!this.api) {
-                                    const { HomeyAPI } = require("athom-api");
-                                    this.api = await HomeyAPI.forCurrentHomey(this.homey);
-                                    this.logger.debug(`🔌 Initialized Homey API for capability listening`);
-                                }
-
                                 // Check current value first - if already matches, resolve immediately
                                 try {
-                                    const apiDevice = await this.api.devices.getDevice({ id: device.id });
+                                    const apiDevice = await this.getApiDevice(device.id, { maxAgeMs: 0 });
                                     const currentValue = apiDevice.capabilitiesObj[capability]?.value;
 
                                     if (this.waiterManager.valueMatches(currentValue, targetValue)) {
@@ -1033,11 +1298,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
      */
     async getAllDefinedWaiterIds() {
         try {
-            if (!this.api) {
-                const athomApi = require("athom-api");
-                const { HomeyAPI } = athomApi;
-                this.api = await HomeyAPI.forCurrentHomey(this.homey);
-            }
+            await this.ensureHomeyApi();
 
             const waiterIds = new Set();
 
@@ -1199,10 +1460,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
      */
     async getAllDefinedGateNames() {
         try {
-            if (!this.api) {
-                const { HomeyAPI } = require("athom-api");
-                this.api = await HomeyAPI.forCurrentHomey(this.homey);
-            }
+            await this.ensureHomeyApi();
 
             const gateNames = new Set();
             

@@ -2,6 +2,62 @@
 <html>
   <head>
     <script type="text/javascript" src="/homey.js" data-origin="settings"></script>
+    <style>
+      .sct-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 8px 0;
+      }
+
+      .sct-button {
+        width: auto;
+        min-width: 140px;
+      }
+
+      .sct-status {
+        margin: 8px 0;
+      }
+
+      .sct-results {
+        max-height: 420px;
+        overflow: auto;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 6px;
+      }
+
+      .sct-table {
+        width: 100%;
+        min-width: 860px;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .sct-table th,
+      .sct-table td {
+        padding: 8px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .sct-table th {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 1;
+      }
+
+      .sct-id {
+        font-family: monospace;
+        white-space: nowrap;
+        word-break: normal;
+      }
+
+      .sct-muted {
+        opacity: 0.7;
+      }
+    </style>
   </head>
   <body>
     <header class="homey-header">
@@ -15,11 +71,66 @@
       <div class="homey-form-group">
         <label class="homey-form-label" for="debug_mode" data-i18n="settings.debug.enable_label">Enable Debug Mode</label>
         <div class="homey-form-input-group">
-            <input class="homey-form-checkbox" type="checkbox" id="debug_mode" />
+          <input class="homey-form-checkbox" type="checkbox" id="debug_mode" />
         </div>
         <p class="homey-form-help" data-i18n="settings.debug.help">
-            Enables detailed logging for troubleshooting. Not recommended for daily use as it generates a lot of logs.
+          Enables detailed logging for troubleshooting. Not recommended for daily use as it generates a lot of logs.
         </p>
+      </div>
+    </fieldset>
+
+    <fieldset class="homey-form-fieldset">
+      <legend class="homey-form-legend" data-i18n="settings.device_registry.legend">Device ID Resolver</legend>
+
+      <div class="homey-form-group">
+        <label class="homey-form-label" for="device_registry_retention_months" data-i18n="settings.device_registry.retention_label">
+          Keep deleted devices for
+        </label>
+        <div class="homey-form-input-group">
+          <input class="homey-form-input" type="number" min="0" max="120" step="1" id="device_registry_retention_months" />
+        </div>
+        <p class="homey-form-help" data-i18n="settings.device_registry.retention_help">
+          Months after last seen. Use 0 to keep deleted devices until manually purged.
+        </p>
+      </div>
+
+      <div class="homey-form-group">
+        <p class="homey-form-help sct-status" id="device_registry_status">No device snapshot loaded.</p>
+        <div class="sct-actions">
+          <button class="homey-button-secondary sct-button" id="refresh_registry_button" type="button" data-i18n="settings.device_registry.refresh">
+            Refresh snapshot
+          </button>
+          <button class="homey-button-secondary sct-button" id="purge_registry_button" type="button" data-i18n="settings.device_registry.purge">
+            Purge and rebuild
+          </button>
+        </div>
+      </div>
+
+      <div class="homey-form-group">
+        <label class="homey-form-label" for="device_registry_query" data-i18n="settings.device_registry.lookup_label">
+          Resolve IDs or search
+        </label>
+        <textarea class="homey-form-textarea" id="device_registry_query" rows="3" data-i18n-placeholder="settings.device_registry.lookup_placeholder" placeholder="Paste one or more IDs, or search by name, zone or driver"></textarea>
+      </div>
+
+      <div class="sct-results">
+        <table class="sct-table">
+          <thead>
+            <tr>
+              <th data-i18n="settings.device_registry.name">Name</th>
+              <th data-i18n="settings.device_registry.status">Status</th>
+              <th data-i18n="settings.device_registry.zone">Zone</th>
+              <th data-i18n="settings.device_registry.driver">Driver</th>
+              <th data-i18n="settings.device_registry.last_seen">Last seen</th>
+              <th data-i18n="settings.device_registry.id">ID</th>
+            </tr>
+          </thead>
+          <tbody id="device_registry_results">
+            <tr>
+              <td colspan="6" class="sct-muted" data-i18n="settings.device_registry.no_results">No results</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </fieldset>
 
@@ -27,23 +138,244 @@
 
     <script type="text/javascript">
       function onHomeyReady(Homey) {
+        const DEVICE_REGISTRY_KEY = 'device_registry';
+        const REFRESH_REQUEST_KEY = 'device_registry_refresh_requested_at';
+        const PURGE_REQUEST_KEY = 'device_registry_purge_requested_at';
+        const RETENTION_MONTHS_KEY = 'device_registry_retention_months';
+        const DEFAULT_RETENTION_MONTHS = 12;
+
         const debugCheckbox = document.getElementById('debug_mode');
         const saveButton = document.getElementById('save_button');
+        const retentionInput = document.getElementById('device_registry_retention_months');
+        const statusEl = document.getElementById('device_registry_status');
+        const queryInput = document.getElementById('device_registry_query');
+        const resultsEl = document.getElementById('device_registry_results');
+        const refreshButton = document.getElementById('refresh_registry_button');
+        const purgeButton = document.getElementById('purge_registry_button');
+
+        let registry = null;
 
         Homey.ready();
 
-        // Load current settings
+        function text(key, fallback) {
+          try {
+            const value = Homey.__(key);
+            return value && value !== key ? value : fallback;
+          } catch (err) {
+            return fallback;
+          }
+        }
+
+        function getSetting(key) {
+          return new Promise((resolve, reject) => {
+            Homey.get(key, (err, value) => {
+              if (err) return reject(err);
+              resolve(value);
+            });
+          });
+        }
+
+        function setSetting(key, value) {
+          return new Promise((resolve, reject) => {
+            Homey.set(key, value, (err) => {
+              if (err) return reject(err);
+              resolve();
+            });
+          });
+        }
+
+        function escapeHtml(value) {
+          return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        function formatDate(value) {
+          if (!value) return '-';
+          const date = new Date(value);
+          if (Number.isNaN(date.getTime())) return value;
+          return date.toLocaleString();
+        }
+
+        function displayName(entry) {
+          const id = String((entry && entry.id) || '').trim();
+          const name = String((entry && entry.name) || '').trim();
+          return name && name !== id ? name : 'N/A';
+        }
+
+        function looksLikeDeviceId(value) {
+          return /^[a-z0-9_-]{8,}$/i.test(String(value || '').trim());
+        }
+
+        function getEntries() {
+          const entries = registry && registry.entries && typeof registry.entries === 'object'
+            ? Object.values(registry.entries)
+            : [];
+          return entries.sort((a, b) => {
+            if (a.present !== b.present) return a.present ? -1 : 1;
+            return String(a.name || '').localeCompare(String(b.name || ''));
+          });
+        }
+
+        function renderStatus() {
+          if (!registry) {
+            statusEl.textContent = text('settings.device_registry.no_snapshot', 'No device snapshot loaded.');
+            return;
+          }
+
+          const updated = registry.updatedAt ? formatDate(registry.updatedAt) : '-';
+          statusEl.textContent = text(
+            'settings.device_registry.status_line',
+            'Known: {known}, current: {current}, deleted: {missing}, updated: {updated}'
+          )
+            .replace('{known}', registry.knownCount || 0)
+            .replace('{current}', registry.currentCount || 0)
+            .replace('{missing}', registry.missingCount || 0)
+            .replace('{updated}', updated);
+        }
+
+        function renderResults() {
+          const originalTerms = queryInput.value.trim().split(/[\s,;]+/).map((term) => term.trim()).filter(Boolean);
+          const terms = originalTerms.map((term) => term.toLowerCase());
+          let entries = getEntries();
+
+          if (terms.length > 0) {
+            entries = entries.filter((entry) => {
+              const haystack = [
+                entry.id,
+                entry.name,
+                entry.zoneName,
+                entry.driverId,
+                entry.driverUri,
+                entry.appName,
+                entry.appUri,
+              ].map((value) => String(value || '').toLowerCase()).join(' ');
+
+              return terms.some((term) => haystack.includes(term));
+            });
+          } else {
+            entries = entries.slice(0, 50);
+          }
+
+          if (entries.length === 0) {
+            const unknownIds = originalTerms.filter(looksLikeDeviceId);
+            if (unknownIds.length > 0) {
+              resultsEl.innerHTML = unknownIds.map((id) => '<tr>' +
+                '<td>N/A</td>' +
+                '<td>' + escapeHtml(text('settings.device_registry.unknown', 'Unknown')) + '</td>' +
+                '<td>-</td>' +
+                '<td>-</td>' +
+                '<td>-</td>' +
+                '<td class="sct-id">' + escapeHtml(id) + '</td>' +
+                '</tr>').join('');
+              return;
+            }
+
+            resultsEl.innerHTML = '<tr><td colspan="6" class="sct-muted">' +
+              escapeHtml(text('settings.device_registry.no_results', 'No results')) +
+              '</td></tr>';
+            return;
+          }
+
+          resultsEl.innerHTML = entries.map((entry) => {
+            const status = entry.present === false
+              ? text('settings.device_registry.deleted', 'Deleted')
+              : text('settings.device_registry.current', 'Current');
+
+            return '<tr>' +
+              '<td>' + escapeHtml(displayName(entry)) + '</td>' +
+              '<td>' + escapeHtml(status) + '</td>' +
+              '<td>' + escapeHtml(entry.zoneName || '-') + '</td>' +
+              '<td>' + escapeHtml(entry.driverId || entry.driverUri || '-') + '</td>' +
+              '<td>' + escapeHtml(formatDate(entry.lastSeenAt)) + '</td>' +
+              '<td class="sct-id">' + escapeHtml(entry.id || '-') + '</td>' +
+              '</tr>';
+          }).join('');
+        }
+
+        async function loadRegistry() {
+          registry = await getSetting(DEVICE_REGISTRY_KEY);
+          renderStatus();
+          renderResults();
+        }
+
+        async function waitForRegistryUpdate(previousUpdatedAt) {
+          const started = Date.now();
+          while (Date.now() - started < 30000) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const next = await getSetting(DEVICE_REGISTRY_KEY);
+            if (next && next.updatedAt && next.updatedAt !== previousUpdatedAt) {
+              registry = next;
+              renderStatus();
+              renderResults();
+              return true;
+            }
+          }
+          await loadRegistry();
+          return false;
+        }
+
         Homey.get('debug_mode', function(err, value) {
-            if (err) return console.error(err); // Alerting on load can be annoying
-            debugCheckbox.checked = value === true;
+          if (err) return console.error(err);
+          debugCheckbox.checked = value === true;
         });
 
-        // Save settings
-        saveButton.addEventListener('click', function() {
-            Homey.set('debug_mode', debugCheckbox.checked, function(err) {
-                if (err) return Homey.alert(err);
-                Homey.alert(Homey.__('settings.saved'), 'info');
-            });
+        Homey.get(RETENTION_MONTHS_KEY, function(err, value) {
+          if (err) return console.error(err);
+          const numberValue = Number(value);
+          retentionInput.value = Number.isFinite(numberValue) && numberValue >= 0
+            ? Math.floor(numberValue)
+            : DEFAULT_RETENTION_MONTHS;
+        });
+
+        loadRegistry().catch((err) => console.error(err));
+
+        queryInput.addEventListener('input', renderResults);
+
+        refreshButton.addEventListener('click', async function() {
+          const previousUpdatedAt = registry && registry.updatedAt;
+          refreshButton.disabled = true;
+          try {
+            await setSetting(REFRESH_REQUEST_KEY, Date.now());
+            await waitForRegistryUpdate(previousUpdatedAt);
+          } catch (err) {
+            Homey.alert(err.message || String(err));
+          } finally {
+            refreshButton.disabled = false;
+          }
+        });
+
+        purgeButton.addEventListener('click', async function() {
+          const confirmed = window.confirm(text(
+            'settings.device_registry.purge_confirm',
+            'Purge all stored device mappings and rebuild from current devices?'
+          ));
+          if (!confirmed) return;
+
+          const previousUpdatedAt = registry && registry.updatedAt;
+          purgeButton.disabled = true;
+          try {
+            await setSetting(PURGE_REQUEST_KEY, Date.now());
+            await waitForRegistryUpdate(previousUpdatedAt);
+          } catch (err) {
+            Homey.alert(err.message || String(err));
+          } finally {
+            purgeButton.disabled = false;
+          }
+        });
+
+        saveButton.addEventListener('click', async function() {
+          try {
+            const retentionMonths = Math.max(0, Math.floor(Number(retentionInput.value) || 0));
+            await setSetting('debug_mode', debugCheckbox.checked);
+            await setSetting(RETENTION_MONTHS_KEY, retentionMonths);
+            Homey.alert(Homey.__('settings.saved'), 'info');
+          } catch (err) {
+            Homey.alert(err.message || String(err));
+          }
         });
       }
     </script>

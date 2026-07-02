@@ -98,7 +98,7 @@
                         <li class="flex gap-3"><span class="font-bold text-blue-600">2.</span><span data-i18n="apiSetup.step2">Click "Add client".</span></li>
                         <li class="flex gap-3"><span class="font-bold text-blue-600">3.</span><span data-i18n="apiSetup.step3">Give it any name (e.g. "Flow Doctor").</span></li>
                         <li class="flex gap-3"><span class="font-bold text-blue-600">4.</span><span data-i18n="apiSetup.step4">Paste the Redirect URL shown below.</span></li>
-                        <li class="flex gap-3"><span class="font-bold text-blue-600">5.</span><span data-i18n="apiSetup.step5">Select scopes: </span><code class="bg-gray-100 px-1 rounded">homey.flow.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.app.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.device.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.zone.readonly</code></li>
+                        <li class="flex gap-3"><span class="font-bold text-blue-600">5.</span><span data-i18n="apiSetup.step5">Select scopes: </span><code class="bg-gray-100 px-1 rounded">homey.flow.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.app.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.app.control</code> · <code class="bg-gray-100 px-1 rounded">homey.device.readonly</code> · <code class="bg-gray-100 px-1 rounded">homey.zone.readonly</code></li>
                         <li class="flex gap-3"><span class="font-bold text-blue-600">6.</span><span data-i18n="apiSetup.step6">Click "Create" and copy the Client ID and Client Secret below.</span></li>
                     </ol>
                 </div>
@@ -729,6 +729,8 @@ const I18N = {
 };
 
 const FLAGS = { en: '🇬🇧', no: '🇳🇴', de: '🇩🇪', nl: '🇳🇱' };
+const SMART_COMPONENTS_APP_ID = 'no.tiwas.booleantoolbox';
+const DEVICE_REGISTRY_SETTING_KEY = 'device_registry';
 
 class FlowDoctor {
     constructor() {
@@ -737,6 +739,8 @@ class FlowDoctor {
         this.cloudApi = null;
         this.api = null;
         this.results = [];
+        this.deviceRegistry = null;
+        this.deviceRegistryStatus = 'not_loaded';
     }
 
     t(key) { return (I18N[this.lang] && I18N[this.lang][key]) || I18N.en[key] || key; }
@@ -1172,6 +1176,78 @@ class FlowDoctor {
         return true;
     }
 
+    normalizeDeviceRegistry(raw) {
+        if (!raw) return null;
+        let registry = raw;
+        if (registry && typeof registry === 'object' && !registry.entries && Object.prototype.hasOwnProperty.call(registry, 'value')) {
+            registry = registry.value;
+        }
+        if (typeof registry === 'string') {
+            try {
+                registry = JSON.parse(registry);
+            } catch (_) {
+                return null;
+            }
+        }
+        if (!registry || typeof registry !== 'object' || !registry.entries || typeof registry.entries !== 'object') {
+            return null;
+        }
+        return registry;
+    }
+
+    async loadDeviceRegistry(installedApps) {
+        this.deviceRegistry = null;
+        this.deviceRegistryStatus = 'not_available';
+
+        if (!installedApps || !installedApps[SMART_COMPONENTS_APP_ID]) {
+            return null;
+        }
+
+        const appsApi = this.api && this.api.apps;
+        if (!appsApi) return null;
+
+        try {
+            let raw = null;
+            if (typeof appsApi.getAppSettings === 'function') {
+                const settings = await appsApi.getAppSettings({ id: SMART_COMPONENTS_APP_ID });
+                raw = settings && settings[DEVICE_REGISTRY_SETTING_KEY];
+            } else if (typeof appsApi.getAppSetting === 'function') {
+                raw = await appsApi.getAppSetting({
+                    id: SMART_COMPONENTS_APP_ID,
+                    name: DEVICE_REGISTRY_SETTING_KEY,
+                });
+            }
+
+            const registry = this.normalizeDeviceRegistry(raw);
+            if (registry) {
+                this.deviceRegistry = registry;
+                this.deviceRegistryStatus = 'loaded';
+                return registry;
+            }
+            this.deviceRegistryStatus = 'empty';
+            return null;
+        } catch (e) {
+            this.deviceRegistryStatus = 'error';
+            return null;
+        }
+    }
+
+    deviceRegistryName(deviceId) {
+        const id = String(deviceId || '').trim();
+        if (!id || !this.deviceRegistry || !this.deviceRegistry.entries) return null;
+        const entry = this.deviceRegistry.entries[id];
+        const name = entry && typeof entry.name === 'string' ? entry.name.trim() : '';
+        return name && name !== id ? name : null;
+    }
+
+    formatDeviceReference(deviceId, fallbackName = null) {
+        const id = String(deviceId || '').trim();
+        if (!id) return '';
+        const fallback = typeof fallbackName === 'string' ? fallbackName.trim() : '';
+        const name = fallback && fallback !== id ? fallback : this.deviceRegistryName(id) || 'N/A';
+        return `${name} (ID: ${id})`;
+    }
+
     buildDebugInfo() {
         // Privacy: no device names, flow names, homey-id, tokens, or any field that
         // could correlate to a specific user. App names are kept (public marketing names).
@@ -1213,6 +1289,12 @@ class FlowDoctor {
                 apps: { total: apps.length, crashed: nCrashed, update: nUpdate, unused: nUnused, ok: nAppsOk },
             },
             issuesByKey: issueKeyCount,
+            deviceRegistry: {
+                status: this.deviceRegistryStatus,
+                updatedAt: this.deviceRegistry?.updatedAt || null,
+                knownCount: this.deviceRegistry?.knownCount || null,
+                missingCount: this.deviceRegistry?.missingCount || null,
+            },
             apps,
         };
     }
@@ -1292,6 +1374,7 @@ class FlowDoctor {
             const installedApps = {};
             Object.values(apps).forEach(a => { installedApps[a.id] = a; });
             const installedAppIds = new Set(Object.keys(installedApps));
+            await this.loadDeviceRegistry(installedApps);
             const deviceIds = new Set(Object.values(devices).map(d => d.id));
             const deviceToApp = {};
             Object.values(devices).forEach(d => {
@@ -1337,7 +1420,7 @@ class FlowDoctor {
                 const title = this.localizeStoreValue(titleRaw);
                 if (id.startsWith('homey:device:')) {
                     const devId = id.substring('homey:device:'.length).split(':')[0];
-                    const devName = devices[devId]?.name || devId;
+                    const devName = this.formatDeviceReference(devId, devices[devId]?.name);
                     return title ? `${devName} → ${title}` : `${devName} → ${id.split(':').pop()}`;
                 }
                 if (id.startsWith('homey:app:')) {
@@ -1371,7 +1454,33 @@ class FlowDoctor {
                 }
 
                 let def = null;
-                if (uri.startsWith('homey:app:') || uri.startsWith('homey:manager:') || uri.startsWith('homey:device:')) {
+                const deviceCardId = uri.startsWith('homey:device:')
+                    ? uri.substring('homey:device:'.length).split(':')[0]
+                    : null;
+
+                if (deviceCardId) {
+                    if (deviceIds.size > 0 && !deviceIds.has(deviceCardId)) {
+                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: describeCard(card, null), appId });
+                        return issues;
+                    }
+
+                    const owningAppId = deviceToApp[deviceCardId];
+                    if (owningAppId) {
+                        appId = owningAppId;
+                        if (!installedAppIds.has(owningAppId)) {
+                            // Device exists but its owning app isn't installed — orphan device.
+                            issues.push({ severity: 'warn', key: 'issue.deviceMissingApp', detail: describeCard(card, null) + ' · app: ' + owningAppId, appId: owningAppId });
+                        }
+                    }
+
+                    // Device-scoped cards are generated by the device/driver layer and are
+                    // not always returned by the global flow-card lists. Treat a missing
+                    // card definition as "not enough metadata", not as a removed card.
+                    def = lookupCardDef(card, kind);
+                    if (def && def.deprecated) {
+                        issues.push({ severity: 'warn', key: 'issue.deprecatedCard', detail: describeCard(card, def), appId });
+                    }
+                } else if (uri.startsWith('homey:app:') || uri.startsWith('homey:manager:')) {
                     def = lookupCardDef(card, kind);
                     if (!def) {
                         issues.push({ severity: 'error', key: 'issue.unknownCard', detail: describeCard(card, null), appId });
@@ -1394,7 +1503,7 @@ class FlowDoctor {
                         // Device reference check — only for actual device-typed args
                         if (argDef.type === 'device' && val && typeof val === 'object' && val.id && typeof val.id === 'string') {
                             if (deviceIds.size > 0 && !deviceIds.has(val.id) && val.id.length >= 16) {
-                                issues.push({ severity: 'error', key: 'issue.missingDevice', detail: describeCard(card, def) + ' · arg "' + argDef.name + '" → ' + (val.name || val.id), appId });
+                                issues.push({ severity: 'error', key: 'issue.missingDevice', detail: describeCard(card, def) + ' · arg "' + argDef.name + '" → ' + this.formatDeviceReference(val.id, val.name), appId });
                             }
                         }
                     }
@@ -1403,18 +1512,6 @@ class FlowDoctor {
                         if (!defArgNames.has(argName)) {
                             issues.push({ severity: 'warn', key: 'issue.unknownArg', detail: describeCard(card, def) + ' · unknown arg "' + argName + '"', appId });
                         }
-                    }
-                }
-
-                // Device-card reference (homey:device:<id>)
-                if (uri.startsWith('homey:device:')) {
-                    const devId = uri.substring('homey:device:'.length).split(':')[0];
-                    if (deviceIds.size > 0 && devId && !deviceIds.has(devId)) {
-                        issues.push({ severity: 'error', key: 'issue.missingDevice', detail: describeCard(card, def), appId });
-                    } else if (deviceToApp[devId] && !installedAppIds.has(deviceToApp[devId])) {
-                        // Device exists but its owning app isn't installed — orphan device.
-                        const missingApp = deviceToApp[devId];
-                        issues.push({ severity: 'warn', key: 'issue.deviceMissingApp', detail: describeCard(card, def) + ' · app: ' + missingApp, appId: missingApp });
                     }
                 }
 
@@ -1644,7 +1741,7 @@ class FlowDoctor {
             const typeLabel = r.type === 'advanced' ? this.t('flowType.advanced') : this.t('flowType.standard');
             const issuesHtml = r.issues.map(i => {
                 const cls = i.severity === 'error' ? 'badge-err' : i.severity === 'warn' ? 'badge-warn' : 'badge-info';
-                return `<div class="text-sm py-1"><span class="badge ${cls}">${i.severity.toUpperCase()}</span> ${this.t(i.key)}${i.detail ? `<code class="ml-2 text-xs bg-white px-1 rounded border border-gray-200">${this.escape(i.detail)}</code>` : ''}</div>`;
+                return `<div class="text-sm py-1"><span class="badge ${cls}">${i.severity.toUpperCase()}</span> ${this.t(i.key)}${i.detail ? `<code class="ml-2 text-xs bg-white px-1 rounded border border-gray-200 inline-block max-w-full overflow-x-auto align-middle whitespace-nowrap">${this.escape(i.detail)}</code>` : ''}</div>`;
             }).join('');
 
             const url = this.flowUrl(r, r.type);

@@ -11,6 +11,7 @@ node_modules/
 
 # Development
 *.log
+.homey-run-logs/
 .DS_Store
 node_modules/
 npm-debug.log

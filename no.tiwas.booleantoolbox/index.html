@@ -1,51 +1,9 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script type="text/javascript" src="/homey.js" data-origin="settings"></script>
+    <meta http-equiv="refresh" content="0; url=/settings/index.html" />
   </head>
   <body>
-    <header class="homey-header">
-      <h1 class="homey-title" data-i18n="settings.title">Settings</h1>
-      <p class="homey-subtitle" data-i18n="settings.subtitle">Global configuration for Boolean Toolbox</p>
-    </header>
-
-    <fieldset class="homey-form-fieldset">
-      <legend class="homey-form-legend" data-i18n="settings.general.legend">General</legend>
-
-      <div class="homey-form-group">
-        <label class="homey-form-label" for="debug_mode" data-i18n="settings.debug.enable_label">Enable Debug Mode</label>
-        <div class="homey-form-input-group">
-            <input class="homey-form-checkbox" type="checkbox" id="debug_mode" />
-        </div>
-        <p class="homey-form-help" data-i18n="settings.debug.help">
-            Enables detailed logging for troubleshooting. Not recommended for daily use as it generates a lot of logs.
-        </p>
-      </div>
-    </fieldset>
-
-    <button class="homey-button-primary-full" id="save_button" data-i18n="settings.save">Save</button>
-
-    <script type="text/javascript">
-      function onHomeyReady(Homey) {
-        const debugCheckbox = document.getElementById('debug_mode');
-        const saveButton = document.getElementById('save_button');
-
-        Homey.ready();
-
-        // Load current settings
-        Homey.get('debug_mode', function(err, value) {
-            if (err) return console.error(err); // Alerting on load can be annoying
-            debugCheckbox.checked = value === true;
-        });
-
-        // Save settings
-        saveButton.addEventListener('click', function() {
-            Homey.set('debug_mode', debugCheckbox.checked, function(err) {
-                if (err) return Homey.alert(err);
-                Homey.alert(Homey.__('settings.saved'), 'info');
-            });
-        });
-      }
-    </script>
+    <p><a href="/settings/index.html">Open settings</a></p>
   </body>
 </html>

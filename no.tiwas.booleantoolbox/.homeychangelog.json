@@ -96,6 +96,6 @@
     "en": "Cleaned up the app store description (removed redundant intro)."
   },
   "1.10.16": {
-    "en": "Captures Homey device IDs and names so Flow Doctor can resolve references to previously deleted devices."
+    "en": "Captures Homey device IDs and names so Flow Doctor (https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html) can resolve references to previously deleted devices."
   }
 }

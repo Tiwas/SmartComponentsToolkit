@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 - Device ID resolver for Flow Doctor]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 test - Device ID resolver for Flow Doctor]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — v1.10.16
+# Smart (Components) Toolkit — stable v1.10.9 / test v1.10.16
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -17,20 +17,20 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 
 ## Changelog
 
-### v1.10.16
+### v1.10.16 (test channel)
 
-- Captures Homey device IDs and names so Flow Doctor can resolve references to previously deleted devices.
-- Flow Doctor now shows resolved device names, or `N/A (ID: ...)` when a deleted device was never captured by the app.
+- Captures Homey device IDs and names so <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html" target="_blank">Flow Doctor</a> can resolve references to previously deleted devices.
+- <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html" target="_blank">Flow Doctor</a> now shows resolved device names, or `N/A (ID: ...)` when a deleted device was never captured by the app.
 
 ---
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. As of v1.10.16 it ships on both the stable and test channels.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Stable is currently v1.10.9; v1.10.16 is available on the test channel.
 
 ### 🆕 What's new in 1.10.x
 
-- **Device ID resolver (v1.10.16).** The app now captures Homey device IDs and names so Flow Doctor can resolve references to previously deleted devices.
+- **Device ID resolver (v1.10.16 test).** The app now captures Homey device IDs and names so <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html" target="_blank">Flow Doctor</a> can resolve references to previously deleted devices.
 - **Parallel device writes (v1.10.7).** Multi-device flow actions and the scheduler push to up to 5 lights at the same time instead of one-after-another. A 16-light "turn on all" goes from minute-scale to seconds.
 - **Last-write-wins on conflicting commands (v1.10.7).** Trigger "all off" right after "all on" and the off command supersedes the in-flight on, instead of fighting it on every lamp. Each pass also verifies the on/off state afterwards and serially retries transient Z-Wave / Zigbee timeouts.
 - **Group-level "Turn on / off all members" actions (v1.10.7).** Convenience cards that switch every enabled light in the group, respecting the current circadian dim/temperature when turning on.
@@ -76,7 +76,9 @@ Choose how the device knows how bright it is outside:
 
 <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html" target="_blank">→ Read full Circadian Light Group guide</a>
 
-<a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">→ Install v1.10.16</a>
+<a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">→ Install stable v1.10.9</a>
+<br>
+<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.16</a>
 
 ---
 
@@ -144,8 +146,8 @@ THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
 
 ## Installation and Links
 
-* **Homey App Store (v1.10.16, stable):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
-* **Test channel (also v1.10.16):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
+* **Homey App Store (v1.10.9, stable):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
+* **Test channel (v1.10.16):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
 * **GitHub Repo:** <a href="https://github.com/tiwas/SmartComponentsToolkit" target="_blank">github.com/tiwas/SmartComponentsToolkit</a>
 * **Online Emulator:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/emulator.html" target="_blank">Boolean Logic Emulator</a>
 * **Formula Builder:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/formula-builder.html" target="_blank">Formula Builder</a>

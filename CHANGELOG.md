@@ -6,11 +6,11 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
-## [1.10.16] - July 2026
+## [1.10.16] - July 2026 (Test channel)
 
 ### Added
-- Captures Homey device IDs and names in the app so Flow Doctor can resolve references to previously deleted devices.
-- Flow Doctor now shows resolved device names, or `N/A (ID: ...)` when a deleted device was never captured.
+- Captures Homey device IDs and names in the app so [Flow Doctor](https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html) can resolve references to previously deleted devices.
+- [Flow Doctor](https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html) now shows resolved device names, or `N/A (ID: ...)` when a deleted device was never captured.
 
 ---
 

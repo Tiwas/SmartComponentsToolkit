@@ -6,11 +6,11 @@
 
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
-[![Stable](https://img.shields.io/badge/stable-1.10.16-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
+[![Stable](https://img.shields.io/badge/stable-1.10.9-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
 [![Test](https://img.shields.io/badge/test-1.10.16-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.16** — captures Homey device IDs and names so Flow Doctor can resolve references to previously deleted devices. [Open Flow Doctor →](https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html)
+> **v1.10.16 test** — captures Homey device IDs and names so [Flow Doctor](https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html) can resolve references to previously deleted devices.
 
 ---
 
@@ -122,7 +122,7 @@ THEN: Pop state (restore previous)
 
 ---
 
-### Circadian Light Group *(v1.10.16)*
+### Circadian Light Group *(stable v1.10.9 / test v1.10.16)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 

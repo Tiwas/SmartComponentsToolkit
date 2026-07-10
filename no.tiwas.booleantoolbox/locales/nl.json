@@ -16,7 +16,7 @@
     "homey_api_extracted": "HomeyAPI geëxtraheerd, type:",
     "homey_api_methods": "HomeyAPI-methoden:",
     "homey_api_not_function": "HomeyAPI.forCurrentHomey is geen functie",
-    "initializing_homey_api": "HomeyAPI.forCurrentHomey initialiseren...",
+    "initializing_homey_api": "Homey API initialiseren...",
     "registering_flow_cards": "Flow-kaarten registreren...",
     "running_evaluation": "Evaluatie uitvoeren. Invoer: {input}, Regels: '{rules}'",
     "value_outside_logic": "Waarde {input} valt buiten de gedefinieerde logica."

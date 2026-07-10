@@ -1,0 +1,127 @@
+{
+  "id": "calculate_gradient",
+  "title": {
+    "en": "Calculate gradient output",
+    "no": "Beregn gradientverdi"
+  },
+  "hint": {
+    "en": "Maps the current value, for example a temperature tag, from one numeric range to another and returns the result as a Flow tag. Range from/to can use optional offsets. Values outside the range are clamped, and the output is rounded to the selected step.",
+    "no": "Mapper den målte verdien, for eksempel en temperaturtagg, fra ett tallområde til et annet og returnerer resultatet som en Flow-tagg. Område fra/til kan ha valgfrie offsetverdier. Verdier utenfor området begrenses til min/maks, og output rundes av til valgt steg."
+  },
+  "args": [
+    {
+      "type": "number",
+      "name": "input_value",
+      "title": {
+        "en": "Current value",
+        "no": "Målt verdi"
+      },
+      "placeholder": {
+        "en": "Temperature tag or number",
+        "no": "Temperaturtagg eller tall"
+      }
+    },
+    {
+      "type": "number",
+      "name": "from_num",
+      "title": {
+        "en": "Range from",
+        "no": "Område fra"
+      },
+      "placeholder": {
+        "en": "18",
+        "no": "18"
+      }
+    },
+    {
+      "type": "number",
+      "name": "from_num_offset",
+      "title": {
+        "en": "Range from offset",
+        "no": "Offset fra"
+      },
+      "placeholder": {
+        "en": "0",
+        "no": "0"
+      },
+      "required": false
+    },
+    {
+      "type": "number",
+      "name": "to_num",
+      "title": {
+        "en": "Range to",
+        "no": "Område til"
+      },
+      "placeholder": {
+        "en": "23",
+        "no": "23"
+      }
+    },
+    {
+      "type": "number",
+      "name": "to_num_offset",
+      "title": {
+        "en": "Range to offset",
+        "no": "Offset til"
+      },
+      "placeholder": {
+        "en": "0",
+        "no": "0"
+      },
+      "required": false
+    },
+    {
+      "type": "number",
+      "name": "from_out",
+      "title": {
+        "en": "Output from",
+        "no": "Output fra"
+      },
+      "placeholder": {
+        "en": "100",
+        "no": "100"
+      }
+    },
+    {
+      "type": "number",
+      "name": "to_out",
+      "title": {
+        "en": "Output to",
+        "no": "Output til"
+      },
+      "placeholder": {
+        "en": "500",
+        "no": "500"
+      }
+    },
+    {
+      "type": "number",
+      "name": "round_to",
+      "title": {
+        "en": "Round to",
+        "no": "Rund av til"
+      },
+      "placeholder": {
+        "en": "1",
+        "no": "1"
+      },
+      "required": false
+    }
+  ],
+  "tokens": [
+    {
+      "name": "output_value",
+      "type": "number",
+      "title": {
+        "en": "Output value",
+        "no": "Output-verdi"
+      },
+      "example": 300
+    }
+  ],
+  "titleFormatted": {
+    "en": "Map [[input_value]] in range [[from_num]] + [[from_num_offset]] to [[to_num]] + [[to_num_offset]] into [[from_out]]-[[to_out]], round to [[round_to]]",
+    "no": "Map [[input_value]] i området [[from_num]] + [[from_num_offset]] til [[to_num]] + [[to_num_offset]] som [[from_out]]-[[to_out]], rund til [[round_to]]"
+  }
+}

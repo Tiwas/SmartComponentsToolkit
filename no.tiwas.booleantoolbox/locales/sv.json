@@ -16,7 +16,7 @@
     "homey_api_extracted": "HomeyAPI extraherad, typ:",
     "homey_api_methods": "HomeyAPI-metoder:",
     "homey_api_not_function": "HomeyAPI.forCurrentHomey är inte en funktion",
-    "initializing_homey_api": "Initialiserar HomeyAPI.forCurrentHomey...",
+    "initializing_homey_api": "Initialiserar Homey API...",
     "registering_flow_cards": "Registrerar flödeskort...",
     "running_evaluation": "Kör utvärdering. Indata: {input}, Regler: '{rules}'",
     "value_outside_logic": "Värdet {input} ligger utanför den definierade logiken."

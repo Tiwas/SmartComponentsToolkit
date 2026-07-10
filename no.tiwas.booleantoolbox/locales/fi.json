@@ -16,7 +16,7 @@
     "homey_api_extracted": "HomeyAPI purettu, tyyppi:",
     "homey_api_methods": "HomeyAPI-metodit:",
     "homey_api_not_function": "HomeyAPI.forCurrentHomey ei ole funktio",
-    "initializing_homey_api": "Alustetaan HomeyAPI.forCurrentHomey...",
+    "initializing_homey_api": "Alustetaan Homey API...",
     "registering_flow_cards": "Rekisteröidään flow-kortteja...",
     "running_evaluation": "Ajetaan arviointi. Tulo: {input}, Säännöt: '{rules}'",
     "value_outside_logic": "Arvo {input} on määritellyn logiikan ulkopuolella."

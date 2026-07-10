@@ -38,6 +38,8 @@
 
     <div class="info" data-i18n="pair.circadian_light_group.test_capabilities_info">During testing each light is briefly turned off and back on. Lights may flicker. You can re-test or change group members later via Repair.</div>
 
+    <div class="info" style="background:#e3f2fd; border-color:#90caf9; color:#0d47a1;" data-i18n="pair.circadian_light_group.test_capabilities_hint">A red ✗ on Dim/Temp/Hue/Sat/Mode means the light turns itself on when that capability is written while off — i.e. it does <strong>not</strong> support pre-warming. Normal dimming and color/temperature control while the light is on still works as expected (common for IKEA TRÅDFRI bulbs).</div>
+
     <div class="toolbar">
         <button id="test-all" class="test-btn" data-i18n="pair.circadian_light_group.test_all">Test all</button>
         <button id="skip" class="secondary" data-i18n="pair.circadian_light_group.skip_test">Skip</button>
@@ -102,9 +104,15 @@
                     const value = support[capId];
                     let cls = 'unknown';
                     let mark = '?';
-                    if (value === true) { cls = 'ok'; mark = '✓'; }
-                    else if (value === false) { cls = 'fail'; mark = '✗'; }
-                    return '<span class="badge ' + cls + '">' + mark + ' ' + capLabel(capId) + '</span>';
+                    let tip = t('pair.circadian_light_group.badge_tip_unknown', 'Not tested yet.');
+                    if (value === true) {
+                        cls = 'ok'; mark = '✓';
+                        tip = t('pair.circadian_light_group.badge_tip_ok', 'Pre-warm supported: writing this capability while the light is off does not turn it on.');
+                    } else if (value === false) {
+                        cls = 'fail'; mark = '✗';
+                        tip = t('pair.circadian_light_group.badge_tip_fail', 'Pre-warm not supported: writing this capability while off turns the light on. Normal control while on still works.');
+                    }
+                    return '<span class="badge ' + cls + '" title="' + esc(tip) + '">' + mark + ' ' + capLabel(capId) + '</span>';
                 })
                 .join('');
         }

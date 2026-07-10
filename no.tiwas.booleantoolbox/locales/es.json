@@ -16,7 +16,7 @@
     "homey_api_extracted": "HomeyAPI extraída, tipo:",
     "homey_api_methods": "Métodos de HomeyAPI:",
     "homey_api_not_function": "HomeyAPI.forCurrentHomey no es una función",
-    "initializing_homey_api": "Inicializando HomeyAPI.forCurrentHomey...",
+    "initializing_homey_api": "Inicializando Homey API...",
     "registering_flow_cards": "Registrando tarjetas de flujo...",
     "running_evaluation": "Ejecutando evaluación. Entrada: {input}, Reglas: '{rules}'",
     "value_outside_logic": "El valor {input} está fuera de la lógica definida."

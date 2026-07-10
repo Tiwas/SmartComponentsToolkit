@@ -4,6 +4,11 @@ const Homey = require("homey");
 const Logger = require("./lib/Logger");
 const WaiterManager = require("./lib/WaiterManager");
 const CapturedStateManager = require("./lib/CapturedStateManager");
+const {
+    compareNumbers,
+    evaluateNumericComparison,
+    mapGradient,
+} = require("./lib/NumericComparison");
 
 const DEVICE_REGISTRY_KEY = "device_registry";
 const DEVICE_REGISTRY_REFRESH_REQUEST_KEY = "device_registry_refresh_requested_at";
@@ -38,18 +43,7 @@ const {
  *   - (none)
  */
 function evaluateCondition(inputValue, operator, ruleValue) {
-    switch (operator) {
-        case "gt":
-            return inputValue > ruleValue;
-        case "gte":
-            return inputValue >= ruleValue;
-        case "lt":
-            return inputValue < ruleValue;
-        case "lte":
-            return inputValue <= ruleValue;
-        default:
-            return false;
-    }
+    return compareNumbers(inputValue, operator, ruleValue);
 }
 
 /**
@@ -135,29 +129,8 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
         // Initialize API
         try {
-            const athomApi = require("athom-api");
-// ... rest of the code
-
-            this.logger.debug("app.athom_api_loaded");
-
-            const { HomeyAPI } = athomApi;
-
-            this.logger.debug("app.homey_api_extracted", {
-                type: typeof HomeyAPI,
-            });
-
-            if (typeof HomeyAPI.forCurrentHomey === "function") {
-                this.logger.debug("app.initializing_homey_api");
-                this.api = this.configureHomeyApi(
-                    await HomeyAPI.forCurrentHomey(this.homey),
-                );
-            } else {
-                this.logger.error("app.homey_api_not_function");
-
-                this.logger.debug("app.homey_api_methods", {
-                    keys: Object.keys(HomeyAPI),
-                });
-            }
+            this.logger.debug("app.initializing_homey_api");
+            this.api = this.configureHomeyApi(await this.createHomeyApi());
         } catch (e) {
             this.logger.error("errors.connection_failed", {
                 message: e.message,
@@ -210,6 +183,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         this.logger.info("App uninitialized.", {});
     }
 
+    async createHomeyApi() {
+        const { HomeyAPI } = require("homey-api");
+        if (!HomeyAPI || typeof HomeyAPI.createAppAPI !== "function") {
+            throw new Error("homey-api createAppAPI is not available");
+        }
+
+        return HomeyAPI.createAppAPI({
+            homey: this.homey,
+        });
+    }
+
     async ensureHomeyApi() {
         if (this.api) {
             return this.configureHomeyApi(this.api);
@@ -220,11 +204,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         }
 
         this.homeyApiPromise = (async () => {
-            const athomApi = require("athom-api");
-            const { HomeyAPI } = athomApi;
-            this.api = this.configureHomeyApi(
-                await HomeyAPI.forCurrentHomey(this.homey),
-            );
+            this.api = this.configureHomeyApi(await this.createHomeyApi());
             return this.api;
         })().finally(() => {
             this.homeyApiPromise = null;
@@ -656,6 +636,34 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             }
         });
 
+        try {
+            const gradientCard = this.homey.flow.getActionCard("calculate_gradient");
+            gradientCard.registerRunListener(async (args) => {
+                const gradient = mapGradient({
+                    inputValue: args.input_value,
+                    fromNum: args.from_num,
+                    fromNumOffset: args.from_num_offset,
+                    toNum: args.to_num,
+                    toNumOffset: args.to_num_offset,
+                    fromOut: args.from_out,
+                    toOut: args.to_out,
+                    roundTo: args.round_to,
+                });
+
+                this.logger.flow("Executing ACTION 'calculate_gradient'", {
+                    inputValue: gradient.inputValue,
+                    outputValue: gradient.outputValue,
+                });
+
+                return {
+                    mapped_value: gradient.outputValue,
+                };
+            });
+            this.logger.debug(" -> OK: ACTION card registered: 'calculate_gradient'");
+        } catch (e) {
+            this.logger.error(" -> FAILED: Registering ACTION card 'calculate_gradient'", e);
+        }
+
         // --- Conditions ---
         const conditionCards = [
             {
@@ -708,6 +716,31 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 );
             }
         });
+
+        try {
+            const mathCompareCard = this.homey.flow.getConditionCard("math_compare");
+            mathCompareCard.registerRunListener(async (args) => {
+                const evaluation = evaluateNumericComparison({
+                    leftValue: args.left_value,
+                    mathOperator: args.math_operator,
+                    operandValue: args.operand_value,
+                    comparisonOperator: args.comparison_operator,
+                    rightValue: args.right_value,
+                });
+
+                this.logger.flow("Executing CONDITION 'math_compare'", {
+                    calculatedValue: evaluation.calculatedValue,
+                    comparisonOperator: args.comparison_operator?.id || args.comparison_operator,
+                    rightValue: evaluation.rightValue,
+                    result: evaluation.result,
+                });
+
+                return evaluation.result;
+            });
+            this.logger.debug(" -> OK: CONDITION card registered: 'math_compare'");
+        } catch (e) {
+            this.logger.error(" -> FAILED: Registering CONDITION card 'math_compare'", e);
+        }
 
         // --- App-level Triggers ---
         try {

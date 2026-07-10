@@ -1,9 +1,9 @@
 {
   "name": "no.tiwas.booleantoolbox",
-  "version": "1.10.16",
+  "version": "1.10.17",
   "main": "app.js",
   "dependencies": {
-    "athom-api": "^3.5.0",
+    "homey-api": "^3.17.0",
     "suncalc": "^1.9.0"
   },
   "author": "Lars Kvanum",

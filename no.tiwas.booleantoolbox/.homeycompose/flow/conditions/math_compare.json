@@ -1,0 +1,143 @@
+{
+  "id": "math_compare",
+  "title": {
+    "en": "Calculated value is...",
+    "no": "Beregnet verdi er..."
+  },
+  "hint": {
+    "en": "Calculates a simple numeric expression and compares the result with another value. Number fields can use Homey number tags and Logic variables.",
+    "no": "Beregner et enkelt numerisk uttrykk og sammenligner resultatet med en annen verdi. Tallfelt kan bruke Homey-tagger og Logic-variabler."
+  },
+  "args": [
+    {
+      "type": "number",
+      "name": "left_value",
+      "title": {
+        "en": "Value",
+        "no": "Verdi"
+      },
+      "placeholder": {
+        "en": "Enter number or tag",
+        "no": "Skriv inn tall eller tagg"
+      }
+    },
+    {
+      "type": "dropdown",
+      "name": "math_operator",
+      "title": {
+        "en": "Math operator",
+        "no": "Regneoperator"
+      },
+      "values": [
+        {
+          "id": "add",
+          "title": {
+            "en": "+",
+            "no": "+"
+          }
+        },
+        {
+          "id": "subtract",
+          "title": {
+            "en": "-",
+            "no": "-"
+          }
+        },
+        {
+          "id": "multiply",
+          "title": {
+            "en": "*",
+            "no": "*"
+          }
+        },
+        {
+          "id": "divide",
+          "title": {
+            "en": "/",
+            "no": "/"
+          }
+        }
+      ]
+    },
+    {
+      "type": "number",
+      "name": "operand_value",
+      "title": {
+        "en": "Operand value",
+        "no": "Operandverdi"
+      },
+      "placeholder": {
+        "en": "Enter number or tag",
+        "no": "Skriv inn tall eller tagg"
+      }
+    },
+    {
+      "type": "dropdown",
+      "name": "comparison_operator",
+      "title": {
+        "en": "Comparison",
+        "no": "Sammenligning"
+      },
+      "values": [
+        {
+          "id": "lt",
+          "title": {
+            "en": "<",
+            "no": "<"
+          }
+        },
+        {
+          "id": "lte",
+          "title": {
+            "en": "<=",
+            "no": "<="
+          }
+        },
+        {
+          "id": "eq",
+          "title": {
+            "en": "=",
+            "no": "="
+          }
+        },
+        {
+          "id": "neq",
+          "title": {
+            "en": "!=",
+            "no": "!="
+          }
+        },
+        {
+          "id": "gte",
+          "title": {
+            "en": ">=",
+            "no": ">="
+          }
+        },
+        {
+          "id": "gt",
+          "title": {
+            "en": ">",
+            "no": ">"
+          }
+        }
+      ]
+    },
+    {
+      "type": "number",
+      "name": "right_value",
+      "title": {
+        "en": "Compare with",
+        "no": "Sammenlign med"
+      },
+      "placeholder": {
+        "en": "Enter number or tag",
+        "no": "Skriv inn tall eller tagg"
+      }
+    }
+  ],
+  "titleFormatted": {
+    "en": "[[left_value]] [[math_operator]] [[operand_value]] [[comparison_operator]] [[right_value]]",
+    "no": "[[left_value]] [[math_operator]] [[operand_value]] [[comparison_operator]] [[right_value]]"
+  }
+}

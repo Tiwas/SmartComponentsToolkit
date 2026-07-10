@@ -20,7 +20,7 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ### v1.10.17 (test channel)
 
 - **Math Compare (And card).** Calculate one value with `+`, `-`, `*` or `/`, then compare the result with another value. Useful for rules like `temperature + 3 is greater than high_threshold`.
-- **Gradient Map (Then card).** Map an input value from one range to another and expose the result as an `Output value` tag for the next card. Supports range offsets and configurable rounding, for example mapping `18-23` degrees into fan speed `100-500`.
+- **Gradient Map (Then card).** Map an input value from one range to another and expose the result as a `Mapped value` tag for the next card. Supports range offsets and configurable rounding, for example mapping `18-23` degrees into fan speed `100-500`.
 
 ---
 

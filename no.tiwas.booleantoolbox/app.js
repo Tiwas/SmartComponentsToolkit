@@ -656,7 +656,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 });
 
                 return {
-                    output_value: gradient.outputValue,
+                    mapped_value: gradient.outputValue,
                 };
             });
             this.logger.debug(" -> OK: ACTION card registered: 'calculate_gradient'");

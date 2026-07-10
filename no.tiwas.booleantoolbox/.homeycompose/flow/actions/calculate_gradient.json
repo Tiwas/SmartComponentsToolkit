@@ -44,6 +44,7 @@
         "en": "0",
         "no": "0"
       },
+      "defaultValue": 0,
       "required": false
     },
     {
@@ -69,6 +70,7 @@
         "en": "0",
         "no": "0"
       },
+      "defaultValue": 0,
       "required": false
     },
     {
@@ -106,16 +108,17 @@
         "en": "1",
         "no": "1"
       },
+      "defaultValue": 1,
       "required": false
     }
   ],
   "tokens": [
     {
-      "name": "output_value",
+      "name": "mapped_value",
       "type": "number",
       "title": {
-        "en": "Output value",
-        "no": "Output-verdi"
+        "en": "Mapped value",
+        "no": "Mappet verdi"
       },
       "example": 300
     }

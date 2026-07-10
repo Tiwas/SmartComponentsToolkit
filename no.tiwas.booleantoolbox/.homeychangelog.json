@@ -99,6 +99,6 @@
     "en": "Captures Homey device IDs and names so Flow Doctor (https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html) can resolve references to previously deleted devices."
   },
   "1.10.17": {
-    "en": "Added Math Compare and Gradient Map flow cards. Gradient Map outputs a tag and supports range offsets plus configurable rounding."
+    "en": "Added Math Compare and Gradient Map flow cards. Gradient Map outputs a Mapped value tag and supports range offsets plus configurable rounding."
   }
 }

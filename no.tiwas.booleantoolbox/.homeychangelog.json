@@ -100,5 +100,8 @@
   },
   "1.10.17": {
     "en": "Added Math Compare and Gradient Map flow cards. Gradient Map outputs a Mapped value tag and supports range offsets plus configurable rounding."
+  },
+  "1.10.18": {
+    "en": "Fixes the Gradient Map Advanced Flow token by exposing it as a distinct Mapped value tag."
   }
 }

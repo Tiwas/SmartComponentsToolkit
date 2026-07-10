@@ -86,6 +86,7 @@
                         <li><a href="#condition-formula-result" class="hover:text-purple-600">→ Formula result is...</a></li>
                         <li><a href="#condition-device-turned" class="hover:text-purple-600">→ Device is turned...</a></li>
                         <li><a href="#condition-has-error" class="hover:text-purple-600">→ Has error</a></li>
+                        <li><a href="#condition-math-compare" class="hover:text-purple-600">→ Math Compare</a></li>
                         <li><a href="#condition-gate-check" class="hover:text-purple-600">→ Gate is GO/NO GO</a></li>
                         <li><a href="#condition-gate-wait" class="hover:text-purple-600">→ Conditional Gate (Wait for GO)</a></li>
                         <li><a href="#condition-wait-until" class="hover:text-purple-600">→ Wait until becomes</a></li>
@@ -97,6 +98,7 @@
                         <li><a href="#action-set-input" class="hover:text-purple-600">→ Set input</a></li>
                         <li><a href="#action-evaluate" class="hover:text-purple-600">→ Evaluate formula</a></li>
                         <li><a href="#action-evaluate-expression" class="hover:text-purple-600">→ Evaluate expression</a></li>
+                        <li><a href="#action-gradient-map" class="hover:text-purple-600">→ Gradient Map</a></li>
                         <li><a href="#action-modify-gate" class="hover:text-purple-600">→ Modify Conditional Gate</a></li>
                         <li><a href="#action-wait" class="hover:text-purple-600">→ Wait</a></li>
                         <li><a href="#action-control-waiter" class="hover:text-purple-600">→ Control Waiter Gate</a></li>
@@ -254,6 +256,29 @@
                     <p class="text-gray-700"><strong>WHEN</strong> Every hour</p>
                     <p class="text-gray-700"><strong>AND</strong> [Security Logic] has any error</p>
                     <p class="text-gray-700"><strong>THEN</strong> Send notification "Check security logic configuration"</p>
+                </div>
+            </div>
+
+            <!-- Math Compare -->
+            <div id="condition-math-compare" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Math Compare: [left] [operator] [operand] is [comparison] [right]</h3>
+                <p class="text-gray-700 mb-4">Compares a calculated numeric value without creating a separate Logic variable. The left value can be a tag, then the card applies <code>+</code>, <code>-</code>, <code>*</code> or <code>/</code> before comparing against the right value.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">left_value</span> - Source value, for example a temperature tag</li>
+                        <li><span class="code-inline">math_operator</span> - Add, subtract, multiply or divide</li>
+                        <li><span class="code-inline">operand_value</span> - Number used by the math operator</li>
+                        <li><span class="code-inline">comparison_operator</span> - Greater than, less than, equal, etc.</li>
+                        <li><span class="code-inline">right_value</span> - Value or tag to compare against</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Heat pump / aircondition example:</p>
+                    <p class="text-gray-700"><strong>AND</strong> Temperature + 0 is greater than or equal to low_threshold_livingroom</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Run the Gradient Map branch and set fan speed from the mapped result</p>
                 </div>
             </div>
 
@@ -432,6 +457,42 @@
                 <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
                     <p class="font-semibold text-purple-700 mb-2">Example: Check comfortable temperature (18-24&deg;C):</p>
                     <p class="text-gray-700">Input: temperature token, Rules: <code>18,24</code>, Operators: <code>&ge;</code> AND <code>&le;</code></p>
+                </div>
+            </div>
+
+            <!-- Gradient Map -->
+            <div id="action-gradient-map" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Map [input] in range [from] to [to] into [output from] - [output to]</h3>
+                <p class="text-gray-700 mb-4">Maps a numeric input from one range into another and returns the result as a <code>Mapped value</code> tag for the next Advanced Flow card. Values outside the input range are clamped, and the result can be rounded to a selected step.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">input_value</span> - Current value, for example a temperature tag</li>
+                        <li><span class="code-inline">from_num</span> / <span class="code-inline">to_num</span> - Input range start and end</li>
+                        <li><span class="code-inline">from_num_offset</span> / <span class="code-inline">to_num_offset</span> - Optional offsets, default 0</li>
+                        <li><span class="code-inline">from_out</span> / <span class="code-inline">to_out</span> - Output range start and end</li>
+                        <li><span class="code-inline">round_to</span> - Rounding step, default 1. Examples: 1, 0.5, 0.05, 10</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output token:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">Mapped value</span> - The mapped and rounded number. Use this tag from the same Map card branch.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Heat pump / aircondition fan example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Temperature changes</p>
+                    <p class="text-gray-700"><strong>AND</strong> Temperature is less than low_threshold_livingroom</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Set fan speed to 0%</p>
+                    <p class="text-gray-700 mt-3"><strong>WHEN</strong> Temperature changes</p>
+                    <p class="text-gray-700"><strong>AND</strong> Temperature is greater than or equal to low_threshold_livingroom</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Map Temperature in range low_threshold_livingroom to high_threshold_livingroom into 100-500, round to 1</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Set the heat pump fan speed to <span class="code-inline">Mapped value</span></p>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">If a flow has more than one Map card, choose the <code>Mapped value</code> tag from the Map card on the same branch as the fan-speed action.</p>
                 </div>
             </div>
 
@@ -647,6 +708,7 @@
                 <li><strong>Use descriptive formula names:</strong> Makes flow cards more readable (e.g., "security_active" vs "formula1")</li>
                 <li><strong>Leverage State changed trigger:</strong> Logic Device's state changed trigger is perfect for toggle actions</li>
                 <li><strong>Test with Evaluate action:</strong> Manually trigger evaluation to test formulas without changing inputs</li>
+                <li><strong>Use Gradient Map for proportional control:</strong> Map temperatures, humidity, lux or other measurements into a device setting, then pass the <code>Mapped value</code> tag to the next card</li>
                 <li><strong>Monitor timeouts:</strong> Use timeout triggers to detect sensor failures or missing inputs</li>
             </ul>
         </div>

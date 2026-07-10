@@ -1,6 +1,6 @@
 {
   "name": "no.tiwas.booleantoolbox",
-  "version": "1.10.17",
+  "version": "1.10.18",
   "main": "app.js",
   "dependencies": {
     "homey-api": "^3.17.0",

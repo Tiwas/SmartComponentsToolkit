@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.17 test - Math Compare and Gradient Map]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.18 test - Math Compare and Gradient Map]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.17
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.18
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -17,16 +17,29 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 
 ## What's new
 
-### v1.10.17 (test channel)
+### v1.10.18 (test channel)
 
 - **Math Compare (And card).** Calculate one value with `+`, `-`, `*` or `/`, then compare the result with another value. Useful for rules like `temperature + 3 is greater than high_threshold`.
-- **Gradient Map (Then card).** Map an input value from one range to another and expose the result as a `Mapped value` tag for the next card. Supports range offsets and configurable rounding, for example mapping `18-23` degrees into fan speed `100-500`.
+- **Gradient Map (Then card).** Map an input value from one range to another and expose the result as a `Mapped value` tag for the next card. Supports range offsets and configurable rounding, for example mapping a room temperature into a heat pump / aircondition fan speed.
+- **Token fix (v1.10.18).** The Gradient Map token now has a distinct `Mapped value` tag, so it is easier to pick the token from the specific map card that actually ran.
+
+**Heat pump / aircondition example:**
+```
+WHEN: Temperature changes
+AND:  Temperature is less than low_threshold_livingroom
+THEN: Set fan speed to 0%
+
+WHEN: Temperature changes
+AND:  Temperature is greater than or equal to low_threshold_livingroom
+THEN: Map Temperature in range low_threshold_livingroom to high_threshold_livingroom into 100-500, round to 1
+THEN: Set fan speed to Mapped value
+```
 
 ---
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.17 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.18 is available on the test channel.
 
 ### Circadian Light Group highlights
 
@@ -78,7 +91,7 @@ Choose how the device knows how bright it is outside:
 
 <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">→ Install store v1.10.16</a>
 <br>
-<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.17</a>
+<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.18</a>
 
 ---
 
@@ -96,6 +109,8 @@ Choose how the device knows how bright it is outside:
 | **Conditional Gates** | Simple GO/NO GO flow control without variables or devices. |
 | **Waiter Gates** | Pause flow until a device capability reaches a target value. |
 | **Evaluate Expression** | Range checking and value mapping with AND/OR logic. |
+| **Math Compare** | Compare a calculated number, e.g. `Temperature + 3` against a threshold. |
+| **Gradient Map** | Map a number from one range to another and pass the `Mapped value` tag to the next card. |
 
 <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/devices.html" target="_blank">→ Complete Device Guide</a>
 
@@ -147,7 +162,7 @@ THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
 ## Installation and Links
 
 * **Homey App Store (v1.10.16):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
-* **Test channel (v1.10.17):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
+* **Test channel (v1.10.18):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
 * **GitHub Repo:** <a href="https://github.com/tiwas/SmartComponentsToolkit" target="_blank">github.com/tiwas/SmartComponentsToolkit</a>
 * **Online Emulator:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/emulator.html" target="_blank">Boolean Logic Emulator</a>
 * **Formula Builder:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/formula-builder.html" target="_blank">Formula Builder</a>

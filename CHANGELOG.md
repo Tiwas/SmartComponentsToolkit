@@ -6,6 +6,15 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.22] - August 2026 (Test channel)
+
+### Added
+- Added a **Composite value changed** device trigger with current value, previous value, value type, and device-name tags.
+- Added a numeric **Composite value changed by more than** trigger with fixed-unit or percentage thresholds plus signed, absolute, and percentage change tags.
+- Composite change triggers ignore the initial aggregate after app/device startup and only fire for real subsequent changes.
+
+---
+
 ## [1.10.21] - August 2026 (Test channel)
 
 ### Changed

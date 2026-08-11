@@ -7,10 +7,10 @@
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
 [![Stable](https://img.shields.io/badge/stable-1.10.9-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
-[![Test](https://img.shields.io/badge/test-1.10.21-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
+[![Test](https://img.shields.io/badge/test-1.10.22-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.21 test** — adds Composite Device to the Homey Store description and refreshes its small driver image. Composite Device combines live sensor, alarm, text, and clock-time values across multiple Homey devices.
+> **v1.10.22 test** — adds Composite Device Flow triggers for every exposed value change and for numeric changes above a configurable fixed or percentage threshold.
 
 ---
 
@@ -50,6 +50,7 @@ Combine the same capability from two or more Homey devices into one live virtual
 | **Numbers** | Average, minimum, maximum, sum, median |
 | **Booleans** | Any/all, majority, count on, percentage on |
 | **Text / time** | Most common, min/max, newest, circular average clock time |
+| **Flow triggers** | Any value change, or numeric change above a fixed/percentage threshold |
 
 [📚 Read Composite Device guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/composite-device.html)
 
@@ -137,7 +138,7 @@ THEN: Pop state (restore previous)
 
 ---
 
-### Circadian Light Group *(stable v1.10.16 / test v1.10.21)*
+### Circadian Light Group *(stable v1.10.16 / test v1.10.22)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 

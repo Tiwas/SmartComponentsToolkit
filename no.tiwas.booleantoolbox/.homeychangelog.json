@@ -112,5 +112,8 @@
   },
   "1.10.21": {
     "en": "Refresh the Composite Device small image and add the new device to the Homey Store description, community listing, and documentation."
+  },
+  "1.10.22": {
+    "en": "Add Composite Device Flow triggers for every value change and for numeric changes larger than a configurable fixed or percentage threshold."
   }
 }

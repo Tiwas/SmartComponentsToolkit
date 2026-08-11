@@ -1,0 +1,109 @@
+{
+  "id": "composite_value_changed_larger_than",
+  "title": {
+    "en": "Composite value changed by more than...",
+    "no": "Sammensatt verdi endret med mer enn..."
+  },
+  "titleFormatted": {
+    "en": "Composite value changed by more than [[threshold]] [[threshold_mode]]",
+    "no": "Sammensatt verdi endret med mer enn [[threshold]] [[threshold_mode]]"
+  },
+  "hint": {
+    "en": "For numeric Composite Devices. Triggers when the absolute change from the preceding exposed value is greater than the selected fixed or percentage threshold. A change from zero to a non-zero value counts as 100 percent.",
+    "no": "For numeriske Composite Device-er. Utløses når den absolutte endringen fra forrige eksponerte verdi er større enn valgt fast eller prosentvis terskel. En endring fra null til en verdi ulik null regnes som 100 prosent."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=composite-device&capabilities=measure_composite"
+    },
+    {
+      "type": "number",
+      "name": "threshold",
+      "title": {
+        "en": "Threshold",
+        "no": "Terskel"
+      },
+      "placeholder": {
+        "en": "Enter a non-negative number",
+        "no": "Skriv inn et ikke-negativt tall"
+      },
+      "min": 0
+    },
+    {
+      "type": "dropdown",
+      "name": "threshold_mode",
+      "title": {
+        "en": "Threshold type",
+        "no": "Terskeltype"
+      },
+      "values": [
+        {
+          "id": "fixed",
+          "title": {
+            "en": "fixed units",
+            "no": "faste enheter"
+          }
+        },
+        {
+          "id": "percentage",
+          "title": {
+            "en": "percent",
+            "no": "prosent"
+          }
+        }
+      ]
+    }
+  ],
+  "tokens": [
+    {
+      "name": "value",
+      "type": "number",
+      "title": {
+        "en": "Value",
+        "no": "Verdi"
+      }
+    },
+    {
+      "name": "previous_value",
+      "type": "number",
+      "title": {
+        "en": "Previous value",
+        "no": "Forrige verdi"
+      }
+    },
+    {
+      "name": "change",
+      "type": "number",
+      "title": {
+        "en": "Signed change",
+        "no": "Endring med fortegn"
+      }
+    },
+    {
+      "name": "absolute_change",
+      "type": "number",
+      "title": {
+        "en": "Absolute change",
+        "no": "Absolutt endring"
+      }
+    },
+    {
+      "name": "percentage_change",
+      "type": "number",
+      "title": {
+        "en": "Percentage change",
+        "no": "Prosentvis endring"
+      }
+    },
+    {
+      "name": "device_name",
+      "type": "string",
+      "title": {
+        "en": "Device name",
+        "no": "Enhetsnavn"
+      }
+    }
+  ]
+}

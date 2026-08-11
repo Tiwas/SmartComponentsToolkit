@@ -75,6 +75,8 @@
                 <div>
                     <h3 class="font-semibold mb-2 text-green-600">WHEN (Triggers)</h3>
                     <ul class="text-sm space-y-1 text-gray-700">
+                        <li><a href="#trigger-composite-changed" class="hover:text-purple-600">→ Composite value changed</a></li>
+                        <li><a href="#trigger-composite-threshold" class="hover:text-purple-600">→ Composite threshold</a></li>
                         <li><a href="#trigger-formula-changed" class="hover:text-purple-600">→ Formula changed to...</a></li>
                         <li><a href="#trigger-state-changed" class="hover:text-purple-600">→ State changed (LD)</a></li>
                         <li><a href="#trigger-timeout" class="hover:text-purple-600">→ Formula timed out</a></li>
@@ -112,6 +114,44 @@
             <div class="flex items-center gap-3 mb-6">
                 <h2 class="text-3xl font-bold text-green-600">WHEN Cards (Triggers)</h2>
                 <span class="card-type-badge badge-trigger">Trigger</span>
+            </div>
+
+            <!-- Composite Value Changed -->
+            <div id="trigger-composite-changed" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Composite value changed</h3>
+                <p class="text-gray-700 mb-4">Triggers whenever a Composite Device exposes a different numeric, boolean, or text value after its startup baseline has been established.</p>
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">value</span> - Current value as text</li>
+                        <li><span class="code-inline">previous_value</span> - Previous value as text</li>
+                        <li><span class="code-inline">value_type</span> - number, boolean, or string</li>
+                        <li><span class="code-inline">device_name</span> - Composite Device name</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Composite Threshold -->
+            <div id="trigger-composite-threshold" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Composite value changed by more than [threshold] [type]</h3>
+                <p class="text-gray-700 mb-4">For numeric Composite Devices. Compares consecutive exposed values and fires when the absolute fixed or percentage change is strictly greater than the configured threshold.</p>
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">threshold</span> - Non-negative number</li>
+                        <li><span class="code-inline">threshold type</span> - Fixed units or percent</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">value</span> / <span class="code-inline">previous_value</span></li>
+                        <li><span class="code-inline">change</span> - Signed difference</li>
+                        <li><span class="code-inline">absolute_change</span> - Absolute difference</li>
+                        <li><span class="code-inline">percentage_change</span> - Absolute percentage difference</li>
+                    </ul>
+                </div>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">A non-zero value following zero counts as a 100% change. Smaller consecutive changes are not accumulated.</p>
+                </div>
             </div>
 
             <!-- Formula Changed -->

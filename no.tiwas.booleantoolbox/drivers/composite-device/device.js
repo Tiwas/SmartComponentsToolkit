@@ -32,6 +32,8 @@ module.exports = class CompositeDevice extends Homey.Device {
     this._isDeleting = false;
     this.sourceListeners = new Map();
     this.sourceStates = new Map();
+    this.hasAggregateValue = false;
+    this.lastAggregateValue = undefined;
     this.configuration = this.getStoreValue("composite_config");
 
     if (!this.isConfigurationValid(this.configuration)) {
@@ -245,6 +247,104 @@ module.exports = class CompositeDevice extends Homey.Device {
   }
 
   /**
+   * Convert any supported aggregate value to a stable Flow token string.
+   *
+   * @param {boolean|number|string} value - Composite output value.
+   * @returns {string} String representation for the universal change card.
+   */
+  formatFlowValue(value) {
+    return typeof value === "string" ? value : String(value);
+  }
+
+  /**
+   * Calculate the absolute percentage change relative to the previous value.
+   *
+   * A non-zero value following zero is represented as 100 percent so Homey
+   * receives a finite number token and percentage thresholds remain useful.
+   *
+   * @param {number} previousValue - Previous numeric aggregate.
+   * @param {number} value - Current numeric aggregate.
+   * @returns {number} Absolute percentage change.
+   */
+  calculatePercentageChange(previousValue, value) {
+    const absoluteChange = Math.abs(value - previousValue);
+    if (previousValue === 0) return absoluteChange === 0 ? 0 : 100;
+    return (absoluteChange / Math.abs(previousValue)) * 100;
+  }
+
+  /**
+   * Trigger the universal change card and, for numeric output, the threshold
+   * card. Trigger errors are logged without invalidating the aggregate value.
+   *
+   * @param {boolean|number|string} previousValue - Previous aggregate value.
+   * @param {boolean|number|string} value - Current aggregate value.
+   * @returns {Promise<void>} Resolves after all applicable triggers settle.
+   */
+  async triggerValueChanged(previousValue, value) {
+    const deviceName = typeof this.getName === "function"
+      ? this.getName()
+      : "Composite Device";
+    const valueType = typeof value;
+    const triggers = [];
+    const queueTrigger = (cardId, tokens, state) => {
+      try {
+        const card = this.homey?.flow?.getDeviceTriggerCard?.(cardId);
+        if (card?.trigger) {
+          triggers.push(Promise.resolve(card.trigger(this, tokens, state)));
+        }
+      } catch (error) {
+        if (this.logger) {
+          this.logger.warn(`Could not trigger Composite value Flow: ${error.message}`);
+        }
+      }
+    };
+
+    queueTrigger(
+      "composite_value_changed",
+      {
+        value: this.formatFlowValue(value),
+        previous_value: this.formatFlowValue(previousValue),
+        value_type: valueType,
+        device_name: deviceName,
+      },
+      { value_type: valueType },
+    );
+
+    if (
+      typeof previousValue === "number"
+      && Number.isFinite(previousValue)
+      && typeof value === "number"
+      && Number.isFinite(value)
+    ) {
+      const change = value - previousValue;
+      const absoluteChange = Math.abs(change);
+      const percentageChange = this.calculatePercentageChange(previousValue, value);
+      queueTrigger(
+        "composite_value_changed_larger_than",
+        {
+          value,
+          previous_value: previousValue,
+          change,
+          absolute_change: absoluteChange,
+          percentage_change: percentageChange,
+          device_name: deviceName,
+        },
+        {
+          absolute_change: absoluteChange,
+          percentage_change: percentageChange,
+        },
+      );
+    }
+
+    const results = await Promise.allSettled(triggers);
+    results.forEach(result => {
+      if (result.status === "rejected" && this.logger) {
+        this.logger.warn(`Could not trigger Composite value Flow: ${result.reason?.message || result.reason}`);
+      }
+    });
+  }
+
+  /**
    * Recalculate the Composite Device output from all valid source values.
    *
    * @returns {Promise<boolean>} True when an aggregate value was produced.
@@ -265,9 +365,16 @@ module.exports = class CompositeDevice extends Homey.Device {
         this.configuration.sourceType,
         this.configuration.operation,
       );
+      const previousValue = this.lastAggregateValue;
+      const shouldTrigger = this.hasAggregateValue && !Object.is(previousValue, result.value);
       await this.safeSetCapabilityValue(this.configuration.outputCapability, result.value);
+      this.lastAggregateValue = result.value;
+      this.hasAggregateValue = true;
       await this.setSourceAlarm(result.count < this.configuration.sources.length);
       await this.setAvailable().catch(() => {});
+      if (shouldTrigger) {
+        await this.triggerValueChanged(previousValue, result.value);
+      }
       return true;
     } catch (error) {
       await this.setSourceAlarm(true);

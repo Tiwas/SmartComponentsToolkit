@@ -6,6 +6,7 @@ Composite Device
   - Booleans and alarms: any/all, majority, count on, and percentage on
   - Text and clock values: most common, min/max, newest, and circular average time
   - Continues with available sources and reports missing sources
+  - Flow triggers: every value change, or numeric change above a fixed/percentage threshold
 
 Circadian Light Group
   Control a group of lights as one virtual light with automatic brightness and color-temperature targets.

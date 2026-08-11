@@ -49,3 +49,45 @@
 - Confirmed in Homey Developer Tools that the test submission contains the complete Store README and updated Composite Device image.
 - Installed v1.10.21 successfully on the configured Homey Pro.
 - Prepared the v1.10.21 release commit with the documentation, community listing source, and image assets required for GitHub Pages.
+
+## 2026-08-11 — Composite Device value-change Flow triggers
+
+### Requested
+- Add a Composite Device trigger that fires whenever the exposed value changes.
+- Add a second trigger that fires only when a numeric change is larger than a user-selected fixed or percentage threshold.
+
+### Implemented
+- Added the device trigger `composite_value_changed` for numeric, boolean/alarm, and text/clock outputs, with current value, previous value, value type, and device-name tags.
+- Added `composite_value_changed_larger_than` for numeric Composite Devices, with per-Flow fixed-unit or percentage thresholds and current, previous, signed-change, absolute-change, and percentage-change tags.
+- Suppressed both triggers for the first successful aggregate after app/device startup so initialization only establishes the comparison baseline.
+- Defined percentage change against the absolute previous value; zero-to-nonzero transitions are represented as 100%, and thresholds compare consecutive values rather than accumulating smaller changes.
+- Isolated Flow trigger failures from aggregate capability updates and source-error reporting.
+- Updated the Composite Device guide, Flow-card reference, project documentation, Store README, root README, and changelog.
+
+### Verification
+- `npm test -- --runInBand`: 7 suites, 136 tests passed.
+- `homey app validate`: passed at publish level with both new trigger cards included.
+- JavaScript syntax, Flow-card JSON parsing, local documentation links, and `git diff --check` passed.
+
+### Release
+- Implemented and validated locally; no new version was published in this session.
+
+## 2026-08-11 — Composite Device trigger release v1.10.22
+
+### Requested
+- Publish the Composite Device value-change triggers as a new Homey test version and install it locally.
+- Update `HOMEY_COMMUNITY_LISTING.md`, push the release to GitHub, and leave `main` in the merged release state.
+
+### Implemented
+- Versioned the app and documentation as v1.10.22 and added the two new Composite Device triggers to the app changelog.
+- Updated the community listing source, Store README, root README, device guide, Flow-card reference, and version labels for the test release.
+
+### Verification
+- `npm test -- --runInBand`: 7 suites, 136 tests passed.
+- Homey publish validation passed and included both Composite Device trigger cards.
+- Homey Developer Tools confirmed Build 51 as v1.10.22 with the updated changelog and Store README.
+
+### Release
+- Uploaded Homey Build 51 as v1.10.22 and published it to the test channel.
+- Installed v1.10.22 successfully on `Lars's New Homey` after debug-level validation.
+- Prepared the v1.10.22 source, documentation, and community listing update for the GitHub release commit.

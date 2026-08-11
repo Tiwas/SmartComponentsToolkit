@@ -28,7 +28,8 @@
 *   **Driver:** `no.tiwas.booleantoolbox/drivers/composite-device/` contains discovery, the visual pairing page, realtime source listeners, and recovery handling.
 *   **Aggregation Engine:** `no.tiwas.booleantoolbox/lib/CompositeAggregator.js` implements numeric, boolean, text, enum, and circular clock-time calculations without Homey runtime dependencies.
 *   **Capabilities:** `measure_composite`, `alarm_composite`, and `composite_text` are selected dynamically during pairing; `alarm_config` reports missing sources.
-*   **Tests:** `CompositeAggregator.test.js` verifies calculation semantics and `CompositeDevice.test.js` verifies pairing, realtime updates, partial failures, and cleanup.
+*   **Flow Triggers:** `composite_value_changed` fires for subsequent numeric, boolean, or text output changes. `composite_value_changed_larger_than` filters numeric changes using a per-Flow fixed or percentage threshold.
+*   **Tests:** `CompositeAggregator.test.js` verifies calculation semantics and `CompositeDevice.test.js` verifies pairing, realtime updates, change triggers, threshold filters, partial failures, and cleanup.
 
 ## Project Structure
 *   `no.tiwas.booleantoolbox/`: Main Homey app source.

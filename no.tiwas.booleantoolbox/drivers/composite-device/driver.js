@@ -33,7 +33,38 @@ module.exports = class CompositeDeviceDriver extends Homey.Driver {
    */
   async onInit() {
     this.logger = new Logger(this, `Driver: ${this.id}`);
+    this.registerFlowCards();
     this.logger.info("Composite Device driver initialized");
+  }
+
+  /**
+   * Register Composite Device value-change trigger filters.
+   *
+   * The device emits both triggers for each numeric value change. Homey calls
+   * the threshold card run listener once per configured Flow so every Flow can
+   * use its own fixed or percentage threshold.
+   *
+   * @returns {void}
+   */
+  registerFlowCards() {
+    const changedCard = this.homey.flow.getDeviceTriggerCard("composite_value_changed");
+    changedCard.registerRunListener(async () => true);
+
+    const thresholdCard = this.homey.flow
+      .getDeviceTriggerCard("composite_value_changed_larger_than");
+    thresholdCard.registerRunListener(async (args, state) => {
+      const threshold = Number(args?.threshold);
+      if (!Number.isFinite(threshold) || threshold < 0) return false;
+
+      const mode = typeof args?.threshold_mode === "object"
+        ? args.threshold_mode?.id
+        : args?.threshold_mode;
+      const observedChange = mode === "percentage"
+        ? Number(state?.percentage_change)
+        : Number(state?.absolute_change);
+
+      return Number.isFinite(observedChange) && observedChange > threshold;
+    });
   }
 
   /**

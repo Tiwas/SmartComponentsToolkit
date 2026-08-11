@@ -18,6 +18,13 @@ jest.mock("./lib/Logger", () => class MockLogger {
 const CompositeDevice = require("./drivers/composite-device/device");
 const CompositeDeviceDriver = require("./drivers/composite-device/driver");
 
+function createTriggerCard() {
+  return {
+    registerRunListener: jest.fn(),
+    trigger: jest.fn(async () => {}),
+  };
+}
+
 function createCapabilityTarget(id, capabilityId, value, options = {}) {
   let listener = null;
   const capabilityInstance = {
@@ -58,6 +65,10 @@ function createCapabilityTarget(id, capabilityId, value, options = {}) {
 
 function createCompositeDevice(configuration, targets) {
   const device = new CompositeDevice();
+  const triggerCards = new Map([
+    ["composite_value_changed", createTriggerCard()],
+    ["composite_value_changed_larger_than", createTriggerCard()],
+  ]);
   const capabilityValues = new Map([
     [configuration.outputCapability, null],
     ["alarm_config", null],
@@ -74,8 +85,12 @@ function createCompositeDevice(configuration, targets) {
         },
       })),
     },
+    flow: {
+      getDeviceTriggerCard: jest.fn(cardId => triggerCards.get(cardId)),
+    },
   };
   device.getStoreValue = jest.fn(() => configuration);
+  device.getName = jest.fn(() => "Test Composite");
   device.hasCapability = jest.fn(capabilityId => capabilityValues.has(capabilityId));
   device.addCapability = jest.fn(async capabilityId => capabilityValues.set(capabilityId, null));
   device.getCapabilityValue = jest.fn(capabilityId => capabilityValues.get(capabilityId));
@@ -85,6 +100,7 @@ function createCompositeDevice(configuration, targets) {
   device.setAvailable = jest.fn(async () => {});
   device.setUnavailable = jest.fn(async () => {});
   device.capabilityValues = capabilityValues;
+  device.triggerCards = triggerCards;
   return device;
 }
 
@@ -125,10 +141,43 @@ describe("CompositeDevice", () => {
     expect(device.capabilityValues.get("measure_composite")).toBe(65);
     expect(device.capabilityValues.get("alarm_config")).toBe(false);
     expect(device.setAvailable).toHaveBeenCalled();
+    expect(device.triggerCards.get("composite_value_changed").trigger).not.toHaveBeenCalled();
+    expect(device.triggerCards.get("composite_value_changed_larger_than").trigger)
+      .not.toHaveBeenCalled();
 
     await first.emitValue(72);
     expect(device.capabilityValues.get("measure_composite")).toBe(72);
     expect(device.capabilityValues.get("alarm_config")).toBe(false);
+    expect(device.triggerCards.get("composite_value_changed").trigger).toHaveBeenCalledWith(
+      device,
+      {
+        value: "72",
+        previous_value: "65",
+        value_type: "number",
+        device_name: "Test Composite",
+      },
+      { value_type: "number" },
+    );
+    expect(device.triggerCards.get("composite_value_changed_larger_than").trigger)
+      .toHaveBeenCalledWith(
+        device,
+        expect.objectContaining({
+          value: 72,
+          previous_value: 65,
+          change: 7,
+          absolute_change: 7,
+          percentage_change: expect.closeTo((7 / 65) * 100),
+        }),
+        {
+          absolute_change: 7,
+          percentage_change: expect.closeTo((7 / 65) * 100),
+        },
+      );
+
+    await first.emitValue(72);
+    expect(device.triggerCards.get("composite_value_changed").trigger).toHaveBeenCalledTimes(1);
+    expect(device.triggerCards.get("composite_value_changed_larger_than").trigger)
+      .toHaveBeenCalledTimes(1);
 
     await device.onDeleted();
     expect(first.capabilityInstance.destroy).toHaveBeenCalledTimes(1);
@@ -160,6 +209,47 @@ describe("CompositeDevice", () => {
     expect(device.setUnavailable).toHaveBeenCalledWith(expect.stringContaining("No selected source"));
     await device.onDeleted();
   });
+
+  test("fires the universal card for boolean changes without the numeric threshold card", async () => {
+    const first = createCapabilityTarget("sensor-1", "alarm_contact", false, {
+      type: "boolean",
+    });
+    const second = createCapabilityTarget("sensor-2", "alarm_contact", false, {
+      type: "boolean",
+    });
+    const device = createCompositeDevice(createConfig({
+      capabilityId: "alarm_contact",
+      sourceType: "boolean",
+      operation: "max",
+      outputCapability: "alarm_composite",
+    }), {
+      "sensor-1": first,
+      "sensor-2": second,
+    });
+
+    await device.onInit();
+    await first.emitValue(true);
+
+    expect(device.triggerCards.get("composite_value_changed").trigger).toHaveBeenCalledWith(
+      device,
+      expect.objectContaining({
+        value: "true",
+        previous_value: "false",
+        value_type: "boolean",
+      }),
+      { value_type: "boolean" },
+    );
+    expect(device.triggerCards.get("composite_value_changed_larger_than").trigger)
+      .not.toHaveBeenCalled();
+    await device.onDeleted();
+  });
+
+  test("represents a numeric change from zero as one hundred percent", () => {
+    const device = new CompositeDevice();
+    expect(device.calculatePercentageChange(0, 5)).toBe(100);
+    expect(device.calculatePercentageChange(0, -5)).toBe(100);
+    expect(device.calculatePercentageChange(50, 55)).toBe(10);
+  });
 });
 
 describe("CompositeDeviceDriver", () => {
@@ -179,9 +269,16 @@ describe("CompositeDeviceDriver", () => {
       decimals: 1,
     });
     const driver = new CompositeDeviceDriver();
+    const flowCards = new Map([
+      ["composite_value_changed", createTriggerCard()],
+      ["composite_value_changed_larger_than", createTriggerCard()],
+    ]);
     driver.id = "composite-device";
     driver.homey = {
       i18n: { getLanguage: () => "en" },
+      flow: {
+        getDeviceTriggerCard: jest.fn(cardId => flowCards.get(cardId)),
+      },
       app: {
         ensureHomeyApi: jest.fn(async () => ({
           devices: {
@@ -198,8 +295,37 @@ describe("CompositeDeviceDriver", () => {
         })),
       },
     };
+    driver.flowCards = flowCards;
     return driver;
   }
+
+  test("registers fixed and percentage threshold filters", async () => {
+    const driver = createDriver();
+    await driver.onInit();
+
+    const changedListener = driver.flowCards.get("composite_value_changed")
+      .registerRunListener.mock.calls[0][0];
+    const thresholdListener = driver.flowCards.get("composite_value_changed_larger_than")
+      .registerRunListener.mock.calls[0][0];
+
+    await expect(changedListener({}, {})).resolves.toBe(true);
+    await expect(thresholdListener(
+      { threshold: 5, threshold_mode: "fixed" },
+      { absolute_change: 6, percentage_change: 3 },
+    )).resolves.toBe(true);
+    await expect(thresholdListener(
+      { threshold: 5, threshold_mode: "fixed" },
+      { absolute_change: 5, percentage_change: 99 },
+    )).resolves.toBe(false);
+    await expect(thresholdListener(
+      { threshold: 10, threshold_mode: { id: "percentage" } },
+      { absolute_change: 1, percentage_change: 10.1 },
+    )).resolves.toBe(true);
+    await expect(thresholdListener(
+      { threshold: -1, threshold_mode: "fixed" },
+      { absolute_change: 10, percentage_change: 10 },
+    )).resolves.toBe(false);
+  });
 
   test("discovers shared capabilities and creates a dynamic output device", async () => {
     const driver = createDriver();

@@ -1,0 +1,52 @@
+{
+  "id": "composite_value_changed",
+  "title": {
+    "en": "Composite value changed",
+    "no": "Sammensatt verdi endret"
+  },
+  "hint": {
+    "en": "Triggers whenever the value exposed by this Composite Device changes. The first value after app or device startup does not trigger the card.",
+    "no": "Utløses når verdien denne Composite Device-en eksponerer endres. Den første verdien etter oppstart av appen eller enheten utløser ikke kortet."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=composite-device"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "value",
+      "type": "string",
+      "title": {
+        "en": "Value",
+        "no": "Verdi"
+      }
+    },
+    {
+      "name": "previous_value",
+      "type": "string",
+      "title": {
+        "en": "Previous value",
+        "no": "Forrige verdi"
+      }
+    },
+    {
+      "name": "value_type",
+      "type": "string",
+      "title": {
+        "en": "Value type",
+        "no": "Verditype"
+      }
+    },
+    {
+      "name": "device_name",
+      "type": "string",
+      "title": {
+        "en": "Device name",
+        "no": "Enhetsnavn"
+      }
+    }
+  ]
+}

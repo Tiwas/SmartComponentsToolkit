@@ -6,6 +6,15 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.21] - August 2026 (Test channel)
+
+### Changed
+- Expanded the Homey Store description with every current and legacy device plus all standalone Flow-card families.
+- Refreshed the **Composite Device** small driver image.
+- Updated the community listing and online documentation to identify Composite Device as available in test version 1.10.21.
+
+---
+
 ## [1.10.20] - August 2026 (Test channel)
 
 ### Added

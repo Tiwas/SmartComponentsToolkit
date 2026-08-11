@@ -109,5 +109,8 @@
   },
   "1.10.20": {
     "en": "Add Composite Device for live minimum, maximum, average, sum, median, alarm, text, and clock-time aggregation across multiple devices. Also add illustrated Logic Unit documentation."
+  },
+  "1.10.21": {
+    "en": "Refresh the Composite Device small image and add the new device to the Homey Store description, community listing, and documentation."
   }
 }

@@ -6,6 +6,21 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.20] - August 2026 (Test channel)
+
+### Added
+- Added **Composite Device**, a visual pairing wizard that combines the same capability from two or more Homey devices.
+- Numeric aggregation supports average, minimum, maximum, sum, and median while preserving source units and precision.
+- Boolean aggregation supports any/all, majority, count on, and percentage on; contact alarms can therefore be grouped without a separate Group app.
+- Text and enum aggregation supports most common, min/max, newest, and circular average clock time across midnight.
+- Added an illustrated Composite Device guide and screenshots explaining Logic Unit setup and Flow usage.
+
+### Reliability
+- Composite Device continues with available sources, exposes a Source Error alarm for partial failures, and reconnects sources periodically.
+- Includes the pending v1.10.19 Logic Device restart and Circadian Light Group verification fixes.
+
+---
+
 ## [1.10.16] - July 2026 (Test channel)
 
 ### Added

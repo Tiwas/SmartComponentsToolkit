@@ -179,139 +179,6 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     });
   }
 
-  async onSettings({ oldSettings, newSettings, changedKeys }) {
-    this.logger.info("🔧 onSettings called", {
-      changedKeys: changedKeys.join(", "),
-    });
-
-    try {
-      // Validate formulas
-      if (changedKeys.includes("formulas")) {
-        this.logger.info("📝 Validating formulas...");
-
-        let formulas;
-        try {
-          formulas = JSON.parse(newSettings.formulas);
-          this.logger.info(`📊 Parsed ${formulas.length} formula(s)`);
-        } catch (e) {
-          this.logger.error("❌ JSON parse error", { error: e.message });
-          throw new Error(
-            this.homey.__("settings.invalid_json", {
-              field: "formulas",
-              error: e.message,
-            }),
-          );
-        }
-
-        // IMPORTANT: Limit to one formula for Logic Device
-        if (formulas.length > 1) {
-          this.logger.error(`❌ TOO MANY FORMULAS: ${formulas.length} formulas found, but Logic Device only supports 1`);
-          throw new Error(
-            "Logic Device kan kun ha én formel. " +
-              "For flere formler, bruk Logic Unit (Dynamic) i stedet.",
-          );
-        }
-
-        this.logger.info("✅ Formula count validation passed");
-
-        // Valider hver formel
-        for (const formula of formulas) {
-          // Sjekk at ID er gyldig
-          if (!formula.id || !/^[a-zA-Z0-9_-]+$/.test(formula.id)) {
-            throw new Error(
-              `Ugyldig formel-ID: "${formula.id}". ` +
-                "ID må bare inneholde bokstaver, tall, bindestrek og understrek.",
-            );
-          }
-
-          // Valider expression
-          if (formula.expression) {
-            const validation = this.validateExpression(formula.expression);
-            if (!validation.valid) {
-              throw new Error(
-                `Ugyldig formel "${formula.name}": ${validation.error}`,
-              );
-            }
-          }
-        }
-
-        // Sjekk for duplikate ID-er
-        const ids = formulas.map((f) => f.id);
-        const uniqueIds = new Set(ids);
-        if (ids.length !== uniqueIds.size) {
-          throw new Error(
-            "Duplikate formel-ID-er funnet. Hver formel må ha unik ID.",
-          );
-        }
-      }
-
-      // Valider input_links
-      if (changedKeys.includes("input_links")) {
-        let inputLinks;
-        try {
-          inputLinks = JSON.parse(newSettings.input_links);
-        } catch (e) {
-          throw new Error(
-            this.homey.__("settings.invalid_json", {
-              field: "input_links",
-              error: e.message,
-            }),
-          );
-        }
-
-        // Valider at hver input bare er linket én gang
-        const inputCounts = {};
-        for (const link of inputLinks) {
-          const input = link.input?.toLowerCase();
-          if (input) {
-            inputCounts[input] = (inputCounts[input] || 0) + 1;
-            if (inputCounts[input] > 1) {
-              throw new Error(
-                `Input "${input.toUpperCase()}" er linket flere ganger. ` +
-                  "Hver input kan bare linkes til én enhet/capability.",
-              );
-            }
-          }
-        }
-      }
-
-      // Hvis alt er OK, fortsett med å oppdatere innstillinger
-      this.logger.info("settings.validated_successfully");
-
-      // Re-initialiser enheten med nye innstillinger
-      await this.initializeFormulas();
-      await this.setupDeviceLinks();
-
-      // Update alarm_config based on validation
-      await this.updateConfigAlarm();
-
-      await this.refetchAndEvaluate("settings_changed");
-
-      return true;
-    } catch (error) {
-      this.logger.error("settings.validation_failed", {
-        message: error.message,
-      });
-
-      // Set alarm_config to true to show error visually
-      try {
-        const previousAlarmConfig = this.getCapabilityValue("alarm_config");
-        await this.setCapabilityValue("alarm_config", true);
-
-        // Trigger flow cards if state changed
-        if (previousAlarmConfig !== true) {
-          await this.triggerConfigAlarmChanged(true);
-        }
-      } catch (e) {
-        this.logger.error("Failed to set alarm_config during validation error", {
-          error: e.message,
-        });
-      }
-
-      throw error;
-    }
-  }
-
   async checkSettingsChanged() {
     const currentSettings = this.getSettings();
     const currentFormulas = currentSettings.formulas;
@@ -333,7 +200,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       await this.updateConfigAlarm();
 
       // Re-evaluate formulas with new settings
-      await this.refetchAndEvaluate("settings_changed");
+      await this.refetchInputsAndEvaluate("settings_changed");
 
       this.logger.debug("✅ Settings reloaded and validated");
     }
@@ -484,6 +351,14 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     return inputs.join(" AND ");
   }
 
+  async getHomeyApi() {
+    const app = this.homey?.app;
+    if (app && typeof app.ensureHomeyApi === "function") {
+      return app.ensureHomeyApi();
+    }
+    return app?.api || null;
+  }
+
   async setupDeviceLinks() {
     // Clean up old listeners first
     for (const [key, entry] of this.deviceListeners.entries()) {
@@ -533,7 +408,8 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
   }
 
   async fetchInitialValues(inputLinks) {
-    if (!this.homey.app.api) {
+    const api = await this.getHomeyApi();
+    if (!api?.devices?.getDevice) {
       this.logger.error("initial.api_unavailable");
       return;
     }
@@ -541,17 +417,18 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     for (const link of inputLinks) {
       const { input, deviceId, capability } = link;
       if (!input || !deviceId || !capability) continue;
+      const inputId = String(input).toLowerCase();
 
       try {
         this.logger.debug("initial.fetching_input", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
         });
-        const device = await this.homey.app.api.devices.getDevice({
+        const device = await api.devices.getDevice({
           id: deviceId,
         });
         if (!device) {
           this.logger.warn("initial.device_not_found", {
-            input: input.toUpperCase(),
+            input: inputId.toUpperCase(),
           });
           continue;
         }
@@ -570,7 +447,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         }
 
         this.logger.input("initial.received_value", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
           value: initialValue,
         });
 
@@ -578,22 +455,23 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
           const boolValue = this.convertToBoolean(initialValue, capability);
 
           this.logger.debug("initial.value_received", {
-            input: input.toUpperCase(),
+            input: inputId.toUpperCase(),
             value: initialValue,
             boolean: boolValue,
           });
 
           for (const formula of this.formulas) {
-            formula.inputStates[input] = boolValue;
+            formula.inputStates[inputId] = boolValue;
+            formula.lastInputTime = Date.now();
           }
         } else {
           this.logger.warn("initial.no_value_waiting", {
-            input: input.toUpperCase(),
+            input: inputId.toUpperCase(),
           });
         }
       } catch (e) {
         this.logger.error("initial.error", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
           message: e.message,
         });
       }
@@ -629,34 +507,36 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
   async setupDeviceListener(link) {
     const { input, deviceId, capability, deviceName } = link;
+    const inputId = String(input || "").toLowerCase();
 
     this.logger.debug("listener.setting_up", {
-      input: input.toUpperCase(),
+      input: inputId.toUpperCase(),
       deviceName,
       deviceId,
       capability,
     });
 
-    if (!input || !deviceId || !capability) {
+    if (!inputId || !deviceId || !capability) {
       this.logger.error("listener.invalid_config", {
-        input: input?.toUpperCase(),
+        input: inputId ? inputId.toUpperCase() : undefined,
       });
       return;
     }
 
     try {
-      if (!this.homey.app.api) {
+      const api = await this.getHomeyApi();
+      if (!api?.devices?.getDevice) {
         this.logger.error("listener.api_unavailable");
         return;
       }
 
-      const targetDevice = await this.homey.app.api.devices.getDevice({
+      const targetDevice = await api.devices.getDevice({
         id: deviceId,
       });
 
       if (!targetDevice) {
         this.logger.error("listener.device_not_found", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
           device: deviceId,
         });
         return;
@@ -670,7 +550,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         !targetDevice.capabilities.includes(capability)
       ) {
         this.logger.error("listener.capability_not_exist", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
           capability,
           device: deviceId,
           available: targetDevice.capabilities,
@@ -685,7 +565,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         if (this._isDeleting) return;
 
         this.logger.input("listener.event_received", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
           device: targetDevice.name,
           capability,
           value,
@@ -694,7 +574,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         const boolValue = this.convertToBoolean(value, capability);
 
         this.logger.debug("listener.capability_changed", {
-          input: input.toUpperCase(),
+          input: inputId.toUpperCase(),
           capability,
           value,
           boolean: boolValue,
@@ -702,7 +582,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
         for (const formula of this.formulas) {
           try {
-            await this.setInputForFormula(formula.id, input, boolValue);
+            await this.setInputForFormula(formula.id, inputId, boolValue);
           } catch (err) {
             if (!this._isDeleting)
               this.logger.error("formula.set_input_error", {
@@ -720,19 +600,19 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         listenerFn,
       );
 
-      const listenerKey = `${input}-${deviceId}-${capability}`;
+      const listenerKey = `${inputId}-${deviceId}-${capability}`;
       this.deviceListeners.set(listenerKey, {
         unregister: () => capabilityInstance.destroy(),
       });
 
       this.logger.debug("listener.registered", {
-        input: input.toUpperCase(),
+        input: inputId.toUpperCase(),
         device: targetDevice.name,
         capability,
       });
     } catch (e) {
       this.logger.error("listener.error_setup", {
-        input: input.toUpperCase(),
+        input: inputId.toUpperCase(),
         message: e.message,
       });
       this.logger.debug(e.stack);
@@ -1789,30 +1669,17 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
     let parsedFormulas = [];
     if (changedKeys.includes("formulas")) {
-      try {
-        let rawFormulas = newSettings.formulas;
+      let rawFormulas = newSettings.formulas;
 
-        this.logger.debug("debug.raw_formulas", {
-          formulas: rawFormulas,
-        });
+      this.logger.debug("debug.raw_formulas", {
+        formulas: rawFormulas,
+      });
+
+      try {
         parsedFormulas =
           typeof rawFormulas === "string"
             ? JSON.parse(rawFormulas)
             : rawFormulas;
-
-        const formatted = JSON.stringify(parsedFormulas, null, 2);
-        const original =
-          typeof newSettings.formulas === "string"
-            ? newSettings.formulas
-            : JSON.stringify(newSettings.formulas);
-        if (formatted !== original) {
-          formatSettings.formulas = formatted;
-          needsFormat = true;
-
-          this.logger.debug("settings.formatting", {
-            type: "formulas",
-          });
-        }
       } catch (e) {
         this.logger.error("parse.error_formulas_json", {
           message: e.message,
@@ -1823,32 +1690,43 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
           }),
         );
       }
+
+      if (!Array.isArray(parsedFormulas)) {
+        throw new Error("Formulas setting must be a JSON array.");
+      }
+      if (parsedFormulas.length > 1) {
+        throw new Error(
+          "Logic Device kan kun ha én formel. " +
+            "For flere formler, bruk Logic Unit (Dynamic) i stedet.",
+        );
+      }
+
+      const formatted = JSON.stringify(parsedFormulas, null, 2);
+      const original =
+        typeof newSettings.formulas === "string"
+          ? newSettings.formulas
+          : JSON.stringify(newSettings.formulas);
+      if (formatted !== original) {
+        formatSettings.formulas = formatted;
+        needsFormat = true;
+
+        this.logger.debug("settings.formatting", {
+          type: "formulas",
+        });
+      }
     }
 
     let parsedLinks = [];
     if (changedKeys.includes("input_links")) {
-      try {
-        let rawLinks = newSettings.input_links;
+      let rawLinks = newSettings.input_links;
 
-        this.logger.debug("debug.raw_input_links", {
-          links: rawLinks,
-        });
+      this.logger.debug("debug.raw_input_links", {
+        links: rawLinks,
+      });
+
+      try {
         parsedLinks =
           typeof rawLinks === "string" ? JSON.parse(rawLinks) : rawLinks;
-
-        const formatted = JSON.stringify(parsedLinks, null, 2);
-        const original =
-          typeof newSettings.input_links === "string"
-            ? newSettings.input_links
-            : JSON.stringify(newSettings.input_links);
-        if (formatted !== original) {
-          formatSettings.input_links = formatted;
-          needsFormat = true;
-
-          this.logger.debug("settings.formatting", {
-            type: "input_links",
-          });
-        }
       } catch (e) {
         this.logger.error("parse.error_input_links", {
           message: e.message,
@@ -1858,6 +1736,36 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
             message: e.message,
           }),
         );
+      }
+
+      if (!Array.isArray(parsedLinks)) {
+        throw new Error("Input links setting must be a JSON array.");
+      }
+      const inputCounts = {};
+      for (const link of parsedLinks) {
+        const input = link.input?.toLowerCase();
+        if (!input) continue;
+        inputCounts[input] = (inputCounts[input] || 0) + 1;
+        if (inputCounts[input] > 1) {
+          throw new Error(
+            `Input "${input.toUpperCase()}" er linket flere ganger. ` +
+              "Hver input kan bare linkes til én enhet/capability.",
+          );
+        }
+      }
+
+      const formatted = JSON.stringify(parsedLinks, null, 2);
+      const original =
+        typeof newSettings.input_links === "string"
+          ? newSettings.input_links
+          : JSON.stringify(newSettings.input_links);
+      if (formatted !== original) {
+        formatSettings.input_links = formatted;
+        needsFormat = true;
+
+        this.logger.debug("settings.formatting", {
+          type: "input_links",
+        });
       }
     }
 
@@ -1953,19 +1861,21 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       this.logger.warn("polling.no_links");
       return;
     }
-    if (!this.homey.app.api) {
+    const api = await this.getHomeyApi();
+    if (!api?.devices?.getDevice) {
       this.logger.error("polling.api_unavailable");
       return;
     }
 
     for (const link of links) {
+      const inputId = String(link.input || "").toLowerCase();
       this.logger.debug("polling.input", {
-        input: link.input,
+        input: inputId,
         device: link.deviceId,
         capability: link.capability,
       });
       try {
-        const dev = await this.homey.app.api.devices.getDevice({
+        const dev = await api.devices.getDevice({
           id: link.deviceId,
         });
         if (!dev) {
@@ -1989,7 +1899,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
         if (raw === null || raw === undefined) {
           this.logger.warn("polling.no_value", {
-            input: link.input.toUpperCase(),
+            input: inputId.toUpperCase(),
             capability: link.capability,
           }); // FIKSET: Fjernet ekstra parentes her
           continue;
@@ -1998,13 +1908,13 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         const boolValue = this.convertToBoolean(raw, link.capability);
 
         this.logger.input("polling.value_received", {
-          input: link.input.toUpperCase(),
+          input: inputId.toUpperCase(),
           value: raw,
           boolean: boolValue,
         });
 
         for (const formula of this.formulas) {
-          formula.inputStates[link.input] = boolValue;
+          formula.inputStates[inputId] = boolValue;
           if (boolValue !== "undefined") {
             formula.lastInputTime = Date.now();
           }

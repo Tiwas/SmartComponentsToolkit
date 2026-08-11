@@ -103,5 +103,11 @@
   },
   "1.10.18": {
     "en": "Fixes the Gradient Map Advanced Flow token by exposing it as a distinct Mapped value tag."
+  },
+  "1.10.19": {
+    "en": "Fix Logic Device groups that depend on other Logic Devices after app restart, and improve Circadian Light Group member verification handling."
+  },
+  "1.10.20": {
+    "en": "Add Composite Device for live minimum, maximum, average, sum, median, alarm, text, and clock-time aggregation across multiple devices. Also add illustrated Logic Unit documentation."
   }
 }

@@ -990,6 +990,31 @@ class CircadianLightGroupDevice extends Homey.Device {
     }
   }
 
+  async reportMemberTaskVerification(label, result, expectedDescription, { clearAlarmOnSuccess = true } = {}) {
+    if (result?.superseded) {
+      this.debug(`${label}: superseded before final verification summary`);
+      return true;
+    }
+
+    const ok = Array.isArray(result?.ok) ? result.ok : [];
+    const failed = Array.isArray(result?.failed) ? result.failed : [];
+    if (failed.length === 0) {
+      this.debug(`${label}: verified ${ok.length} member(s) ${expectedDescription}`);
+      if (clearAlarmOnSuccess) {
+        await this.setCapabilityValue('alarm_config', false).catch(this.error);
+      }
+      return true;
+    }
+
+    const names = failed
+      .map(res => res.item?.name || res.item?.id || '<unknown>')
+      .join(', ');
+    this.debug(`${label}: ${failed.length} member(s) not verified ${expectedDescription}: ${names}`);
+    await this.setCapabilityValue('alarm_config', true).catch(this.error);
+    await this.triggerError(`${label}: ${failed.length} light(s) not verified ${expectedDescription}: ${names}`);
+    return false;
+  }
+
   applyOverridesToTarget(target) {
     const now = Date.now();
 
@@ -1141,19 +1166,30 @@ class CircadianLightGroupDevice extends Homey.Device {
     const item = (Array.isArray(config.devices) ? config.devices : []).find(d => d.id === memberId);
     if (!item) throw new Error('Light is not a member of this group');
 
+    if (this.getCapabilityValue('clg_paused') === true) {
+      this.debug(`turn_on_member[${item.name || item.id}]: SKIPPED turn on because clg_paused=true`);
+      return true;
+    }
+
     const op = this.acquireOp('turn_on_member');
     const target = await this.computeCurrentTarget(config);
-    const verifyFn = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true
+    const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+    const verifyFn = verifiesTarget
       ? (member) => this.verifyMemberTarget(member, target)
       : (member) => this.verifyMemberOnoff(member, true);
-    await this.runDeviceTasksParallel([item], async (member) => {
+    const result = await this.runDeviceTasksParallel([item], async (member) => {
       await this.turnOnMemberToTarget(member, target);
     }, {
       label: 'turn_on_member',
       verifyFn,
       isCurrent: op.isCurrent,
     });
-    return true;
+    return this.reportMemberTaskVerification(
+      `turn_on_member[${item.name || item.id}]`,
+      result,
+      verifiesTarget ? 'on and at target after retries' : 'on after retries',
+      { clearAlarmOnSuccess: false }
+    );
   }
 
   async onFlowTurnOnAllMembers() {
@@ -1161,19 +1197,29 @@ class CircadianLightGroupDevice extends Homey.Device {
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
     if (members.length === 0) return true;
 
+    if (this.getCapabilityValue('clg_paused') === true) {
+      this.debug(`turn_on_all_members: SKIPPED ${members.length} member(s) because clg_paused=true`);
+      return true;
+    }
+
     const op = this.acquireOp('turn_on_all_members');
     const target = await this.computeCurrentTarget(config);
-    const verifyFn = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true
+    const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+    const verifyFn = verifiesTarget
       ? (item) => this.verifyMemberTarget(item, target)
       : (item) => this.verifyMemberOnoff(item, true);
-    await this.runDeviceTasksParallel(members, async (item) => {
+    const result = await this.runDeviceTasksParallel(members, async (item) => {
       await this.turnOnMemberToTarget(item, target);
     }, {
       label: 'turn_on_all_members',
       verifyFn,
       isCurrent: op.isCurrent,
     });
-    return true;
+    return this.reportMemberTaskVerification(
+      'turn_on_all_members',
+      result,
+      verifiesTarget ? 'on and at target after retries' : 'on after retries'
+    );
   }
 
   async onFlowTurnOffAllMembers() {
@@ -1182,7 +1228,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (members.length === 0) return true;
 
     const op = this.acquireOp('turn_off_all_members');
-    await this.runDeviceTasksParallel(members, async (item) => {
+    const result = await this.runDeviceTasksParallel(members, async (item) => {
       const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
       if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== false) {
         await apiDevice.setCapabilityValue('onoff', false);
@@ -1192,7 +1238,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       verifyFn: (item) => this.verifyMemberOnoff(item, false),
       isCurrent: op.isCurrent,
     });
-    return true;
+    return this.reportMemberTaskVerification('turn_off_all_members', result, 'off after retries');
   }
 
   async computeCurrentTarget(config) {
@@ -1210,7 +1256,12 @@ class CircadianLightGroupDevice extends Homey.Device {
   }
 
   async turnOnMemberToTarget(item, target) {
-    const clgActive = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+    if (this.getCapabilityValue('clg_paused') === true) {
+      this.debug(`turn_on_member[${item.name || item.id}]: SKIPPED turn on because clg_paused=true`);
+      return;
+    }
+
+    const clgActive = this.getCapabilityValue('onoff') === true;
     if (!clgActive) {
       const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
       await this.setMemberOnoff(apiDevice, item, true);
@@ -1279,8 +1330,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       await this.persistOnoffState(true);
       await this.fireOnoffTrigger(true);
     }
-    await this.onFlowTurnOnAllMembers();
-    return true;
+    return this.onFlowTurnOnAllMembers();
   }
 
   async onFlowTurnOff() {
@@ -1290,8 +1340,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       await this.persistOnoffState(false);
       await this.fireOnoffTrigger(false);
     }
-    await this.onFlowTurnOffAllMembers();
-    return true;
+    return this.onFlowTurnOffAllMembers();
   }
 
   async onFlowToggle() {
@@ -1300,11 +1349,10 @@ class CircadianLightGroupDevice extends Homey.Device {
     await this.persistOnoffState(next);
     await this.fireOnoffTrigger(next);
     if (next) {
-      await this.onFlowTurnOnAllMembers();
+      return this.onFlowTurnOnAllMembers();
     } else {
-      await this.onFlowTurnOffAllMembers();
+      return this.onFlowTurnOffAllMembers();
     }
-    return true;
   }
 
   async onFlowPauseUntilTime(args) {

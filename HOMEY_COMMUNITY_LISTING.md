@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.18 test - Math Compare and Gradient Map]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.20 test - Composite Device]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.18
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.20
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,19 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.20 (test channel)
+
+- **New Composite Device.** Combine the same capability from two or more devices into one live virtual sensor, alarm, or text value.
+- **Numbers:** average, minimum, maximum, sum, and median. A five-sensor humidity group can now expose its highest or lowest reading directly.
+- **Alarms and booleans:** any/all, majority, count on, and percentage on. For example, a composite contact alarm is active when any selected door or window is open.
+- **Text and clock values:** most common, min/max, most recently updated, and circular average clock time. For example, 23:00 and 01:00 average to 00:00.
+- **Logic Unit guide:** illustrated Advanced Settings and Flow examples are now included in the online documentation.
+
+### v1.10.19 (test channel)
+
+- **Logic Device restart fix.** Logic Device groups that depend on another Logic Device now re-fetch their linked inputs after an app restart, so nested groups keep working after Smart (Components) Toolkit restarts.
+- **Circadian Light Group member verification.** Improved handling around member verification so group state reporting is more reliable when members are checked or temporarily unavailable.
 
 ### v1.10.18 (test channel)
 
@@ -39,7 +52,7 @@ THEN: Set fan speed to Mapped value
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.18 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.20 is available on the test channel.
 
 ### Circadian Light Group highlights
 
@@ -91,7 +104,7 @@ Choose how the device knows how bright it is outside:
 
 <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">→ Install store v1.10.16</a>
 <br>
-<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.18</a>
+<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.20</a>
 
 ---
 
@@ -99,6 +112,7 @@ Choose how the device knows how bright it is outside:
 
 | Device | Purpose |
 |--------|---------|
+| **Composite Device** | Aggregate a shared capability across multiple devices as min/max/average, alarm, count, text, or clock time. |
 | **Logic Device** | Boolean logic with visual wizard. Combine device states into TRUE/FALSE using formulas like `A AND B`. |
 | **Logic Unit** | Advanced boolean logic with multiple formulas per device. JSON configuration. |
 | **State Device** | Scene management — capture states at setup, apply with one action. |
@@ -150,6 +164,7 @@ THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
 
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/getting-started.html" target="_blank">**Getting Started Guide**</a>
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/devices.html" target="_blank">**Device Types Guide**</a>
+- <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/composite-device.html" target="_blank">**Composite Device**</a>
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html" target="_blank">**Circadian Light Group**</a>
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/state-device.html" target="_blank">**State Device**</a>
 - <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/state-capture-device.html" target="_blank">**State Capture Device**</a>
@@ -162,7 +177,7 @@ THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
 ## Installation and Links
 
 * **Homey App Store (v1.10.16):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
-* **Test channel (v1.10.18):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
+* **Test channel (v1.10.20):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
 * **GitHub Repo:** <a href="https://github.com/tiwas/SmartComponentsToolkit" target="_blank">github.com/tiwas/SmartComponentsToolkit</a>
 * **Online Emulator:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/emulator.html" target="_blank">Boolean Logic Emulator</a>
 * **Formula Builder:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/formula-builder.html" target="_blank">Formula Builder</a>

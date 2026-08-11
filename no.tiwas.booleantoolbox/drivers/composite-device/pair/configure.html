@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      box-sizing: border-box;
+      color: #222;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    *, *::before, *::after { box-sizing: inherit; }
+    .intro { color: #666; line-height: 1.45; margin: 0 0 20px; }
+    .field { margin-bottom: 18px; }
+    .field > label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 7px; }
+    select, input[type="text"] {
+      background: #fff;
+      border: 1px solid #d5d7db;
+      border-radius: 8px;
+      font: inherit;
+      padding: 11px 12px;
+      width: 100%;
+    }
+    select:focus, input[type="text"]:focus {
+      border-color: #18a558;
+      box-shadow: 0 0 0 3px rgba(24, 165, 88, .15);
+      outline: none;
+    }
+    .help { color: #777; font-size: 12px; line-height: 1.4; margin-top: 6px; }
+    .toolbar { display: flex; gap: 16px; margin: 0 0 8px; }
+    .toolbar button {
+      background: none;
+      border: 0;
+      color: #168f4d;
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      padding: 0;
+    }
+    .device-list {
+      border: 1px solid #e1e3e6;
+      border-radius: 10px;
+      max-height: 280px;
+      min-height: 72px;
+      overflow-y: auto;
+    }
+    .device-item {
+      align-items: center;
+      border-bottom: 1px solid #eceef0;
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+    }
+    .device-item:last-child { border-bottom: 0; }
+    .device-item input { height: 20px; margin: 0; width: 20px; }
+    .device-item label { cursor: pointer; flex: 1; }
+    .device-name { display: block; font-size: 15px; }
+    .device-meta { color: #888; display: block; font-size: 12px; margin-top: 2px; }
+    .empty, .loading { color: #777; margin: 0; padding: 22px 12px; text-align: center; }
+    .summary {
+      background: #f3faf6;
+      border-radius: 8px;
+      color: #39704f;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-bottom: 18px;
+      padding: 10px 12px;
+    }
+    #create-button {
+      background: #18a558;
+      border: 0;
+      border-radius: 9px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 17px;
+      font-weight: 600;
+      padding: 14px 20px;
+      width: 100%;
+    }
+    #create-button:disabled { background: #b9c0bc; cursor: default; }
+  </style>
+</head>
+<body>
+  <header class="homey-header">
+    <h1 class="homey-title">Composite Device</h1>
+    <p class="intro">Combine the same capability from multiple devices into one live value.</p>
+  </header>
+
+  <div class="field">
+    <label for="capability-select">1. Capability to combine</label>
+    <select id="capability-select" disabled>
+      <option>Loading capabilities…</option>
+    </select>
+    <div class="help">Only capabilities available on at least two devices are shown. Units must match.</div>
+  </div>
+
+  <div class="field">
+    <label for="operation-select">2. Calculation</label>
+    <select id="operation-select" disabled></select>
+    <div id="operation-help" class="help"></div>
+  </div>
+
+  <div class="field">
+    <label>3. Source devices</label>
+    <div class="toolbar">
+      <button id="select-all" type="button">Select all</button>
+      <button id="deselect-all" type="button">Deselect all</button>
+    </div>
+    <div id="device-list" class="device-list">
+      <p class="loading">Select a capability first.</p>
+    </div>
+    <div id="device-help" class="help">Select at least two devices.</div>
+  </div>
+
+  <div class="field">
+    <label for="device-name">4. Composite Device name</label>
+    <input id="device-name" type="text" value="Composite Device">
+  </div>
+
+  <div id="summary" class="summary">Choose a capability, calculation, and source devices.</div>
+  <button id="create-button" type="button" disabled>Create Composite Device</button>
+
+  <script>
+  (function () {
+    "use strict";
+
+    const capabilitySelect = document.getElementById("capability-select");
+    const operationSelect = document.getElementById("operation-select");
+    const operationHelp = document.getElementById("operation-help");
+    const deviceList = document.getElementById("device-list");
+    const deviceHelp = document.getElementById("device-help");
+    const deviceName = document.getElementById("device-name");
+    const summary = document.getElementById("summary");
+    const createButton = document.getElementById("create-button");
+    const selectAllButton = document.getElementById("select-all");
+    const deselectAllButton = document.getElementById("deselect-all");
+    let capabilityGroups = [];
+    let candidateDevices = [];
+    let generatedName = "Composite Device";
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getSelectedGroup() {
+      return capabilityGroups.find(group => group.id === capabilitySelect.value) || null;
+    }
+
+    function getSelectedOperation() {
+      const group = getSelectedGroup();
+      return group && group.operations.find(operation => operation.id === operationSelect.value);
+    }
+
+    function getSelectedIds() {
+      return [...deviceList.querySelectorAll("input[type=checkbox]:checked")]
+        .map(checkbox => checkbox.value);
+    }
+
+    function updateName() {
+      const group = getSelectedGroup();
+      const operation = getSelectedOperation();
+      if (!group || !operation) return;
+      const nextGeneratedName = `${operation.label} ${group.title}`;
+      if (!deviceName.value.trim() || deviceName.value === generatedName) {
+        deviceName.value = nextGeneratedName;
+      }
+      generatedName = nextGeneratedName;
+    }
+
+    function updateState() {
+      const group = getSelectedGroup();
+      const operation = getSelectedOperation();
+      const selectedCount = getSelectedIds().length;
+      const valid = Boolean(group && operation && selectedCount >= 2 && deviceName.value.trim());
+      createButton.disabled = !valid;
+      deviceHelp.textContent = `${selectedCount} device${selectedCount === 1 ? "" : "s"} selected (minimum 2).`;
+      operationHelp.textContent = operation ? operation.description : "";
+      summary.textContent = valid
+        ? `${operation.label} of ${selectedCount} × ${group.title}${group.units ? ` (${group.units})` : ""}.`
+        : "Choose a capability, calculation, and at least two source devices.";
+    }
+
+    function renderOperations() {
+      const group = getSelectedGroup();
+      operationSelect.innerHTML = "";
+      (group ? group.operations : []).forEach(operation => {
+        const option = document.createElement("option");
+        option.value = operation.id;
+        option.textContent = operation.label;
+        operationSelect.appendChild(option);
+      });
+      operationSelect.disabled = !group;
+      updateName();
+      updateState();
+    }
+
+    function renderDevices() {
+      deviceList.innerHTML = "";
+      if (candidateDevices.length === 0) {
+        deviceList.innerHTML = '<p class="empty">No matching devices found.</p>';
+        updateState();
+        return;
+      }
+
+      candidateDevices.forEach(device => {
+        const row = document.createElement("div");
+        row.className = "device-item";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = `source-${device.id}`;
+        checkbox.value = device.id;
+        checkbox.checked = true;
+        checkbox.addEventListener("change", updateState);
+        const label = document.createElement("label");
+        label.htmlFor = checkbox.id;
+        const value = device.value === null || device.value === undefined ? "No value" : String(device.value);
+        label.innerHTML = `<span class="device-name">${escapeHtml(device.name)}</span>`
+          + `<span class="device-meta">${escapeHtml(device.zoneName)} · ${escapeHtml(value)}</span>`;
+        row.appendChild(checkbox);
+        row.appendChild(label);
+        deviceList.appendChild(row);
+      });
+      updateState();
+    }
+
+    async function loadDevices() {
+      const group = getSelectedGroup();
+      candidateDevices = [];
+      deviceList.innerHTML = '<p class="loading">Loading devices…</p>';
+      renderOperations();
+      if (!group) {
+        renderDevices();
+        return;
+      }
+      try {
+        candidateDevices = await Homey.emit("get_devices_for_capability", { groupId: group.id });
+        renderDevices();
+      } catch (error) {
+        Homey.alert(error.message || String(error));
+        renderDevices();
+      }
+    }
+
+    async function initialize() {
+      Homey.setTitle("Composite Device");
+      try {
+        capabilityGroups = await Homey.emit("get_capability_groups");
+        capabilitySelect.innerHTML = "";
+        if (capabilityGroups.length === 0) {
+          capabilitySelect.innerHTML = '<option value="">No shared capabilities found</option>';
+          capabilitySelect.disabled = true;
+          deviceList.innerHTML = '<p class="empty">No capability is available on at least two devices.</p>';
+          updateState();
+          return;
+        }
+        capabilityGroups.forEach(group => {
+          const option = document.createElement("option");
+          option.value = group.id;
+          option.textContent = `${group.title}${group.units ? ` (${group.units})` : ""} — ${group.deviceCount} devices`;
+          capabilitySelect.appendChild(option);
+        });
+        capabilitySelect.disabled = false;
+        await loadDevices();
+      } catch (error) {
+        capabilitySelect.innerHTML = '<option value="">Could not load capabilities</option>';
+        Homey.alert(error.message || String(error));
+      }
+    }
+
+    capabilitySelect.addEventListener("change", loadDevices);
+    operationSelect.addEventListener("change", function () {
+      updateName();
+      updateState();
+    });
+    deviceName.addEventListener("input", updateState);
+    selectAllButton.addEventListener("click", function () {
+      deviceList.querySelectorAll("input[type=checkbox]").forEach(checkbox => { checkbox.checked = true; });
+      updateState();
+    });
+    deselectAllButton.addEventListener("click", function () {
+      deviceList.querySelectorAll("input[type=checkbox]").forEach(checkbox => { checkbox.checked = false; });
+      updateState();
+    });
+
+    createButton.addEventListener("click", async function () {
+      const group = getSelectedGroup();
+      const operation = getSelectedOperation();
+      if (!group || !operation || getSelectedIds().length < 2) return;
+      createButton.disabled = true;
+      createButton.textContent = "Creating…";
+      try {
+        const device = await Homey.emit("create_device", {
+          groupId: group.id,
+          operation: operation.id,
+          selectedIds: getSelectedIds(),
+          name: deviceName.value.trim(),
+        });
+        await Homey.createDevice(device);
+        Homey.done();
+      } catch (error) {
+        Homey.alert(error.message || String(error));
+        createButton.textContent = "Create Composite Device";
+        updateState();
+      }
+    });
+
+    function waitForHomey() {
+      if (typeof Homey === "undefined" || typeof Homey.emit !== "function") {
+        setTimeout(waitForHomey, 100);
+        return;
+      }
+      initialize();
+    }
+
+    waitForHomey();
+  }());
+  </script>
+</body>
+</html>

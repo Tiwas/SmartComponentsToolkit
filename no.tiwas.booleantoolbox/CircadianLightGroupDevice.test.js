@@ -391,6 +391,101 @@ describe('CircadianLightGroupDevice light application', () => {
     expect(calls).toContainEqual(['dim', 0.5]);
     expect(watcher.value).toBe(true);
   });
+
+  test('skips turning all members on while paused', async () => {
+    const device = createDeviceHarness();
+    device.getCapabilityValue = jest.fn((capability) => capability === 'clg_paused');
+    device.getConfig = jest.fn(() => ({
+      devices: [{ id: 'light-1', name: 'Kitchen' }],
+    }));
+    device.computeCurrentTarget = jest.fn();
+    device.runDeviceTasksParallel = jest.fn();
+
+    await expect(device.onFlowTurnOnAllMembers()).resolves.toBe(true);
+
+    expect(device.computeCurrentTarget).not.toHaveBeenCalled();
+    expect(device.runDeviceTasksParallel).not.toHaveBeenCalled();
+    expect(device.debug).toHaveBeenCalledWith('turn_on_all_members: SKIPPED 1 member(s) because clg_paused=true');
+  });
+
+  test('does not write onoff=true from turnOnMemberToTarget while paused', async () => {
+    const device = createDeviceHarness();
+    device.getCapabilityValue = jest.fn((capability) => capability === 'clg_paused');
+    device.homey = {
+      app: {
+        api: {
+          devices: {
+            getDevice: jest.fn(),
+          },
+        },
+      },
+    };
+
+    await device.turnOnMemberToTarget(
+      { id: 'light-1', name: 'Kitchen' },
+      { mode: 'temperature', hue: null, saturation: null, temperature: 0.25, dim: 0.5 }
+    );
+
+    expect(device.homey.app.api.devices.getDevice).not.toHaveBeenCalled();
+    expect(device.debug).toHaveBeenCalledWith('turn_on_member[Kitchen]: SKIPPED turn on because clg_paused=true');
+  });
+
+  test('reports verified state after turning all members on', async () => {
+    const device = createDeviceHarness();
+    const target = { mode: 'temperature', hue: null, saturation: null, temperature: 0.25, dim: 0.5 };
+    const members = [{ id: 'light-1', name: 'Kitchen' }];
+    const result = { ok: [{ item: members[0] }], failed: [], superseded: false };
+
+    device.currentOpGen = 0;
+    device.getCapabilityValue = jest.fn((capability) => capability === 'onoff');
+    device.getConfig = jest.fn(() => ({ devices: members }));
+    device.computeCurrentTarget = jest.fn().mockResolvedValue(target);
+    device.runDeviceTasksParallel = jest.fn().mockResolvedValue(result);
+    device.setCapabilityValue = jest.fn().mockResolvedValue(undefined);
+    device.triggerError = jest.fn().mockResolvedValue(undefined);
+
+    await expect(device.onFlowTurnOnAllMembers()).resolves.toBe(true);
+
+    expect(device.runDeviceTasksParallel).toHaveBeenCalledWith(
+      members,
+      expect.any(Function),
+      expect.objectContaining({
+        label: 'turn_on_all_members',
+        verifyFn: expect.any(Function),
+      })
+    );
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+    expect(device.triggerError).not.toHaveBeenCalled();
+    expect(device.debug).toHaveBeenCalledWith(
+      'turn_on_all_members: verified 1 member(s) on and at target after retries'
+    );
+  });
+
+  test('reports members still not verified after turning all members off', async () => {
+    const device = createDeviceHarness();
+    const members = [{ id: 'light-1', name: 'Kitchen' }];
+    const result = {
+      ok: [],
+      failed: [{ item: members[0], error: new Error('verify failed after final serial retry') }],
+      superseded: false,
+    };
+
+    device.currentOpGen = 0;
+    device.getConfig = jest.fn(() => ({ devices: members }));
+    device.runDeviceTasksParallel = jest.fn().mockResolvedValue(result);
+    device.setCapabilityValue = jest.fn().mockResolvedValue(undefined);
+    device.triggerError = jest.fn().mockResolvedValue(undefined);
+
+    await expect(device.onFlowTurnOffAllMembers()).resolves.toBe(false);
+
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', true);
+    expect(device.triggerError).toHaveBeenCalledWith(
+      'turn_off_all_members: 1 light(s) not verified off after retries: Kitchen'
+    );
+    expect(device.debug).toHaveBeenCalledWith(
+      'turn_off_all_members: 1 member(s) not verified off after retries: Kitchen'
+    );
+  });
 });
 
 describe('CircadianLightGroupDevice onoff persistence', () => {

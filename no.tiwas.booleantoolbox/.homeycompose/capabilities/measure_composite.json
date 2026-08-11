@@ -1,0 +1,36 @@
+{
+  "type": "number",
+  "title": {
+    "en": "Composite Value",
+    "no": "Sammensatt verdi"
+  },
+  "desc": {
+    "en": "A numeric value aggregated from multiple Homey devices.",
+    "no": "En tallverdi samlet fra flere Homey-enheter."
+  },
+  "insights": true,
+  "getable": true,
+  "setable": false,
+  "uiComponent": "sensor",
+  "decimals": 2,
+  "$flow": {
+    "triggers": [
+      {
+        "id": "measure_composite_changed",
+        "highlight": true,
+        "title": {
+          "en": "The composite value changed",
+          "no": "Den sammensatte verdien ble endret"
+        },
+        "tokens": [
+          {
+            "name": "$id",
+            "title": "$title",
+            "type": "$type",
+            "example": 42
+          }
+        ]
+      }
+    ]
+  }
+}

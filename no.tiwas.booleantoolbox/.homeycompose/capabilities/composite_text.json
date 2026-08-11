@@ -1,0 +1,33 @@
+{
+  "type": "string",
+  "title": {
+    "en": "Composite Text",
+    "no": "Sammensatt tekst"
+  },
+  "desc": {
+    "en": "A text or clock value aggregated from multiple Homey devices.",
+    "no": "En tekst- eller klokkeverdi samlet fra flere Homey-enheter."
+  },
+  "getable": true,
+  "setable": false,
+  "uiComponent": "sensor",
+  "$flow": {
+    "triggers": [
+      {
+        "id": "composite_text_changed",
+        "title": {
+          "en": "The composite text changed",
+          "no": "Den sammensatte teksten ble endret"
+        },
+        "tokens": [
+          {
+            "name": "$id",
+            "title": "$title",
+            "type": "$type",
+            "example": "12:00"
+          }
+        ]
+      }
+    ]
+  }
+}

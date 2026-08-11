@@ -1,0 +1,42 @@
+{
+  "type": "boolean",
+  "title": {
+    "en": "Composite Alarm",
+    "no": "Sammensatt alarm"
+  },
+  "desc": {
+    "en": "An alarm state aggregated from multiple Homey devices.",
+    "no": "En alarmtilstand samlet fra flere Homey-enheter."
+  },
+  "insights": true,
+  "getable": true,
+  "setable": false,
+  "uiComponent": "sensor",
+  "$flow": {
+    "triggers": [
+      {
+        "id": "alarm_composite_true",
+        "title": {
+          "en": "The composite alarm turned on",
+          "no": "Den sammensatte alarmen ble aktivert"
+        }
+      },
+      {
+        "id": "alarm_composite_false",
+        "title": {
+          "en": "The composite alarm turned off",
+          "no": "Den sammensatte alarmen ble deaktivert"
+        }
+      }
+    ],
+    "conditions": [
+      {
+        "id": "alarm_composite",
+        "title": {
+          "en": "The composite alarm is !{{on|off}}",
+          "no": "Den sammensatte alarmen er !{{på|av}}"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": {
+    "en": "Composite Device",
+    "no": "Composite Device",
+    "de": "Composite Device",
+    "nl": "Composite Device",
+    "fr": "Composite Device",
+    "da": "Composite Device",
+    "fi": "Composite Device",
+    "sv": "Composite Device",
+    "pl": "Composite Device",
+    "it": "Composite Device",
+    "es": "Composite Device"
+  },
+  "class": "sensor",
+  "capabilities": [
+    "measure_composite",
+    "alarm_config"
+  ],
+  "capabilitiesOptions": {
+    "measure_composite": {
+      "title": {
+        "en": "Composite Value",
+        "no": "Sammensatt verdi"
+      },
+      "getable": true,
+      "setable": false
+    },
+    "alarm_config": {
+      "title": {
+        "en": "Source Error",
+        "no": "Kildefeil"
+      },
+      "getable": true,
+      "setable": false,
+      "icon": "/assets/config_error.svg"
+    }
+  },
+  "energy": {
+    "approximation": {
+      "usageConstant": 0
+    }
+  },
+  "images": {
+    "large": "/assets/images_composite_device/large.png",
+    "small": "/assets/images_composite_device/small.png"
+  },
+  "pair": [
+    {
+      "id": "configure"
+    }
+  ]
+}

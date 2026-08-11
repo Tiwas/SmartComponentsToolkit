@@ -1,7 +1,7 @@
-# Project Documentation: Homey Boolean Toolbox
+# Project Documentation: Smart (Components) Toolkit
 
 ## Overview
-**Homey Boolean Toolbox** (`no.tiwas.booleantoolbox`) is a Homey application designed to provide advanced boolean logic capabilities for automation flows. It allows users to create virtual devices ("Logic Units" and "Logic Devices") that evaluate complex formulas based on multiple inputs.
+**Smart (Components) Toolkit** (`no.tiwas.booleantoolbox`) is a Homey application for advanced logic, capability aggregation, state handling, and automation utilities. It includes virtual Logic Devices, Logic Units, Composite Devices, state devices, and Circadian Light Groups.
 
 ## Core Components
 
@@ -23,14 +23,21 @@
 *   **Mechanism:** Registers listeners and routes flow based on success (YES) or timeout (NO).
 *   **Key Files:** `WaiterManager.js`.
 
+### 4. Composite Device
+*   **Purpose:** Combines one capability shared by two or more Homey devices into a live virtual sensor, alarm, or text value.
+*   **Driver:** `no.tiwas.booleantoolbox/drivers/composite-device/` contains discovery, the visual pairing page, realtime source listeners, and recovery handling.
+*   **Aggregation Engine:** `no.tiwas.booleantoolbox/lib/CompositeAggregator.js` implements numeric, boolean, text, enum, and circular clock-time calculations without Homey runtime dependencies.
+*   **Capabilities:** `measure_composite`, `alarm_composite`, and `composite_text` are selected dynamically during pairing; `alarm_config` reports missing sources.
+*   **Tests:** `CompositeAggregator.test.js` verifies calculation semantics and `CompositeDevice.test.js` verifies pairing, realtime updates, partial failures, and cleanup.
+
 ## Project Structure
 *   `no.tiwas.booleantoolbox/`: Main Homey app source.
     *   `app.js`: Application entry point.
-    *   `drivers/`: Device drivers (`logic-device`, `logic-unit`, etc.).
-    *   `lib/`: Core logic libraries (`FormulaEvaluator.js`, `Logger.js`).
+    *   `drivers/`: Device drivers (`composite-device`, `logic-device`, `logic-unit`, state and Circadian Light Group drivers).
+    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `FormulaEvaluator.js`, `Logger.js`).
     *   `locales/`: Translation files.
 *   `docs/`: Documentation for the GitHub Pages site.
-*   `tests/`: Jest unit tests (`FormulaEvaluator.test.js`).
+*   Jest test files live beside the app source, including `CompositeAggregator.test.js`, `CompositeDevice.test.js`, and `FormulaEvaluator.test.js`.
 
 ## Key Technologies
 *   **Platform:** Homey (Athom).

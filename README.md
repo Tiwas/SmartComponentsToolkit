@@ -7,10 +7,10 @@
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
 [![Stable](https://img.shields.io/badge/stable-1.10.9-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
-[![Test](https://img.shields.io/badge/test-1.10.16-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
+[![Test](https://img.shields.io/badge/test-1.10.20-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.16 test** — captures Homey device IDs and names so [Flow Doctor](https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html) can resolve references to previously deleted devices.
+> **v1.10.20 test** — adds Composite Device for live sensor, alarm, text, and clock-time aggregation across multiple Homey devices, plus illustrated Logic Unit setup guidance.
 
 ---
 
@@ -39,6 +39,21 @@ See [`apps/dashboard/README.md`](apps/dashboard/README.md) for setup, OAuth scop
 ---
 
 ## 📦 Device Types
+
+### Composite Device
+
+Combine the same capability from two or more Homey devices into one live virtual sensor, alarm, or text value.
+
+| Feature | Description |
+|---------|-------------|
+| **Setup** | Visual pairing wizard - select capability → calculation → source devices |
+| **Numbers** | Average, minimum, maximum, sum, median |
+| **Booleans** | Any/all, majority, count on, percentage on |
+| **Text / time** | Most common, min/max, newest, circular average clock time |
+
+[📚 Read Composite Device guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/composite-device.html)
+
+---
 
 ### Logic Device
 
@@ -122,7 +137,7 @@ THEN: Pop state (restore previous)
 
 ---
 
-### Circadian Light Group *(stable v1.10.9 / test v1.10.16)*
+### Circadian Light Group *(stable v1.10.16 / test v1.10.20)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 

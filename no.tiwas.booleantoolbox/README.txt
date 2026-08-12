@@ -27,6 +27,7 @@ Logic Unit (Dynamic)
   - Define formulas such as: (A AND B) OR (NOT C)
   - Multiple formulas per unit, individual timeouts, and first-impression mode
   - Dynamic input linking, validation, and error reporting
+  - Formula result alarm plus Formula changed / Formula changed to Flow triggers
 
 State Capture Device
   Dynamically capture and restore device states at runtime.

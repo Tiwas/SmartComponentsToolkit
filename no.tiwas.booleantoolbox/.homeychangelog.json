@@ -115,5 +115,8 @@
   },
   "1.10.22": {
     "en": "Add Composite Device Flow triggers for every value change and for numeric changes larger than a configurable fixed or percentage threshold."
+  },
+  "1.10.23": {
+    "en": "Fix Logic Unit formula result alarms and formula-change triggers. Adds Formula changed and Formula changed to Flow cards with current and previous result tags."
   }
 }

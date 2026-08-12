@@ -282,7 +282,7 @@
                 <li>Add <strong>Logic Unit (Dynamic)</strong> from Smart (Components) Toolkit.</li>
                 <li>Open the device's Advanced Settings and enter a JSON array in <strong>Formulas (JSON)</strong>. Inputs are the letters A through J.</li>
                 <li>In a Flow, use <strong>Set input value for formula</strong> to set each input true or false. Use both the true and false branches of the source card so the Logic Unit always receives the current state.</li>
-                <li>Use <strong>Formula result changed</strong> as a WHEN card, or <strong>Formula result is</strong> as an AND card.</li>
+                <li>Use <strong>Formula changed</strong> or <strong>Formula changed to...</strong> as a WHEN card, or <strong>Formula result is</strong> as an AND card.</li>
             </ol>
 
             <div class="grid md:grid-cols-2 gap-4 mt-4">
@@ -309,11 +309,12 @@
                         <h3 class="font-semibold text-purple-700">alarm_generic</h3>
                         <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">boolean</span>
                     </div>
-                    <p class="text-gray-700 mb-2">The formula result (true/false)</p>
+                    <p class="text-gray-700 mb-2">The aggregate formula result (true when any enabled formula is true)</p>
                     <ul class="text-sm text-gray-600 ml-4 space-y-1">
-                        <li>• Used to trigger flows when formula result changes</li>
+                        <li>• Exposed as the read-only <strong>Formula result</strong> alarm</li>
+                        <li>• Can trigger Homey's standard alarm turned on/off cards</li>
                         <li>• Read-only (changes based on formula evaluation)</li>
-                        <li>• Each formula has its own result state</li>
+                        <li>• Use the formula-specific Flow cards when a Logic Unit contains multiple formulas</li>
                     </ul>
                 </div>
 

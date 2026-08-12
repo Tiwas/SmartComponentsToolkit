@@ -91,3 +91,57 @@
 - Uploaded Homey Build 51 as v1.10.22 and published it to the test channel.
 - Installed v1.10.22 successfully on `Lars's New Homey` after debug-level validation.
 - Prepared the v1.10.22 source, documentation, and community listing update for the GitHub release commit.
+
+## 2026-08-12 — Logic Unit generic-alarm trigger diagnosis
+
+### Requested
+- Determine whether a Logic Unit using `A+B` should trigger Homey's generic-alarm-turned-on card after an input is set to TRUE, or whether the wrong Flow card was used.
+
+### Findings
+- Confirmed that `+` is a supported OR operator, so either A or B being TRUE makes `A+B` TRUE once both required inputs have values.
+- Confirmed that the current Logic Unit evaluator stores the formula result but never writes the aggregate result to `alarm_generic`; even the aggregate state calculated during full reevaluation is unused.
+- Confirmed that published documentation defines `alarm_generic` as the formula result and that the older backup implementation updated it, identifying this as a Logic Unit regression rather than user misuse.
+- Found a second inconsistency in the formula-specific trigger path: the evaluator triggers undeclared device-card IDs while the registered combined card has a different app-trigger ID. It should therefore not be presented as a reliable workaround until fixed.
+- The generic alarm card should work according to the exposed capability contract; for multiple formulas, its intended state is the aggregate OR result (TRUE when any enabled formula is TRUE).
+
+### Verification
+- `npm test -- --runTestsByPath FormulaEvaluator.test.js --runInBand`: 1 suite, 52 tests passed, including `A + B` tokenization and evaluation coverage.
+- No production code was changed during this diagnostic session.
+
+## 2026-08-12 — Logic Unit formula-change Flow cards and alarm fix
+
+### Requested
+- Add a new **Formula changed to...** card and repair the **Formula changed** behavior.
+
+### Implemented
+- Added a formula-specific **Formula changed** trigger for every TRUE/FALSE transition and repaired **Formula changed to...** with correct device-trigger registration, formula matching, and result filtering.
+- Added current and previous boolean result tokens to both cards.
+- Restored the original pre-Compose TRUE/FALSE trigger IDs as deprecated compatibility cards and retained the newer deprecated aliases.
+- Synchronized `alarm_generic` with the aggregate Logic Unit result, defined as TRUE whenever any enabled formula is TRUE, so Homey's standard alarm turned on/off cards work again.
+- Renamed the Dynamic Logic Unit capability from the generic Homey label to **Formula result** and updated Flow-card/device documentation.
+
+### Verification
+- Added Logic Unit regression tests covering `A+B`, aggregate alarm behavior, trigger payloads, selected-formula filtering, and TRUE/FALSE result filtering.
+- Focused test run: 2 suites and 55 tests passed.
+- Full test run: 8 suites and 139 tests passed.
+- All changed Flow-card and driver Compose JSON parsed successfully; changed JavaScript files passed `node --check`.
+- `homey app validate` passed at publish level with both current cards and all compatibility IDs included for every Logic Unit driver.
+
+## 2026-08-12 — Logic Unit fix release v1.10.23
+
+### Requested
+- Publish and install the Logic Unit fix, update GitHub, and update the existing Homey Community topic.
+
+### Implemented
+- Versioned the Homey app and release documentation as v1.10.23.
+- Added the Logic Unit alarm and formula-trigger fixes to the Homey changelog, repository changelog, README, documentation version badges, and community-listing source.
+
+### Verification
+- `npm test -- --runInBand`: 8 suites, 139 tests passed.
+- `homey app validate`: passed at publish level.
+- Homey Developer Tools confirmed Build 52 as v1.10.23 and showed both `Formula changed` and `Formula changed to...` in the submitted manifest.
+
+### Release
+- Uploaded Homey Build 52 and published v1.10.23 to the test channel.
+- Installed the app successfully on `Lars's New Homey` with `homey app install`.
+- Updated and verified the existing Homey Community topic with the v1.10.23 title and release notes.

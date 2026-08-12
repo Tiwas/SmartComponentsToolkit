@@ -6,6 +6,18 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.23] - August 2026 (Test channel)
+
+### Added
+- Added a Logic Unit **Formula changed** trigger for every TRUE/FALSE transition, with current and previous result tags.
+- Added a working **Formula changed to...** trigger filtered by selected formula and TRUE/FALSE result.
+
+### Fixed
+- Logic Unit now synchronizes its read-only **Formula result** (`alarm_generic`) alarm with the aggregate result, restoring Homey's standard alarm turned on/off triggers.
+- Restored the original pre-Compose formula trigger IDs for existing flows and corrected current trigger registration and formula filtering.
+
+---
+
 ## [1.10.22] - August 2026 (Test channel)
 
 ### Added

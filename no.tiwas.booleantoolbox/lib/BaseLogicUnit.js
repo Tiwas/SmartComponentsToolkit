@@ -114,6 +114,80 @@ module.exports = class BaseLogicUnit extends Homey.Device {
   }
 
   /**
+   * Synchronize the Logic Unit's generic alarm with its aggregate result.
+   * The alarm is active whenever at least one enabled formula is TRUE.
+   *
+   * @returns {Promise<boolean>} The aggregate alarm state.
+   */
+  async syncOverallAlarmState() {
+    const overallState = this.formulas.some(
+      (formula) => formula.enabled && formula.result === true,
+    );
+    if (!this.hasCapability("alarm_generic")) {
+      return overallState;
+    }
+    const currentState = this.getCapabilityValue("alarm_generic");
+
+    if (currentState !== overallState) {
+      await this.safeSetCapabilityValue("alarm_generic", overallState);
+      this.logger.info("Overall Logic Unit alarm updated", {
+        alarmState: overallState,
+      });
+    }
+
+    return overallState;
+  }
+
+  /**
+   * Fire the current formula-change cards plus the legacy TRUE/FALSE cards.
+   *
+   * @param {Object} formula - Formula whose result changed.
+   * @param {boolean} previousResult - Previous boolean result.
+   * @param {boolean} result - New boolean result.
+   * @returns {Promise<void>}
+   */
+  async triggerFormulaChanged(formula, previousResult, result) {
+    const tokens = {
+      device_name: this.getName(),
+      formula_name: formula.name,
+      result,
+      previous_result: previousResult,
+    };
+    const state = {
+      formula_id: formula.id,
+      result,
+      previous_result: previousResult,
+    };
+    const legacyTokens = {
+      device_name: tokens.device_name,
+      formula_name: tokens.formula_name,
+    };
+    const cards = [
+      { id: "formula_changed_lu", tokens },
+      { id: "formula_changed_to_lu", tokens },
+      {
+        id: result ? "formula_changed_to_true" : "formula_changed_to_false",
+        tokens: legacyTokens,
+      },
+      {
+        id: result
+          ? "formula_changed_to_true_lu_deprecated"
+          : "formula_changed_to_false_lu_deprecated",
+        tokens: legacyTokens,
+      },
+    ];
+
+    for (const cardInfo of cards) {
+      try {
+        const card = this.homey.flow.getDeviceTriggerCard(cardInfo.id);
+        await card.trigger(this, cardInfo.tokens, state);
+      } catch (e) {
+        this.logger.error(`Failed to trigger '${cardInfo.id}'`, e);
+      }
+    }
+  }
+
+  /**
    * Initializes the Logic Unit device when added or app starts.
    *
    * Performs:
@@ -161,6 +235,9 @@ module.exports = class BaseLogicUnit extends Homey.Device {
       );
     }
     if (!this.hasCapability("alarm_generic")) {
+      await this.addCapability("alarm_generic").catch((e) =>
+        this.logger.error("Failed to add 'alarm_generic' capability", e),
+      );
     }
 
     // ✅ STEP 2: Add alarm_config capability if missing
@@ -1322,35 +1399,13 @@ module.exports = class BaseLogicUnit extends Homey.Device {
       formula.result = result;
       formula.timedOut = false;
 
+      await this.syncOverallAlarmState();
+
       if (result !== previous && previous !== null) {
-        const triggerData = {
-          formula: {
-            id: formula.id,
-            name: formula.name,
-          },
-        };
-        const state = {
-          formulaId: formula.id,
-        };
-        const triggerCardId = result
-          ? "formula_changed_to_true"
-          : "formula_changed_to_false";
-        try {
-          this.logger.flow(
-            `Triggering flow '${triggerCardId}' for '${formula.name}'`,
-          );
-          const card = this.homey.flow.getDeviceTriggerCard(triggerCardId);
-          await card.trigger(this, triggerData, state);
-        } catch (e) {
-          if (e.message && e.message.includes("Invalid Flow Card ID")) {
-            this.logger.error(
-              `FATAL: Trigger card '${triggerCardId}' not found. Check app.json/compose flow definitions.`,
-              e,
-            );
-          } else {
-            this.logger.error("flow.trigger_error", e);
-          }
-        }
+        this.logger.flow(
+          `Triggering formula change flows for '${formula.name}'`,
+        );
+        await this.triggerFormulaChanged(formula, previous, result);
       }
       return result;
     } catch (e) {
@@ -1393,10 +1448,7 @@ module.exports = class BaseLogicUnit extends Homey.Device {
         formula.result = null;
       }
     }
-    // ✅ Calculate overall state (TRUE if any formula is TRUE)
-    const overallDeviceState = this.formulas.some(
-      (f) => f.enabled && f.result === true,
-    );
+    await this.syncOverallAlarmState();
 
     this.logger.debug("formula.evaluated_count", {
       count: results.length,
@@ -1460,6 +1512,8 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     this.logger.info(
       `Initial evaluation complete. Final state: ${finalState} (anyEvaluated=${anyEvaluated})`,
     );
+
+    await this.syncOverallAlarmState();
 
     if (
       !anyEvaluated &&

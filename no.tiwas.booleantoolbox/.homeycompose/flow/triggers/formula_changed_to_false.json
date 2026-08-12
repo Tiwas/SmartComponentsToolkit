@@ -1,0 +1,53 @@
+{
+  "id": "formula_changed_to_false",
+  "deprecated": true,
+  "title": {
+    "en": "Formula result changed to FALSE",
+    "no": "Formelresultat ble USANN"
+  },
+  "titleFormatted": {
+    "en": "Formula [[formula]] changed to FALSE",
+    "no": "Formel [[formula]] ble USANN"
+  },
+  "hint": {
+    "en": "Deprecated: use 'Formula changed to...' instead.",
+    "no": "Utgått: bruk «Formel endret til...» i stedet."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=logic-unit|logic-unit-2|logic-unit-3|logic-unit-4|logic-unit-5|logic-unit-6|logic-unit-7|logic-unit-8|logic-unit-9|logic-unit-10"
+    },
+    {
+      "type": "autocomplete",
+      "name": "formula",
+      "title": {
+        "en": "Formula",
+        "no": "Formel"
+      },
+      "placeholder": {
+        "en": "Select a formula...",
+        "no": "Velg en formel..."
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "name": "device_name",
+      "type": "string",
+      "title": {
+        "en": "Device name",
+        "no": "Enhetsnavn"
+      }
+    },
+    {
+      "name": "formula_name",
+      "type": "string",
+      "title": {
+        "en": "Formula name",
+        "no": "Formelnavn"
+      }
+    }
+  ]
+}

@@ -77,7 +77,8 @@
                     <ul class="text-sm space-y-1 text-gray-700">
                         <li><a href="#trigger-composite-changed" class="hover:text-purple-600">→ Composite value changed</a></li>
                         <li><a href="#trigger-composite-threshold" class="hover:text-purple-600">→ Composite threshold</a></li>
-                        <li><a href="#trigger-formula-changed" class="hover:text-purple-600">→ Formula changed to...</a></li>
+                        <li><a href="#trigger-formula-changed" class="hover:text-purple-600">→ Formula changed</a></li>
+                        <li><a href="#trigger-formula-changed-to" class="hover:text-purple-600">→ Formula changed to...</a></li>
                         <li><a href="#trigger-state-changed" class="hover:text-purple-600">→ State changed (LD)</a></li>
                         <li><a href="#trigger-timeout" class="hover:text-purple-600">→ Formula timed out</a></li>
                     </ul>
@@ -156,14 +157,38 @@
 
             <!-- Formula Changed -->
             <div id="trigger-formula-changed" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
-                <h3 class="text-xl font-semibold mb-3 text-purple-700">Formula [formula] changed to [state]</h3>
-                <p class="text-gray-700 mb-4">Triggers when a formula evaluation result changes to TRUE or FALSE.</p>
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Formula [formula] changed</h3>
+                <p class="text-gray-700 mb-4">Triggers on every transition between TRUE and FALSE for the selected Logic Unit formula.</p>
 
                 <div class="flow-card">
                     <p class="text-sm text-gray-600 mb-2">Parameters:</p>
                     <ul class="space-y-2 text-gray-800">
-                        <li><span class="code-inline">formula</span> - Select which formula to monitor (dropdown)</li>
-                        <li><span class="code-inline">state</span> - TRUE or FALSE (dropdown)</li>
+                        <li><span class="code-inline">formula</span> - Select which formula to monitor</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">result</span> - New result</li>
+                        <li><span class="code-inline">previous_result</span> - Previous result</li>
+                        <li><span class="code-inline">formula_name</span> / <span class="code-inline">device_name</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Formula Changed To -->
+            <div id="trigger-formula-changed-to" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Formula [formula] changed to [result]</h3>
+                <p class="text-gray-700 mb-4">Triggers only when the selected Logic Unit formula changes to the selected TRUE or FALSE result.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">formula</span> - Select which formula to monitor</li>
+                        <li><span class="code-inline">result</span> - TRUE or FALSE</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">result</span> - New result</li>
+                        <li><span class="code-inline">previous_result</span> - Previous result</li>
                     </ul>
                 </div>
 
@@ -174,7 +199,7 @@
                 </div>
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
-                    <p class="text-blue-800 text-sm">💡 Available for both Logic Device and Logic Unit</p>
+                    <p class="text-blue-800 text-sm">The first complete evaluation establishes the formula baseline. These cards fire on later TRUE↔FALSE transitions. Use the Logic Unit's Formula result alarm when a Flow must also react when the first complete result becomes TRUE.</p>
                 </div>
             </div>
 

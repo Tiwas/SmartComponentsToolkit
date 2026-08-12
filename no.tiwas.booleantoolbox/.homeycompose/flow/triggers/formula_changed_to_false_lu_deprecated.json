@@ -47,7 +47,7 @@
     {
       "name": "device",
       "type": "device",
-      "filter": "driver_id=logic-unit"
+      "filter": "driver_id=logic-unit|logic-unit-2|logic-unit-3|logic-unit-4|logic-unit-5|logic-unit-6|logic-unit-7|logic-unit-8|logic-unit-9|logic-unit-10"
     },
     {
       "name": "formula",

@@ -9,6 +9,7 @@
 *   **Logic Device:** A user-friendly device with a visual pairing wizard. Best for simple setups and single formulas. Features dynamic inputs (2-10).
 *   **Logic Unit:** Targeted at advanced users. Configured via JSON settings. Supports multiple independent formulas within a single unit.
 *   **Legacy Units:** Supports legacy "Logic Unit X" devices (fixed input counts).
+*   **Logic Unit output and triggers:** `alarm_generic` exposes the aggregate result (TRUE when any enabled formula is TRUE). `formula_changed_lu` fires on any selected-formula transition, while `formula_changed_to_lu` additionally filters by the selected TRUE/FALSE result. Deprecated trigger IDs remain registered for saved Flow compatibility.
 
 ### 2. Formula Engine
 *   **Location:** `no.tiwas.booleantoolbox/lib/FormulaEvaluator.js`
@@ -38,7 +39,7 @@
     *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `FormulaEvaluator.js`, `Logger.js`).
     *   `locales/`: Translation files.
 *   `docs/`: Documentation for the GitHub Pages site.
-*   Jest test files live beside the app source, including `CompositeAggregator.test.js`, `CompositeDevice.test.js`, and `FormulaEvaluator.test.js`.
+*   Jest test files live beside the app source, including `CompositeAggregator.test.js`, `CompositeDevice.test.js`, `FormulaEvaluator.test.js`, and `LogicUnit.test.js`.
 
 ## Key Technologies
 *   **Platform:** Homey (Athom).

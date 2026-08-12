@@ -76,11 +76,27 @@
   "flow": [
     {
       "type": "trigger",
-      "id": "formula_changed_to_false_lu"
+      "id": "formula_changed_lu"
     },
     {
       "type": "trigger",
-      "id": "formula_changed_to_true_lu"
+      "id": "formula_changed_to_lu"
+    },
+    {
+      "type": "trigger",
+      "id": "formula_changed_to_false"
+    },
+    {
+      "type": "trigger",
+      "id": "formula_changed_to_true"
+    },
+    {
+      "type": "trigger",
+      "id": "formula_changed_to_false_lu_deprecated"
+    },
+    {
+      "type": "trigger",
+      "id": "formula_changed_to_true_lu_deprecated"
     },
     {
       "type": "trigger",

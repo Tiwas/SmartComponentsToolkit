@@ -1,0 +1,68 @@
+{
+  "id": "formula_changed_lu",
+  "title": {
+    "en": "Formula changed",
+    "no": "Formel endret"
+  },
+  "titleFormatted": {
+    "en": "Formula [[formula]] changed",
+    "no": "Formel [[formula]] endret"
+  },
+  "hint": {
+    "en": "Triggers whenever the selected formula changes between TRUE and FALSE.",
+    "no": "Utløses hver gang den valgte formelen endres mellom SANN og USANN."
+  },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=logic-unit|logic-unit-2|logic-unit-3|logic-unit-4|logic-unit-5|logic-unit-6|logic-unit-7|logic-unit-8|logic-unit-9|logic-unit-10"
+    },
+    {
+      "type": "autocomplete",
+      "name": "formula",
+      "title": {
+        "en": "Formula",
+        "no": "Formel"
+      },
+      "placeholder": {
+        "en": "Select a formula...",
+        "no": "Velg en formel..."
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "name": "device_name",
+      "type": "string",
+      "title": {
+        "en": "Device name",
+        "no": "Enhetsnavn"
+      }
+    },
+    {
+      "name": "formula_name",
+      "type": "string",
+      "title": {
+        "en": "Formula name",
+        "no": "Formelnavn"
+      }
+    },
+    {
+      "name": "result",
+      "type": "boolean",
+      "title": {
+        "en": "Result",
+        "no": "Resultat"
+      }
+    },
+    {
+      "name": "previous_result",
+      "type": "boolean",
+      "title": {
+        "en": "Previous result",
+        "no": "Forrige resultat"
+      }
+    }
+  ]
+}

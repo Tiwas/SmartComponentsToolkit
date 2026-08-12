@@ -187,20 +187,23 @@ class BaseLogicDriver extends Homey.Driver {
     async registerFlowCards() {
         this.logger.debug("driver.registering_flow_cards");
 
+        const formulaMatches = (args, state) =>
+            !!args?.formula?.id && args.formula.id === state?.formula_id;
+
+        const selectedResult = (resultArg) => {
+            const value = typeof resultArg === "object"
+                ? resultArg?.id
+                : resultArg;
+            return String(value) === "true";
+        };
+
         // ===== DEPRECATED TRIGGERS (for backward compatibility) =====
         
         // Deprecated: Formula changed to FALSE (old separate card)
         try {
-            const formulaChangedToFalseCard = this.homey.flow.getTriggerCard("formula_changed_to_false_lu_deprecated");
+            const formulaChangedToFalseCard = this.homey.flow.getDeviceTriggerCard("formula_changed_to_false_lu_deprecated");
             formulaChangedToFalseCard.registerRunListener(async (args, state) => {
-                return (
-                    args &&
-                    args.device &&
-                    args.device.driver &&
-                    args.device.driver.id &&
-                    args.device.driver.id.startsWith("logic-unit-") &&
-                    state?.result === false
-                );
+                return formulaMatches(args, state) && state?.result === false;
             });
             this.registerAutocomplete(formulaChangedToFalseCard, "formula", formulaAutocompleteHelper);
             this.logger.debug(` -> OK: DEPRECATED TRIGGER registered: 'formula_changed_to_false_lu_deprecated'`);
@@ -210,16 +213,9 @@ class BaseLogicDriver extends Homey.Driver {
 
         // Deprecated: Formula changed to TRUE (old separate card)
         try {
-            const formulaChangedToTrueCard = this.homey.flow.getTriggerCard("formula_changed_to_true_lu_deprecated");
+            const formulaChangedToTrueCard = this.homey.flow.getDeviceTriggerCard("formula_changed_to_true_lu_deprecated");
             formulaChangedToTrueCard.registerRunListener(async (args, state) => {
-                return (
-                    args &&
-                    args.device &&
-                    args.device.driver &&
-                    args.device.driver.id &&
-                    args.device.driver.id.startsWith("logic-unit-") &&
-                    state?.result === true
-                );
+                return formulaMatches(args, state) && state?.result === true;
             });
             this.registerAutocomplete(formulaChangedToTrueCard, "formula", formulaAutocompleteHelper);
             this.logger.debug(` -> OK: DEPRECATED TRIGGER registered: 'formula_changed_to_true_lu_deprecated'`);
@@ -228,22 +224,41 @@ class BaseLogicDriver extends Homey.Driver {
         }
 
         // ===== NEW IMPROVED TRIGGERS =====
-        
-        // New: Formula changed to [dropdown selection] (combined card)
-        const formulaChangedToCard = this.homey.flow.getTriggerCard("formula_changed_to_lu");
+
+        // Formula changed (any TRUE/FALSE transition)
+        const formulaChangedCard = this.homey.flow.getDeviceTriggerCard("formula_changed_lu");
+        formulaChangedCard.registerRunListener(async (args, state) => {
+            return formulaMatches(args, state);
+        });
+        this.registerAutocomplete(formulaChangedCard, "formula", formulaAutocompleteHelper);
+        this.logger.debug(` -> OK: TRIGGER registered: 'formula_changed_lu'`);
+
+        // Formula changed to [dropdown selection]
+        const formulaChangedToCard = this.homey.flow.getDeviceTriggerCard("formula_changed_to_lu");
         formulaChangedToCard.registerRunListener(async (args, state) => {
-            const expectedResult = args.result === "true";
-            return (
-                args &&
-                args.device &&
-                args.device.driver &&
-                args.device.driver.id &&
-                args.device.driver.id.startsWith("logic-unit-") &&
-                state?.result === expectedResult
-            );
+            return formulaMatches(args, state)
+                && state?.result === selectedResult(args?.result);
         });
         this.registerAutocomplete(formulaChangedToCard, "formula", formulaAutocompleteHelper);
-        this.logger.debug(` -> OK: NEW TRIGGER registered: 'formula_changed_to_lu'`);
+        this.logger.debug(` -> OK: TRIGGER registered: 'formula_changed_to_lu'`);
+
+        // Original pre-Compose cards retained for existing flows.
+        const legacyFormulaCards = [
+            { id: "formula_changed_to_true", result: true },
+            { id: "formula_changed_to_false", result: false },
+        ];
+        legacyFormulaCards.forEach((cardInfo) => {
+            try {
+                const card = this.homey.flow.getDeviceTriggerCard(cardInfo.id);
+                card.registerRunListener(async (args, state) =>
+                    formulaMatches(args, state) && state?.result === cardInfo.result,
+                );
+                this.registerAutocomplete(card, "formula", formulaAutocompleteHelper);
+                this.logger.debug(` -> OK: LEGACY TRIGGER registered: '${cardInfo.id}'`);
+            } catch (e) {
+                this.logger.warn(` -> SKIP: Legacy trigger '${cardInfo.id}' not found`);
+            }
+        });
 
         // ===== EXISTING TRIGGERS (unchanged) =====
         

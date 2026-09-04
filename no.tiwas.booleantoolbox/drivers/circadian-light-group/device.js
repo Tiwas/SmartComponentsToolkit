@@ -152,7 +152,10 @@ class CircadianLightGroupDevice extends Homey.Device {
         const listener = (newValue) => {
           this.onLuxSensorValue(sensorId, Number(newValue)).catch(err => this.error('Lux watcher error:', err));
         };
-        apiDevice.makeCapabilityInstance('measure_luminance', listener);
+        watcher.capabilityInstance = apiDevice.makeCapabilityInstance(
+          'measure_luminance',
+          listener,
+        );
         watcher.listener = listener;
         watcher.apiDevice = apiDevice;
         this.debug(`Lux watcher attached to sensor ${sensorId} (initial value: ${initialValue})`);
@@ -166,8 +169,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (!this.luxWatchers || this.luxWatchers.size === 0) return;
     for (const [, watcher] of this.luxWatchers) {
       try {
-        if (watcher.apiDevice && watcher.listener && typeof watcher.apiDevice.destroyCapabilityInstance === 'function') {
-          watcher.apiDevice.destroyCapabilityInstance('measure_luminance');
+        if (watcher.capabilityInstance && typeof watcher.capabilityInstance.destroy === 'function') {
+          watcher.capabilityInstance.destroy();
         }
       } catch (error) {
         // ignore
@@ -211,7 +214,10 @@ class CircadianLightGroupDevice extends Homey.Device {
             this.debug(`member onoff[${item.name || item.id}] handler failed: ${error.message}`);
           });
         };
-        apiDevice.makeCapabilityInstance('onoff', listener);
+        watcher.capabilityInstance = apiDevice.makeCapabilityInstance(
+          'onoff',
+          listener,
+        );
         watcher.listener = listener;
         this.memberOnoffWatchers.set(item.id, watcher);
         this.debug(`Member onoff watcher attached to ${item.name || item.id} (initial value: ${watcher.value})`);
@@ -225,8 +231,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (!this.memberOnoffWatchers || this.memberOnoffWatchers.size === 0) return;
     for (const [, watcher] of this.memberOnoffWatchers) {
       try {
-        if (watcher.apiDevice && watcher.listener && typeof watcher.apiDevice.destroyCapabilityInstance === 'function') {
-          watcher.apiDevice.destroyCapabilityInstance('onoff');
+        if (watcher.capabilityInstance && typeof watcher.capabilityInstance.destroy === 'function') {
+          watcher.capabilityInstance.destroy();
         }
       } catch (error) {
         // ignore

@@ -397,10 +397,10 @@ class CircadianLightGroupDriver extends Homey.Driver {
         this.error('Probe restore failed:', error);
       }
 
-      for (const capId of Object.keys(capInstances)) {
+      for (const instance of Object.values(capInstances)) {
         try {
-          if (typeof apiDevice.destroyCapabilityInstance === 'function') {
-            apiDevice.destroyCapabilityInstance(capId);
+          if (instance && typeof instance.destroy === 'function') {
+            instance.destroy();
           }
         } catch (error) { /* ignore */ }
       }

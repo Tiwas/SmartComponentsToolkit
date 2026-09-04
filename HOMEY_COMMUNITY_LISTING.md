@@ -1,11 +1,11 @@
-URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-23-test-logic-unit-fixes/143906
+URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-25-test-circadian-flow-ordering/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.23 test - Logic Unit fixes]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.25 test - Circadian flow ordering]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.23
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.25
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,18 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.25 (test channel)
+
+- **Ordered Collection flows:** Collection cards wait for all member work before downstream cards run.
+- **Deterministic conflicts:** pause/resume runs before simultaneous on/off operations.
+- **Cascading pause:** pausing or resuming a Collection propagates to every member Circadian Light Group.
+
+### v1.10.24 (test channel)
+
+- **Reliable activation from all-off:** member lights now acknowledge on before receiving dim and colour targets.
+- **Settling-safe watcher:** short off/on bounces during intentional activation are accepted, while an explicit off still wins immediately.
+- **Race-free scheduling:** explicit member commands are no longer superseded by scheduler ticks, and the Collection no longer duplicates member schedulers or resume applies.
 
 ### v1.10.23 (test channel)
 
@@ -70,7 +82,7 @@ THEN: Set fan speed to Mapped value
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.23 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.25 is available on the test channel.
 
 ### Circadian Light Group highlights
 
@@ -122,7 +134,7 @@ Choose how the device knows how bright it is outside:
 
 <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">→ Install store v1.10.16</a>
 <br>
-<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.23</a>
+<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.25</a>
 
 ---
 
@@ -195,7 +207,7 @@ THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
 ## Installation and Links
 
 * **Homey App Store (v1.10.16):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
-* **Test channel (v1.10.23):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
+* **Test channel (v1.10.25):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
 * **GitHub Repo:** <a href="https://github.com/tiwas/SmartComponentsToolkit" target="_blank">github.com/tiwas/SmartComponentsToolkit</a>
 * **Online Emulator:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/emulator.html" target="_blank">Boolean Logic Emulator</a>
 * **Formula Builder:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/formula-builder.html" target="_blank">Formula Builder</a>

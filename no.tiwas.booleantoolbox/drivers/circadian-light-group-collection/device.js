@@ -2,7 +2,22 @@
 
 const CircadianLightGroupDevice = require('../circadian-light-group/device');
 
+const COLLECTION_OPERATION_BATCH_MS = 50;
+const COLLECTION_OPERATION_PRIORITY = Object.freeze({
+  pause: 0,
+  resume: 0,
+  default: 10,
+});
+
 class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
+  async startScheduler() {
+    // Member Circadian Light Groups already maintain their own schedulers. A second
+    // collection timer sends duplicate writes and can supersede an in-flight member
+    // command at exactly the same tick.
+    this.stopScheduler();
+    this.debug('Collection scheduler disabled; member groups schedule their own profile updates');
+  }
+
   async setupLuxWatchers() {}
 
   async teardownLuxWatchers() {}
@@ -105,21 +120,96 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     return result;
   }
 
-  fanoutInBackground(label, taskFn, verifyFn = null) {
-    // Capability listeners and several Flow actions must return within Homey's 10 s
-    // budget — but lamps behind a member group can take 20-30 s on retries. Drop the
-    // fanout into the background; failures surface via alarm_config + triggerError.
-    this.runForMemberGroups(label, taskFn, verifyFn).catch(err => {
-      this.error(`Collection background fanout '${label}' failed:`, err);
+  getCollectionOperationPriority(label) {
+    return COLLECTION_OPERATION_PRIORITY[label] ?? COLLECTION_OPERATION_PRIORITY.default;
+  }
+
+  scheduleCollectionOperationDrain() {
+    if (this.collectionOperationRunning || this.collectionOperationDispatchTimer) return;
+    if (!Array.isArray(this.collectionOperationQueue) || this.collectionOperationQueue.length === 0) return;
+
+    const configuredDelay = Number(this.collectionOperationBatchDelayMs);
+    const delay = Number.isFinite(configuredDelay)
+      ? Math.max(0, configuredDelay)
+      : COLLECTION_OPERATION_BATCH_MS;
+    this.collectionOperationDispatchTimer = setTimeout(() => {
+      this.collectionOperationDispatchTimer = null;
+      this.drainCollectionOperationQueue().catch(error => {
+        this.error('Collection operation queue failed:', error);
+      });
+    }, delay);
+  }
+
+  async drainCollectionOperationQueue() {
+    if (this.collectionOperationRunning) return;
+    const queue = Array.isArray(this.collectionOperationQueue) ? this.collectionOperationQueue : [];
+    if (queue.length === 0) return;
+
+    queue.sort((left, right) => left.priority - right.priority || left.sequence - right.sequence);
+    const next = queue.shift();
+    this.collectionOperationRunning = true;
+    try {
+      this.debug(`collection operation started: ${next.label} (priority=${next.priority})`);
+      next.resolve(await next.taskFn());
+    } catch (error) {
+      next.reject(error);
+    } finally {
+      this.collectionOperationRunning = false;
+      this.scheduleCollectionOperationDrain();
+    }
+  }
+
+  runCollectionOperation(label, taskFn) {
+    // Advanced Flow can start multiple cards for the same Collection in parallel.
+    // Batch near-simultaneous calls briefly, then run pause/resume before on/off.
+    // Return the actual operation promise so Homey does not advance the card's
+    // outgoing connection before fan-out, retries and verification finish.
+    if (!Array.isArray(this.collectionOperationQueue)) this.collectionOperationQueue = [];
+    this.collectionOperationSequence = (this.collectionOperationSequence || 0) + 1;
+
+    const operation = new Promise((resolve, reject) => {
+      this.collectionOperationQueue.push({
+        label,
+        taskFn,
+        priority: this.getCollectionOperationPriority(label),
+        sequence: this.collectionOperationSequence,
+        resolve,
+        reject,
+      });
     });
+    this.scheduleCollectionOperationDrain();
+    return operation;
+  }
+
+  async runAwaitedMemberGroups(label, taskFn) {
+    const result = await this.runForMemberGroups(label, async (device, item, attempt) => {
+      const completed = await taskFn(device, item, attempt);
+      if (completed === false) {
+        throw new Error(`${item?.name || item?.id || 'Circadian Light Group'} reported an incomplete operation`);
+      }
+    });
+    return result?.superseded !== true && (result?.failed || []).length === 0;
   }
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
     if (this.deleted) return false;
-    const result = await this.runForMemberGroups(`apply_${reason}`, async (device) => {
-      await device.applyCurrentProfile({ reason: `collection-${reason}` });
+    return this.runCollectionOperation(`apply_${reason}`, async () => this.runAwaitedMemberGroups(`apply_${reason}`, async (device) => {
+      return device.applyCurrentProfile({ reason: `collection-${reason}` });
+    }));
+  }
+
+  async turnCollectionOn() {
+    await this.setCollectionOnoff(true);
+    return this.runAwaitedMemberGroups('turn_on', async (device) => {
+      return device.onFlowTurnOn();
     });
-    return (result.failed || []).length === 0;
+  }
+
+  async turnCollectionOff() {
+    await this.setCollectionOnoff(false);
+    return this.runAwaitedMemberGroups('turn_off', async (device) => {
+      return device.onFlowTurnOff();
+    });
   }
 
   async onFlowApplyNow() {
@@ -139,98 +229,115 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
   }
 
   async onFlowTurnOn() {
-    await this.setCollectionOnoff(true);
-    this.fanoutInBackground('turn_on', async (device) => {
-      await device.onFlowTurnOn();
-    }, async (device) => device.getCapabilityValue('onoff') === true);
-    return true;
+    return this.runCollectionOperation('turn_on', async () => this.turnCollectionOn());
   }
 
   async onFlowTurnOff() {
-    await this.setCollectionOnoff(false);
-    this.fanoutInBackground('turn_off', async (device) => {
-      await device.onFlowTurnOff();
-    }, async (device) => device.getCapabilityValue('onoff') === false);
-    return true;
+    return this.runCollectionOperation('turn_off', async () => this.turnCollectionOff());
   }
 
   async onFlowToggle() {
-    return this.getCapabilityValue('onoff') === true
-      ? this.onFlowTurnOff()
-      : this.onFlowTurnOn();
+    return this.runCollectionOperation('toggle', async () => (
+      this.getCapabilityValue('onoff') === true
+        ? this.turnCollectionOff()
+        : this.turnCollectionOn()
+    ));
   }
 
   async onFlowTurnOnMember(args) {
-    const memberId = args.member?.id;
-    if (!memberId) throw new Error('No Circadian Light Group selected');
+    return this.runCollectionOperation('turn_on_member', async () => {
+      const memberId = args.member?.id;
+      if (!memberId) throw new Error('No Circadian Light Group selected');
 
-    const entries = await this.resolveMemberEntries();
-    const entry = entries.find(candidate => candidate.id === memberId);
-    if (!entry || !entry.memberDevice) throw new Error('Circadian Light Group member not found');
+      const entries = await this.resolveMemberEntries();
+      const entry = entries.find(candidate => candidate.id === memberId);
+      if (!entry || !entry.memberDevice) throw new Error('Circadian Light Group member not found');
 
-    await entry.memberDevice.onFlowTurnOn();
-    return true;
+      return entry.memberDevice.onFlowTurnOn();
+    });
   }
 
   async onFlowTurnOnAllMembers() {
     // For a Collection, "all members" = the member CLG devices themselves.
-    // Fire-and-forget so the caller (capability listener or Flow action) returns within
-    // Homey's 10 s budget even when an underlying lamp doesn't respond.
-    this.fanoutInBackground('turn_on_all_members', async (device) => {
-      await device.onFlowTurnOn();
-    }, async (device) => device.getCapabilityValue('onoff') === true);
-    return true;
+    return this.runCollectionOperation('turn_on_all_members', async () => this.runAwaitedMemberGroups('turn_on_all_members', async (device) => {
+      return device.onFlowTurnOn();
+    }));
   }
 
   async onFlowTurnOffAllMembers() {
-    this.fanoutInBackground('turn_off_all_members', async (device) => {
-      await device.onFlowTurnOff();
-    }, async (device) => device.getCapabilityValue('onoff') === false);
-    return true;
+    return this.runCollectionOperation('turn_off_all_members', async () => this.runAwaitedMemberGroups('turn_off_all_members', async (device) => {
+      return device.onFlowTurnOff();
+    }));
+  }
+
+  async onPausedCapabilityChanged(value) {
+    const paused = value === true;
+    const label = paused ? 'pause' : 'resume';
+    return this.runCollectionOperation(label, async () => {
+      this.pauseDebug(`collection capability changed value=${paused}`);
+      this.clearPauseTimer();
+      if (this.getCapabilityValue('clg_paused') !== paused) {
+        await this.setCapabilityValue('clg_paused', paused);
+      }
+      if (paused) {
+        await this.persistPauseState(null);
+      } else {
+        await this.clearPersistedPauseState();
+      }
+      await this.firePauseTrigger(paused);
+
+      return this.runAwaitedMemberGroups(label, async (device) => {
+        return paused ? device.onFlowPause({}) : device.onFlowResume();
+      });
+    });
   }
 
   async onFlowPause(args) {
-    await super.onFlowPause(args);
-    this.fanoutInBackground('pause', async (device) => {
-      await device.onFlowPause(args);
-    }, async (device) => device.getCapabilityValue('clg_paused') === true);
-    return true;
+    return this.runCollectionOperation('pause', async () => {
+      await super.onFlowPause(args);
+      return this.runAwaitedMemberGroups('pause', async (device) => {
+        return device.onFlowPause(args);
+      });
+    });
   }
 
   async onFlowResume() {
-    this.fanoutInBackground('resume', async (device) => {
-      await device.onFlowResume();
-    }, async (device) => device.getCapabilityValue('clg_paused') !== true);
-    await super.onFlowResume();
-    return true;
+    return this.runCollectionOperation('resume', async () => {
+      this.clearPauseTimer();
+      const wasPaused = this.getCapabilityValue('clg_paused') === true;
+      this.pauseDebug(`collection flow resume wasPaused=${wasPaused}`);
+      await this.setCapabilityValue('clg_paused', false);
+      await this.clearPersistedPauseState();
+      if (wasPaused) await this.firePauseTrigger(false);
+
+      return this.runAwaitedMemberGroups('resume', async (device) => {
+        return device.onFlowResume();
+      });
+    });
   }
 
   async onFlowSetExternalLux(args) {
-    this.fanoutInBackground('set_external_lux', async (device) => {
-      await device.onFlowSetExternalLux(args);
-    });
-    return true;
+    return this.runCollectionOperation('set_external_lux', async () => this.runAwaitedMemberGroups('set_external_lux', async (device) => {
+      return device.onFlowSetExternalLux(args);
+    }));
   }
 
   async onFlowSetRedThreshold(args) {
-    this.fanoutInBackground('set_red_threshold', async (device) => {
-      await device.onFlowSetRedThreshold(args);
-    });
-    return true;
+    return this.runCollectionOperation('set_red_threshold', async () => this.runAwaitedMemberGroups('set_red_threshold', async (device) => {
+      return device.onFlowSetRedThreshold(args);
+    }));
   }
 
   async onFlowApplyState(args) {
-    this.fanoutInBackground('apply_state', async (device) => {
-      await device.onFlowApplyState(args);
-    });
-    return true;
+    return this.runCollectionOperation('apply_state', async () => this.runAwaitedMemberGroups('apply_state', async (device) => {
+      return device.onFlowApplyState(args);
+    }));
   }
 
   async onFlowForceRedMode(args) {
-    this.fanoutInBackground('force_red_mode', async (device) => {
-      await device.onFlowForceRedMode(args);
-    });
-    return true;
+    return this.runCollectionOperation('force_red_mode', async () => this.runAwaitedMemberGroups('force_red_mode', async (device) => {
+      return device.onFlowForceRedMode(args);
+    }));
   }
 
   async onConditionIsInPhase(args) {

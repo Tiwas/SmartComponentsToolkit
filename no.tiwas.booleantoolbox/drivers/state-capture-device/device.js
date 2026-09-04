@@ -383,22 +383,27 @@ class StateCaptureDevice extends Homey.Device {
      * Flow Action: Pop state from stack and apply it
      */
     async onFlowPopState(args) {
-        // Get state with template for legacy format conversion
-        const template = this.getTemplate();
-        const state = this.stateManager.peekState(this.getDeviceId(), template);
-
-        if (!state) {
-            throw new Error(this.homey.__('errors.stack_empty') || 'Stack is empty');
-        }
+        const previousPop = this.popApplyQueue || Promise.resolve();
+        let finishPop;
+        const currentPop = new Promise(resolve => { finishPop = resolve; });
+        this.popApplyQueue = currentPop;
 
         try {
+            await previousPop;
+        // Get state with template for legacy format conversion
+            const template = this.getTemplate();
+            const state = this.stateManager.peekState(this.getDeviceId(), template);
+
+            if (!state) {
+                throw new Error(this.homey.__('errors.stack_empty') || 'Stack is empty');
+            }
+
             // Use _executeApply with full state object
             const result = await this._executeApply(state);
 
             const applied = await this._finishFlowApply(result, '');
             if (applied) this.stateManager.popState(this.getDeviceId(), template);
             return applied;
-
         } catch (e) {
             this.error('Pop/Apply failed:', e);
 
@@ -407,6 +412,9 @@ class StateCaptureDevice extends Homey.Device {
                 .catch(this.error);
 
             throw e;
+        } finally {
+            finishPop();
+            if (this.popApplyQueue === currentPop) this.popApplyQueue = null;
         }
     }
 

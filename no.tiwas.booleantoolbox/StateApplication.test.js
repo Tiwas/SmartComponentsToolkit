@@ -133,4 +133,34 @@ describe('StateCaptureDevice application result', () => {
     expect(flow.cards.get('capture_error_scd').trigger).toHaveBeenCalledTimes(2);
     expect(device.stateManager.popState).not.toHaveBeenCalled();
   });
+
+  test('serializes concurrent pop-and-apply actions so each removes the state it applied', async () => {
+    const { device } = createCaptureDevice({}, { id: 'first' });
+    const secondState = { id: 'second' };
+    let resolveFirst;
+    let resolveSecond;
+    device.stateManager.peekState = jest.fn()
+      .mockReturnValueOnce({ id: 'first' })
+      .mockReturnValueOnce(secondState);
+    device._executeApply = jest.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve; }));
+    device._finishFlowApply = jest.fn().mockResolvedValue(true);
+
+    const first = device.onFlowPopState({});
+    const second = device.onFlowPopState({});
+    await Promise.resolve();
+    expect(device._executeApply).toHaveBeenCalledTimes(1);
+
+    resolveFirst({ success: true, errors: [] });
+    await first;
+    await Promise.resolve();
+    expect(device._executeApply).toHaveBeenCalledTimes(2);
+
+    resolveSecond({ success: true, errors: [] });
+    await second;
+
+    expect(device.stateManager.peekState).toHaveBeenCalledTimes(2);
+    expect(device.stateManager.popState).toHaveBeenCalledTimes(2);
+  });
 });

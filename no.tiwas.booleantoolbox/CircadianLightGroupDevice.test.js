@@ -780,3 +780,46 @@ describe('CircadianLightGroupDevice pause persistence', () => {
     }));
   });
 });
+
+describe('CircadianLightGroupDevice capability watcher cleanup', () => {
+  test('destroys the lux capability instance during watcher teardown', async () => {
+    const device = createDeviceHarness();
+    const instance = { destroy: jest.fn() };
+    const apiDevice = {
+      capabilitiesObj: { measure_luminance: { value: 42 } },
+      makeCapabilityInstance: jest.fn(() => instance),
+    };
+    device.luxWatchers = new Map();
+    device.getConfig = jest.fn(() => ({
+      profile: { anchors: { day: { mode: 'lux', sensorDeviceId: 'sensor-1' } } },
+    }));
+    device.homey = { app: { api: { devices: { getDevice: jest.fn().mockResolvedValue(apiDevice) } } } };
+    device.onLuxSensorValue = jest.fn().mockResolvedValue(undefined);
+    device.error = jest.fn();
+
+    await device.setupLuxWatchers();
+    await device.teardownLuxWatchers();
+
+    expect(apiDevice.makeCapabilityInstance).toHaveBeenCalledWith('measure_luminance', expect.any(Function));
+    expect(instance.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  test('destroys the member on/off capability instance during watcher teardown', async () => {
+    const device = createDeviceHarness();
+    const instance = { destroy: jest.fn() };
+    const apiDevice = {
+      capabilitiesObj: { onoff: { value: false, setable: true } },
+      makeCapabilityInstance: jest.fn(() => instance),
+    };
+    device.memberOnoffWatchers = new Map();
+    device.getConfig = jest.fn(() => ({ devices: [{ id: 'light-1', name: 'Kitchen' }] }));
+    device.homey = { app: { api: { devices: { getDevice: jest.fn().mockResolvedValue(apiDevice) } } } };
+    device.onMemberOnoffChange = jest.fn().mockResolvedValue(undefined);
+
+    await device.setupMemberOnoffWatchers();
+    await device.teardownMemberOnoffWatchers();
+
+    expect(apiDevice.makeCapabilityInstance).toHaveBeenCalledWith('onoff', expect.any(Function));
+    expect(instance.destroy).toHaveBeenCalledTimes(1);
+  });
+});

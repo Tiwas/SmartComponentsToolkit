@@ -58,7 +58,7 @@ class WaiterManager {
         const existing = this.waiters.get(id);
         if (existing && existing.flowId === flowContext.flowId) {
             this.logger.debug(`♻️  Re-initializing existing waiter: ${id}`);
-            if (existing.timeoutHandle) clearTimeout(existing.timeoutHandle);
+            this.removeWaiterById(id);
         } else if (existing) {
             throw new Error(`Waiter ID "${id}" already exists`);
         }
@@ -77,7 +77,7 @@ class WaiterManager {
             config,
             deviceConfig,
             virtualGateConfig,
-            capabilityListener: null
+            capabilityListener: null,
         };
 
         this.setupTimeout(waiterData);
@@ -117,22 +117,27 @@ class WaiterManager {
 
     removeWaiter(idPattern) {
         const matches = this.getWaitersByPattern(idPattern);
-        for (const { id, data } of matches) {
-            if (data.timeoutHandle) clearTimeout(data.timeoutHandle);
-            if (data.capabilityListener) {
-                try { data.capabilityListener.device.removeListener(`capability.${data.capabilityListener.capability}`, data.capabilityListener.listener); } catch (e) {}
-            }
-            if (data.virtualGateConfig?.gateName) {
-                const gate = this.virtualGates.get(data.virtualGateConfig.gateName);
-                if (gate) gate.waiters.delete(id);
-            }
-            if (this.flowTracking.has(data.flowId)) {
-                this.flowTracking.get(data.flowId).delete(id);
-                if (this.flowTracking.get(data.flowId).size === 0) this.flowTracking.delete(data.flowId);
-            }
-            this.waiters.delete(id);
-        }
+        for (const { id } of matches) this.removeWaiterById(id);
         return matches.length;
+    }
+
+    removeWaiterById(id) {
+        const data = this.waiters.get(id);
+        if (!data) return false;
+        if (data.timeoutHandle) clearTimeout(data.timeoutHandle);
+        if (data.capabilityListener) {
+            try { data.capabilityListener.instance?.destroy(); } catch (e) {}
+        }
+        if (data.virtualGateConfig?.gateName) {
+            const gate = this.virtualGates.get(data.virtualGateConfig.gateName);
+            if (gate) gate.waiters.delete(id);
+        }
+        if (this.flowTracking.has(data.flowId)) {
+            this.flowTracking.get(data.flowId).delete(id);
+            if (this.flowTracking.get(data.flowId).size === 0) this.flowTracking.delete(data.flowId);
+        }
+        this.waiters.delete(id);
+        return true;
     }
 
     async registerCapabilityListener(waiterId, homey) {
@@ -146,8 +151,20 @@ class WaiterManager {
                     this.removeWaiter(waiterId);
                 }
             };
-            await device.makeCapabilityInstance(waiter.deviceConfig.capability, listener);
-            waiter.capabilityListener = { device, capability: waiter.deviceConfig.capability, listener };
+            const instance = await device.makeCapabilityInstance(
+                waiter.deviceConfig.capability,
+                listener,
+            );
+            if (this.waiters.get(waiterId) !== waiter) {
+                try { instance?.destroy(); } catch (e) {}
+                return;
+            }
+            waiter.capabilityListener = {
+                device,
+                capability: waiter.deviceConfig.capability,
+                listener,
+                instance,
+            };
         } catch (error) { this.logger.error(error); throw error; }
     }
 
@@ -262,7 +279,7 @@ class WaiterManager {
 
     destroy() {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
-        for (const [id, data] of this.waiters.entries()) { if (data.timeoutHandle) clearTimeout(data.timeoutHandle); }
+        for (const id of [...this.waiters.keys()]) this.removeWaiter(id);
         this.waiters.clear(); this.virtualGates.clear(); this.flowTracking.clear();
         this.logger.info('🛑 WaiterManager destroyed');
     }

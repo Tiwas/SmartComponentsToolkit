@@ -347,6 +347,31 @@ describe('CircadianLightGroupDevice light application', () => {
     expect(watcher.value).toBe(false);
   });
 
+  test('keeps accepting intentional on events while a member settles after turn-on', async () => {
+    const device = createDeviceHarness();
+    const now = Date.now();
+    const apiDevice = {
+      setCapabilityValue: jest.fn(),
+    };
+    const watcher = {
+      apiDevice,
+      value: false,
+      onoffSetable: true,
+      lastOffAt: now - 1000,
+      lastClgWriteAt: now - 500,
+      lastClgWriteCapability: 'dim',
+      allowOnUntil: now + 10000,
+    };
+
+    await device.onMemberOnoffChange({ id: 'light-1', name: 'Kitchen' }, watcher, true);
+    await device.onMemberOnoffChange({ id: 'light-1', name: 'Kitchen' }, watcher, false);
+    await device.onMemberOnoffChange({ id: 'light-1', name: 'Kitchen' }, watcher, true);
+
+    expect(apiDevice.setCapabilityValue).not.toHaveBeenCalled();
+    expect(watcher.value).toBe(true);
+    expect(watcher.allowOnUntil).toBeGreaterThan(Date.now());
+  });
+
   test('turns member on before applying capabilities that are not safe to prewarm', async () => {
     const device = createDeviceHarness();
     device.getCapabilityValue = jest.fn((capability) => capability === 'onoff');
@@ -375,6 +400,12 @@ describe('CircadianLightGroupDevice light application', () => {
         },
       },
     };
+    device.waitForMemberOnoffState = jest.fn(async () => {
+      expect(apiDevice.setCapabilityValue).toHaveBeenCalledWith('onoff', true);
+      expect(apiDevice.setCapabilityValue).not.toHaveBeenCalledWith('dim', 0.5);
+      watcher.value = true;
+      return true;
+    });
 
     await device.turnOnMemberToTarget(
       {
@@ -389,7 +420,144 @@ describe('CircadianLightGroupDevice light application', () => {
     const calls = apiDevice.setCapabilityValue.mock.calls;
     expect(calls[0]).toEqual(['onoff', true]);
     expect(calls).toContainEqual(['dim', 0.5]);
+    expect(device.waitForMemberOnoffState).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'light-1' }),
+      apiDevice,
+      true,
+      expect.any(Function)
+    );
     expect(watcher.value).toBe(true);
+  });
+
+  test('defers a scheduler apply while an explicit member command is active', async () => {
+    const device = createDeviceHarness();
+    device.deleted = false;
+    device.currentOpGen = 0;
+    device.error = jest.fn();
+    device._applyCurrentProfileImpl = jest.fn().mockResolvedValue(true);
+
+    const command = device.beginMemberCommand('turn_on_all_members');
+    await expect(device.applyCurrentProfile({ reason: 'timer' })).resolves.toBe(false);
+
+    expect(device.currentOpGen).toBe(command.gen);
+    expect(device._applyCurrentProfileImpl).not.toHaveBeenCalled();
+
+    device.finishMemberCommand(command);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(device._applyCurrentProfileImpl).toHaveBeenCalledWith(
+      'deferred-timer',
+      expect.objectContaining({ label: 'apply[deferred-timer]' })
+    );
+  });
+
+  test('stops an old turn-on before target writes after a newer command supersedes it', async () => {
+    const device = createDeviceHarness();
+    device.getCapabilityValue = jest.fn(capability => capability === 'onoff');
+    let current = true;
+    const watcher = {
+      value: false,
+      onoffSetable: true,
+      lastOffAt: null,
+      lastClgWriteAt: null,
+      lastClgWriteCapability: null,
+      allowOnUntil: null,
+    };
+    device.memberOnoffWatchers = new Map([['light-1', watcher]]);
+    const apiDevice = {
+      capabilitiesObj: {
+        onoff: { setable: true, value: false },
+        dim: setable(0),
+      },
+      setCapabilityValue: jest.fn().mockResolvedValue(undefined),
+    };
+    device.homey = {
+      app: {
+        api: {
+          devices: {
+            getDevice: jest.fn().mockResolvedValue(apiDevice),
+          },
+        },
+      },
+    };
+    device.waitForMemberOnoffState = jest.fn(async () => {
+      current = false;
+      return true;
+    });
+
+    await device.turnOnMemberToTarget(
+      { id: 'light-1', name: 'Kitchen', prewarmSupport: { dim: false } },
+      { mode: 'temperature', hue: null, saturation: null, temperature: 0.25, dim: 0.5 },
+      () => current
+    );
+
+    expect(apiDevice.setCapabilityValue).toHaveBeenCalledWith('onoff', true);
+    expect(apiDevice.setCapabilityValue).not.toHaveBeenCalledWith('dim', 0.5);
+  });
+
+  test('an explicit off cancels the intentional turn-on allowance', async () => {
+    const device = createDeviceHarness();
+    const item = { id: 'light-1', name: 'Kitchen' };
+    const apiDevice = {
+      capabilitiesObj: { onoff: { setable: true, value: true } },
+      setCapabilityValue: jest.fn().mockResolvedValue(undefined),
+    };
+    const watcher = {
+      apiDevice,
+      value: true,
+      onoffSetable: true,
+      lastOffAt: null,
+      lastClgWriteAt: Date.now() - 500,
+      lastClgWriteCapability: 'dim',
+      allowOnUntil: Date.now() + 10000,
+    };
+    device.memberOnoffWatchers = new Map([[item.id, watcher]]);
+    device.homey = {
+      app: {
+        api: {
+          devices: {
+            getDevice: jest.fn().mockResolvedValue(apiDevice),
+          },
+        },
+      },
+    };
+
+    await device.turnOffMember(item);
+    await device.onMemberOnoffChange(item, watcher, false);
+    await device.onMemberOnoffChange(item, watcher, true);
+
+    expect(watcher.allowOnUntil).toBeNull();
+    expect(apiDevice.setCapabilityValue).toHaveBeenNthCalledWith(1, 'onoff', false);
+    expect(apiDevice.setCapabilityValue).toHaveBeenNthCalledWith(2, 'onoff', false);
+  });
+
+  test('explicit onoff writes converge when watcher and API cache disagree', async () => {
+    const device = createDeviceHarness();
+    const item = { id: 'light-1', name: 'Kitchen' };
+    const apiDevice = {
+      capabilitiesObj: { onoff: { setable: true, value: false } },
+      setCapabilityValue: jest.fn().mockResolvedValue(undefined),
+    };
+    device.memberOnoffWatchers = new Map([[item.id, {
+      value: true,
+      allowOnUntil: null,
+    }]]);
+    device.homey = {
+      app: {
+        api: {
+          devices: {
+            getDevice: jest.fn().mockResolvedValue(apiDevice),
+          },
+        },
+      },
+    };
+
+    await device.setMemberOnoff(apiDevice, item, true);
+    await device.turnOffMember(item);
+
+    expect(apiDevice.setCapabilityValue).toHaveBeenNthCalledWith(1, 'onoff', true);
+    expect(apiDevice.setCapabilityValue).toHaveBeenNthCalledWith(2, 'onoff', false);
   });
 
   test('skips turning all members on while paused', async () => {

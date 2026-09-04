@@ -9,6 +9,8 @@ const APPLY_CAPABILITY_DELAY = 150;
 const PREWARM_ONOFF_WAIT_MS = 4000;
 const PREWARM_ONOFF_POLL_MS = 100;
 const RECENT_OFF_REVERT_WINDOW_MS = 10000;
+const MEMBER_ONOFF_SETTLE_TIMEOUT_MS = 2500;
+const MEMBER_ONOFF_POLL_MS = 100;
 const DEVICE_TASK_CONCURRENCY = 5;
 const DEVICE_TASK_RETRY_CONCURRENCY = 2;
 const DEVICE_TASK_MAX_RETRIES = 2;
@@ -62,6 +64,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.timer = null;
     this.deleted = false;
     this.currentOpGen = 0;
+    this.activeMemberCommand = null;
+    this.deferredProfileApplyReason = null;
     this.luxWatchers = new Map(); // sensorDeviceId -> { capInstance, prevValue }
     this.memberOnoffWatchers = new Map(); // deviceId -> { apiDevice, listener, value }
     this.previousPhase = null;
@@ -82,15 +86,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     });
 
     this.registerCapabilityListener('clg_paused', async (value) => {
-      this.pauseDebug(`capability changed value=${value}`);
-      this.clearPauseTimer();
-      if (value === true) {
-        await this.persistPauseState(null);
-      } else {
-        await this.clearPersistedPauseState();
-      }
-      await this.firePauseTrigger(value);
-      await this.applyCurrentProfile({ reason: 'paused-change' });
+      await this.onPausedCapabilityChanged(value);
     });
 
     this.registerCapabilityListener('dim', async () => {});
@@ -106,6 +102,18 @@ class CircadianLightGroupDevice extends Homey.Device {
     // Always start the scheduler so the tile keeps showing live computed values.
     // applyCurrentProfile internally gates whether to push to lights.
     await this.startScheduler(true);
+  }
+
+  async onPausedCapabilityChanged(value) {
+    this.pauseDebug(`capability changed value=${value}`);
+    this.clearPauseTimer();
+    if (value === true) {
+      await this.persistPauseState(null);
+    } else {
+      await this.clearPersistedPauseState();
+    }
+    await this.firePauseTrigger(value);
+    await this.applyCurrentProfile({ reason: 'paused-change' });
   }
 
   async setupLuxWatchers() {
@@ -247,11 +255,11 @@ class CircadianLightGroupDevice extends Homey.Device {
     const recentlyOff = watcher.lastOffAt && (now - watcher.lastOffAt) <= RECENT_OFF_REVERT_WINDOW_MS;
     const recentlyWritten = watcher.lastClgWriteAt && (now - watcher.lastClgWriteAt) <= RECENT_OFF_REVERT_WINDOW_MS;
     if (watcher.allowOnUntil && now <= watcher.allowOnUntil) {
-      watcher.allowOnUntil = null;
       watcher.lastOffAt = null;
       this.debug(`member onoff[${item.name || item.id}]: accepted intentional CLG turn-on`);
       return;
     }
+    if (watcher.allowOnUntil && now > watcher.allowOnUntil) watcher.allowOnUntil = null;
     if (!recentlyOff || !recentlyWritten || !watcher.onoffSetable) return;
 
     try {
@@ -544,6 +552,11 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
     if (this.deleted) return false;
+    if (this.activeMemberCommand) {
+      this.deferredProfileApplyReason = String(reason).replace(/^deferred-/, '');
+      this.debug(`apply[${reason}] DEFERRED while ${this.activeMemberCommand.label} is active`);
+      return false;
+    }
     const op = this.acquireOp(`apply[${reason}]`);
     return this._applyCurrentProfileImpl(reason, op);
   }
@@ -613,7 +626,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     await this.requestExternalOutdoorLightIfNeeded(config);
 
-    const debugCtx = { remaining: 3, reason };
+    const debugCtx = { remaining: 3, reason, isCurrent: op.isCurrent };
     const { failed, superseded } = await this.runDeviceTasksParallel(devices, async (item) => {
       await this.applyTargetToDevice(item, target, debugCtx);
     }, { label: `apply[${reason}]`, isCurrent: op.isCurrent });
@@ -660,6 +673,25 @@ class CircadianLightGroupDevice extends Homey.Device {
       gen,
       isCurrent: () => this.currentOpGen === gen,
     };
+  }
+
+  beginMemberCommand(label) {
+    const op = this.acquireOp(label);
+    this.activeMemberCommand = { label, gen: op.gen };
+    return op;
+  }
+
+  finishMemberCommand(op) {
+    if (!op || this.activeMemberCommand?.gen !== op.gen) return;
+
+    this.activeMemberCommand = null;
+    const deferredReason = this.deferredProfileApplyReason;
+    this.deferredProfileApplyReason = null;
+    if (!deferredReason || this.deleted) return;
+
+    Promise.resolve()
+      .then(() => this.applyCurrentProfile({ reason: `deferred-${deferredReason}` }))
+      .catch(error => this.error('Deferred Circadian apply failed:', error));
   }
 
   // Run an async task per device with staged backoff:
@@ -804,6 +836,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     }
 
     const label = item.name || item.id;
+    const isCurrent = typeof debugCtx?.isCurrent === 'function' ? debugCtx.isCurrent : () => true;
+    if (!isCurrent()) return;
     const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
     const caps = apiDevice.capabilitiesObj || {};
     const cachedIsOn = caps.onoff?.value === true;
@@ -858,6 +892,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     try {
       for (const [capability, value] of capabilitiesToSet) {
+        if (!isCurrent()) return;
         if (isPrewarm) lastPrewarmCapability = capability;
         await apiDevice.setCapabilityValue(capability, value);
         if (watcher) {
@@ -865,17 +900,19 @@ class CircadianLightGroupDevice extends Homey.Device {
           watcher.lastClgWriteCapability = capability;
         }
         await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+        if (!isCurrent()) return;
 
         if (isPrewarm && liveOnoff === true) {
-          await this.handlePrewarmTrip(item, label, apiDevice, caps, capability);
+          await this.handlePrewarmTrip(item, label, apiDevice, caps, capability, isCurrent);
           return;
         }
       }
 
       if (isPrewarm) {
         const tripped = await this.waitForPrewarmTrip(() => liveOnoff, PREWARM_ONOFF_WAIT_MS);
+        if (!isCurrent()) return;
         if (tripped) {
-          await this.handlePrewarmTrip(item, label, apiDevice, caps, lastPrewarmCapability);
+          await this.handlePrewarmTrip(item, label, apiDevice, caps, lastPrewarmCapability, isCurrent);
         } else {
           this.debug(`applyTargetToDevice[${label}]: prewarm OK (onoff stayed false ${PREWARM_ONOFF_WAIT_MS}ms)`);
         }
@@ -896,15 +933,18 @@ class CircadianLightGroupDevice extends Homey.Device {
     return getOnoff() === true;
   }
 
-  async handlePrewarmTrip(item, label, apiDevice, caps, capability) {
+  async handlePrewarmTrip(item, label, apiDevice, caps, capability, isCurrent = () => true) {
+    if (!isCurrent()) return;
     if (caps.onoff?.setable) {
       try {
+        if (!isCurrent()) return;
         await apiDevice.setCapabilityValue('onoff', false);
         this.debug(`applyTargetToDevice[${label}]: prewarm ${capability} tripped lamp on — forced off`);
       } catch (error) {
         this.debug(`applyTargetToDevice[${label}]: failed to force off after prewarm trip: ${error.message}`);
       }
     }
+    if (!isCurrent()) return;
     await this.markPrewarmCapabilityLost(item, label, capability);
   }
 
@@ -1171,25 +1211,29 @@ class CircadianLightGroupDevice extends Homey.Device {
       return true;
     }
 
-    const op = this.acquireOp('turn_on_member');
-    const target = await this.computeCurrentTarget(config);
-    const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
-    const verifyFn = verifiesTarget
-      ? (member) => this.verifyMemberTarget(member, target)
-      : (member) => this.verifyMemberOnoff(member, true);
-    const result = await this.runDeviceTasksParallel([item], async (member) => {
-      await this.turnOnMemberToTarget(member, target);
-    }, {
-      label: 'turn_on_member',
-      verifyFn,
-      isCurrent: op.isCurrent,
-    });
-    return this.reportMemberTaskVerification(
-      `turn_on_member[${item.name || item.id}]`,
-      result,
-      verifiesTarget ? 'on and at target after retries' : 'on after retries',
-      { clearAlarmOnSuccess: false }
-    );
+    const op = this.beginMemberCommand('turn_on_member');
+    try {
+      const target = await this.computeCurrentTarget(config);
+      const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+      const verifyFn = verifiesTarget
+        ? (member) => this.verifyMemberTarget(member, target)
+        : (member) => this.verifyMemberOnoff(member, true);
+      const result = await this.runDeviceTasksParallel([item], async (member) => {
+        await this.turnOnMemberToTarget(member, target, op.isCurrent);
+      }, {
+        label: 'turn_on_member',
+        verifyFn,
+        isCurrent: op.isCurrent,
+      });
+      return await this.reportMemberTaskVerification(
+        `turn_on_member[${item.name || item.id}]`,
+        result,
+        verifiesTarget ? 'on and at target after retries' : 'on after retries',
+        { clearAlarmOnSuccess: false }
+      );
+    } finally {
+      this.finishMemberCommand(op);
+    }
   }
 
   async onFlowTurnOnAllMembers() {
@@ -1202,24 +1246,28 @@ class CircadianLightGroupDevice extends Homey.Device {
       return true;
     }
 
-    const op = this.acquireOp('turn_on_all_members');
-    const target = await this.computeCurrentTarget(config);
-    const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
-    const verifyFn = verifiesTarget
-      ? (item) => this.verifyMemberTarget(item, target)
-      : (item) => this.verifyMemberOnoff(item, true);
-    const result = await this.runDeviceTasksParallel(members, async (item) => {
-      await this.turnOnMemberToTarget(item, target);
-    }, {
-      label: 'turn_on_all_members',
-      verifyFn,
-      isCurrent: op.isCurrent,
-    });
-    return this.reportMemberTaskVerification(
-      'turn_on_all_members',
-      result,
-      verifiesTarget ? 'on and at target after retries' : 'on after retries'
-    );
+    const op = this.beginMemberCommand('turn_on_all_members');
+    try {
+      const target = await this.computeCurrentTarget(config);
+      const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
+      const verifyFn = verifiesTarget
+        ? (item) => this.verifyMemberTarget(item, target)
+        : (item) => this.verifyMemberOnoff(item, true);
+      const result = await this.runDeviceTasksParallel(members, async (item) => {
+        await this.turnOnMemberToTarget(item, target, op.isCurrent);
+      }, {
+        label: 'turn_on_all_members',
+        verifyFn,
+        isCurrent: op.isCurrent,
+      });
+      return await this.reportMemberTaskVerification(
+        'turn_on_all_members',
+        result,
+        verifiesTarget ? 'on and at target after retries' : 'on after retries'
+      );
+    } finally {
+      this.finishMemberCommand(op);
+    }
   }
 
   async onFlowTurnOffAllMembers() {
@@ -1227,18 +1275,19 @@ class CircadianLightGroupDevice extends Homey.Device {
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
     if (members.length === 0) return true;
 
-    const op = this.acquireOp('turn_off_all_members');
-    const result = await this.runDeviceTasksParallel(members, async (item) => {
-      const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
-      if (apiDevice.capabilitiesObj?.onoff?.setable && apiDevice.capabilitiesObj.onoff.value !== false) {
-        await apiDevice.setCapabilityValue('onoff', false);
-      }
-    }, {
-      label: 'turn_off_all_members',
-      verifyFn: (item) => this.verifyMemberOnoff(item, false),
-      isCurrent: op.isCurrent,
-    });
-    return this.reportMemberTaskVerification('turn_off_all_members', result, 'off after retries');
+    const op = this.beginMemberCommand('turn_off_all_members');
+    try {
+      const result = await this.runDeviceTasksParallel(members, async (item) => {
+        await this.turnOffMember(item, op.isCurrent);
+      }, {
+        label: 'turn_off_all_members',
+        verifyFn: (item) => this.verifyMemberOnoff(item, false),
+        isCurrent: op.isCurrent,
+      });
+      return await this.reportMemberTaskVerification('turn_off_all_members', result, 'off after retries');
+    } finally {
+      this.finishMemberCommand(op);
+    }
   }
 
   async computeCurrentTarget(config) {
@@ -1255,7 +1304,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     return target;
   }
 
-  async turnOnMemberToTarget(item, target) {
+  async turnOnMemberToTarget(item, target, isCurrent = () => true) {
+    if (!isCurrent()) return;
     if (this.getCapabilityValue('clg_paused') === true) {
       this.debug(`turn_on_member[${item.name || item.id}]: SKIPPED turn on because clg_paused=true`);
       return;
@@ -1263,14 +1313,16 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     const clgActive = this.getCapabilityValue('onoff') === true;
     if (!clgActive) {
+      if (!isCurrent()) return;
       const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+      if (!isCurrent()) return;
       await this.setMemberOnoff(apiDevice, item, true);
       this.debug(`turn_on_member[${item.name || item.id}]: CLG inactive, only set onoff=true`);
       return;
     }
 
-    const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
-    const caps = apiDevice.capabilitiesObj || {};
+    let apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+    let caps = apiDevice.capabilitiesObj || {};
     const wasOn = this.getLiveMemberOnoff(item, caps);
     const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
     const prewarmWrites = wasOn ? [] : this.getCapabilitiesToSet(item, target, caps, false);
@@ -1278,27 +1330,46 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (prewarmWrites.length > 0) {
       this.debug(`turn_on_member[${item.name || item.id}]: prewarm before on writes=${JSON.stringify(prewarmWrites)}`);
       for (const [capability, value] of prewarmWrites) {
+        if (!isCurrent()) return;
         await apiDevice.setCapabilityValue(capability, value);
         if (watcher) {
           watcher.lastClgWriteAt = Date.now();
           watcher.lastClgWriteCapability = capability;
         }
         await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+        if (!isCurrent()) return;
       }
     }
 
+    if (!isCurrent()) return;
     await this.setMemberOnoff(apiDevice, item, true);
+    if (!wasOn) {
+      const acknowledged = await this.waitForMemberOnoffState(item, apiDevice, true, isCurrent);
+      if (!isCurrent()) return;
+      if (!acknowledged) {
+        this.debug(`turn_on_member[${item.name || item.id}]: onoff=true was not acknowledged before target writes`);
+      }
+      try {
+        apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+        caps = apiDevice.capabilitiesObj || caps;
+      } catch (error) {
+        this.debug(`turn_on_member[${item.name || item.id}]: refresh after on failed: ${error.message}`);
+      }
+    }
     await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+    if (!isCurrent()) return;
 
     const writes = this.getCapabilitiesToSet(item, target, caps, true);
     this.debug(`turn_on_member[${item.name || item.id}]: apply after on writes=${JSON.stringify(writes)}`);
     for (const [capability, value] of writes) {
+      if (!isCurrent()) return;
       await apiDevice.setCapabilityValue(capability, value);
       if (watcher) {
         watcher.lastClgWriteAt = Date.now();
         watcher.lastClgWriteCapability = capability;
       }
       await new Promise(resolve => setTimeout(resolve, APPLY_CAPABILITY_DELAY));
+      if (!isCurrent()) return;
     }
   }
 
@@ -1308,13 +1379,43 @@ class CircadianLightGroupDevice extends Homey.Device {
     if (watcher && value === true) {
       watcher.allowOnUntil = Date.now() + RECENT_OFF_REVERT_WINDOW_MS;
     }
-    if (caps.onoff?.setable && caps.onoff.value !== value) {
+    const observedValues = [];
+    if (watcher && typeof watcher.value === 'boolean') observedValues.push(watcher.value);
+    if (typeof caps.onoff?.value === 'boolean') observedValues.push(caps.onoff.value);
+    const needsWrite = observedValues.length === 0 || observedValues.some(observed => observed !== value);
+    if (caps.onoff?.setable && needsWrite) {
       await apiDevice.setCapabilityValue('onoff', value);
     }
-    if (watcher) {
-      watcher.value = value === true;
-      if (value === true) watcher.lastOffAt = null;
+  }
+
+  async turnOffMember(item, isCurrent = () => true) {
+    const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+    if (watcher) watcher.allowOnUntil = null;
+    if (!isCurrent()) return;
+
+    const apiDevice = await this.homey.app.api.devices.getDevice({ id: item.id });
+    if (!isCurrent()) return;
+    await this.setMemberOnoff(apiDevice, item, false);
+  }
+
+  async waitForMemberOnoffState(item, apiDevice, expected, isCurrent = () => true) {
+    const deadline = Date.now() + MEMBER_ONOFF_SETTLE_TIMEOUT_MS;
+    while (isCurrent() && Date.now() < deadline) {
+      const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+      const value = watcher && typeof watcher.value === 'boolean'
+        ? watcher.value
+        : apiDevice.capabilitiesObj?.onoff?.value === true;
+      if (value === expected) return true;
+      await new Promise(resolve => setTimeout(resolve, MEMBER_ONOFF_POLL_MS));
     }
+
+    if (!isCurrent()) return false;
+
+    const watcher = this.memberOnoffWatchers && this.memberOnoffWatchers.get(item.id);
+    const value = watcher && typeof watcher.value === 'boolean'
+      ? watcher.value
+      : apiDevice.capabilitiesObj?.onoff?.value === true;
+    return value === expected;
   }
 
   // ---- Flow action handlers ----

@@ -118,5 +118,11 @@
   },
   "1.10.23": {
     "en": "Fix Logic Unit formula result alarms and formula-change triggers. Adds Formula changed and Formula changed to Flow cards with current and previous result tags."
+  },
+  "1.10.24": {
+    "en": "Fixed Circadian Light Group activation races: member lights now acknowledge on before target writes, scheduler ticks no longer supersede explicit commands, settling bounces are handled safely, and Collections no longer duplicate member schedulers."
+  },
+  "1.10.25": {
+    "en": "Circadian Light Group Collection cards now wait for all member work, prioritize pause/resume over simultaneous on/off, and propagate pause state to every member group."
   }
 }

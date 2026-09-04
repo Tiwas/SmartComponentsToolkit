@@ -6,6 +6,27 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.25] - September 2026 (Test channel)
+
+### Fixed
+- Circadian Light Group Collection Flow cards now stay pending until every member-group operation, retry and verification has finished, so downstream Advanced Flow cards run in the intended order.
+- Simultaneous Collection operations are serialized with pause/resume ahead of on/off.
+- Collection pause changes now cascade to every member Circadian Light Group from both Flow cards and the device capability.
+
+### Tests
+- Added regression coverage for awaited Collection fan-out, pause/resume priority, queue recovery and pause propagation.
+
+## [1.10.24] - August 2026 (Test channel)
+
+### Fixed
+- Circadian Light Group now waits for a member light to acknowledge that it is on before applying dim and colour targets, making activation from an all-off state converge to the same result as activation from already-on lights.
+- Intentional member turn-on remains valid through short off/on settling bounces, while an explicit off immediately cancels that allowance.
+- Scheduler profile updates are deferred while an explicit member on/off command is being verified, and superseded commands stop between individual capability writes.
+- Circadian Light Group Collection no longer runs a duplicate scheduler or performs a second profile apply during resume; member groups retain their own schedulers.
+
+### Tests
+- Added regression coverage for collection timer duplication, resume duplication, scheduler/command overlap, member settling bounces, explicit-off precedence, and per-capability cancellation.
+
 ## [1.10.23] - August 2026 (Test channel)
 
 ### Added

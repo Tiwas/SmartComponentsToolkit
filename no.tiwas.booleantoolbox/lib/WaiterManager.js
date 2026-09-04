@@ -75,6 +75,7 @@ class WaiterManager {
             flowToken: flowContext.flowToken,
             enabled: true,
             timeoutMs,
+            indefiniteSince: timeoutMs === 0 ? Date.now() : null,
             timeoutHandle: null,
             resolver: null,
             config,
@@ -246,7 +247,10 @@ class WaiterManager {
         if (!waiter) return false;
         
         if (updates.timeoutMs !== undefined) {
+            const wasIndefinite = waiter.timeoutMs === 0;
             waiter.timeoutMs = updates.timeoutMs;
+            if (waiter.timeoutMs === 0 && !wasIndefinite) waiter.indefiniteSince = Date.now();
+            if (waiter.timeoutMs !== 0) waiter.indefiniteSince = null;
             this.setupTimeout(waiter);
             this.logger.info(`⏱️ Updated timeout for waiter "${id}" to ${waiter.timeoutMs}ms`);
         }
@@ -282,7 +286,8 @@ class WaiterManager {
         const now = Date.now();
         let reaped = 0;
         for (const [id, waiter] of this.waiters.entries()) {
-            if (waiter.timeoutMs !== 0 || now - waiter.created < this.MAX_ORPHAN_AGE_MS) continue;
+            const indefiniteSince = waiter.indefiniteSince ?? waiter.created;
+            if (waiter.timeoutMs !== 0 || now - indefiniteSince < this.MAX_ORPHAN_AGE_MS) continue;
 
             this.logger.warn(`🧹 Reaping orphan waiter "${id}" after ${this.MAX_ORPHAN_AGE_MS}ms without a timeout`);
             if (waiter.resolver) {

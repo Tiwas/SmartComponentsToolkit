@@ -193,6 +193,18 @@ describe('WaiterManager orphan cleanup', () => {
     expect(manager.waiters.has('stopped')).toBe(false);
   });
 
+  test('starts the orphan age when a timed waiter is changed to no timeout', async () => {
+    await createWaiter('changed-timeout', 1000);
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.updateWaiter('changed-timeout', { timeoutMs: 0 })).toBe(true);
+    expect(manager.cleanupOrphans()).toBe(0);
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(1);
+    expect(manager.waiters.has('changed-timeout')).toBe(false);
+  });
+
   test('reclaims stale indefinite waiters so the waiter limit recovers', async () => {
     for (let index = 0; index < manager.MAX_WAITERS; index++) {
       await createWaiter(`stale-${index}`);

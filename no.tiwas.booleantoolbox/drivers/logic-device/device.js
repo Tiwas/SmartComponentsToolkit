@@ -1626,7 +1626,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
           formulaId: formula.id,
         };
         this.homey.flow
-          .getDeviceTriggerCard("formula_timeout")
+          .getDeviceTriggerCard("formula_timeout_ld")
           .trigger(this, triggerData, state)
 
           .catch((err) =>

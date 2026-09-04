@@ -154,13 +154,48 @@ describe('LogicDeviceDevice settings validation', () => {
   });
 });
 
+describe('LogicDeviceDevice formula timeouts', () => {
+  test('fires the dedicated Logic Device timeout trigger with formula tokens', async () => {
+    const trigger = { trigger: jest.fn().mockResolvedValue(undefined) };
+    const device = createLogicDeviceHarness();
+    device.homey.flow = { getDeviceTriggerCard: jest.fn(() => trigger) };
+    device.availableInputs = ['a', 'b'];
+    device.parseExpression = jest.fn(() => ['a', 'b']);
+    device.formulas = [{
+      id: 'formula-1',
+      name: 'Main formula',
+      enabled: true,
+      timeout: 1,
+      timedOut: false,
+      lastInputTime: Date.now() - 1001,
+      inputStates: { a: true, b: 'undefined' },
+      expression: 'A AND B',
+    }];
+
+    device.checkTimeouts();
+    await Promise.resolve();
+
+    expect(device.homey.flow.getDeviceTriggerCard).toHaveBeenCalledWith('formula_timeout_ld');
+    expect(trigger.trigger).toHaveBeenCalledWith(device, {
+      formula: { id: 'formula-1', name: 'Main formula' },
+    }, { formulaId: 'formula-1' });
+    expect(device.formulas[0].timedOut).toBe(true);
+  });
+});
+
 describe('LogicDeviceDriver flow cards', () => {
   test('registers formula_result_is_ld condition card', async () => {
     const conditionListeners = {};
+    const triggerListeners = {};
+    const autocompleteListeners = {};
     const createCard = (id) => ({
       id,
       registerRunListener: jest.fn((listener) => {
-        conditionListeners[id] = listener;
+        if (id === 'formula_timeout_ld') triggerListeners[id] = listener;
+        else conditionListeners[id] = listener;
+      }),
+      registerArgumentAutocompleteListener: jest.fn((argName, listener) => {
+        autocompleteListeners[`${id}:${argName}`] = listener;
       }),
     });
     const driver = Object.create(LogicDeviceDriver.prototype);
@@ -178,6 +213,7 @@ describe('LogicDeviceDriver flow cards', () => {
     const device = {
       getName: () => 'Bedtime Group',
       onFlowCondition: jest.fn(async () => true),
+      getFormulas: () => [{ id: 'formula-1', name: 'Main formula' }],
     };
 
     await driver.registerFlowCards();
@@ -192,5 +228,11 @@ describe('LogicDeviceDriver flow cards', () => {
       expect.any(Object),
       true,
     );
+    await expect(triggerListeners.formula_timeout_ld(
+      { formula: { id: 'formula-1' } },
+      { formulaId: 'formula-1' },
+    )).resolves.toBe(true);
+    await expect(autocompleteListeners['formula_timeout_ld:formula']('', { device }))
+      .resolves.toEqual([{ id: 'formula-1', name: 'Main formula' }]);
   });
 });

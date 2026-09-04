@@ -144,6 +144,18 @@ module.exports = class LogicDeviceDriver extends Homey.Driver {
     });
     this.logger.debug(` -> OK: NEW TRIGGER registered: 'device_alarm_turned_ld'`);
 
+    const formulaTimeoutCard = this.homey.flow.getDeviceTriggerCard("formula_timeout_ld");
+    formulaTimeoutCard.registerRunListener(async (args, state) => {
+      const formulaId = args.formula?.id || args.formula;
+      return formulaId === state?.formulaId;
+    });
+    this.registerAutocomplete(formulaTimeoutCard, "formula", async (query, args) => {
+      const formulas = args.device.getFormulas();
+      const normalizedQuery = String(query || '').toLowerCase();
+      return formulas.filter(formula => !normalizedQuery || formula.name.toLowerCase().includes(normalizedQuery));
+    });
+    this.logger.debug(` -> OK: NEW TRIGGER registered: 'formula_timeout_ld'`);
+
 
     // New: Configuration alarm changed to [dropdown selection]
     const configAlarmChangedToCard = this.homey.flow.getTriggerCard("config_alarm_changed_to_ld");

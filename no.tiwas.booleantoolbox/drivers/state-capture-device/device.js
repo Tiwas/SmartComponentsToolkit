@@ -47,7 +47,12 @@ class StateCaptureDevice extends Homey.Device {
         const api = this.homey.app.api;
         const template = this.getTemplate();
         const errors = [];
-        const logErrors = this.getSetting('log_errors');
+        if (!stateData || typeof stateData !== 'object') {
+            return { success: false, errors: [{ error: 'Invalid state data' }] };
+        }
+        if (!api) {
+            return { success: false, errors: [{ error: 'Homey API not ready' }] };
+        }
 
         // Build execution queue based on format
         const queue = [];
@@ -105,15 +110,18 @@ class StateCaptureDevice extends Homey.Device {
         }
 
         if (queue.length === 0) {
-            this.debug('Queue empty, nothing to apply.');
-            return { success: true, errors: [] };
+            return { success: false, errors: [{ error: 'State contains no active changes' }] };
         }
 
         this.debug(`Starting apply sequence with ${queue.length} items...`);
 
         // Execute queue
         for (const item of queue) {
-            if (!item.id || !item.capabilities) continue;
+            if (!item.id || !item.capabilities) {
+                errors.push({ device: item.name || 'Unknown', device_id: item.id, error: 'Invalid item configuration' });
+                if (!ignoreErrors) return { success: false, errors };
+                continue;
+            }
 
             let apiDevice;
             try {
@@ -147,16 +155,20 @@ class StateCaptureDevice extends Homey.Device {
                         validCaps.push(capEntry);
                     } else {
                         this.debug(`Skipping ${item.name} (${capId}): Capability is read-only`);
+                        errors.push({ device: item.name, capability: capId, error: 'Capability is read-only' });
                     }
                 } else {
                     this.debug(`Skipping ${item.name} (${capId}): Capability not found`);
+                    errors.push({ device: item.name, capability: capId, error: 'Capability not found' });
                 }
             }
 
             if (validCaps.length === 0) {
                 this.debug(`Skipping item ${item.name}: No valid/setable capabilities`);
+                if (!ignoreErrors) return { success: false, errors };
                 continue;
             }
+            if (!ignoreErrors && errors.length > 0) return { success: false, errors };
 
             // Wait delay before processing
             if (item.delay > 0) {
@@ -195,6 +207,10 @@ class StateCaptureDevice extends Homey.Device {
                         errors.push({ device: item.name, capability: capId, error: errMessage });
                         if (!ignoreErrors) break;
                     }
+                    if (!errors.some(error => error.device === item.name && error.capability === capId && error.error === errMessage)) {
+                        errors.push({ device: item.name, capability: capId, error: errMessage });
+                    }
+                    if (!ignoreErrors) return { success: false, errors };
                 }
 
                 // Small delay between capabilities (same as state-device)
@@ -206,6 +222,22 @@ class StateCaptureDevice extends Homey.Device {
 
         this.debug('Apply sequence completed.');
         return { success: errors.length === 0, errors };
+    }
+
+    async _finishFlowApply(result, stateName) {
+        if (result.success) {
+            await this.homey.flow.getTriggerCard('state_applied_scd')
+                .trigger(this, { state_name: stateName })
+                .catch(this.error);
+            return true;
+        }
+
+        const error = result.errors.map(item => item.error || String(item)).join('; ') || 'State was not applied';
+        this.error(`State application failed: ${error}`);
+        await this.homey.flow.getTriggerCard('capture_error_scd')
+            .trigger(this, { error, state_name: stateName })
+            .catch(this.error);
+        return false;
     }
 
     /**
@@ -280,18 +312,7 @@ class StateCaptureDevice extends Homey.Device {
             // Use _executeApply with full state object (supports both formats)
             const result = await this._executeApply(state);
 
-            // Trigger success
-            await this.homey.flow.getTriggerCard('state_applied_scd')
-                .trigger(this, { state_name: stateName })
-                .catch(this.error);
-
-            if (result.errors.length > 0) {
-                this.debug(`Applied state "${stateName}" with ${result.errors.length} errors`);
-            } else {
-                this.debug(`Applied state "${stateName}" successfully`);
-            }
-
-            return true;
+            return this._finishFlowApply(result, stateName);
 
         } catch (e) {
             this.error('Apply failed:', e);
@@ -364,7 +385,7 @@ class StateCaptureDevice extends Homey.Device {
     async onFlowPopState(args) {
         // Get state with template for legacy format conversion
         const template = this.getTemplate();
-        const state = this.stateManager.popState(this.getDeviceId(), template);
+        const state = this.stateManager.peekState(this.getDeviceId(), template);
 
         if (!state) {
             throw new Error(this.homey.__('errors.stack_empty') || 'Stack is empty');
@@ -374,13 +395,9 @@ class StateCaptureDevice extends Homey.Device {
             // Use _executeApply with full state object
             const result = await this._executeApply(state);
 
-            // Trigger success
-            await this.homey.flow.getTriggerCard('state_applied_scd')
-                .trigger(this, { state_name: '' })
-                .catch(this.error);
-
-            this.debug('Popped and applied state from stack');
-            return true;
+            const applied = await this._finishFlowApply(result, '');
+            if (applied) this.stateManager.popState(this.getDeviceId(), template);
+            return applied;
 
         } catch (e) {
             this.error('Pop/Apply failed:', e);
@@ -409,13 +426,7 @@ class StateCaptureDevice extends Homey.Device {
             // Use _executeApply with full state object
             const result = await this._executeApply(state);
 
-            // Trigger success
-            await this.homey.flow.getTriggerCard('state_applied_scd')
-                .trigger(this, { state_name: '' })
-                .catch(this.error);
-
-            this.debug('Peeked and applied state from stack (not removed)');
-            return true;
+            return this._finishFlowApply(result, '');
 
         } catch (e) {
             this.error('Peek/Apply failed:', e);

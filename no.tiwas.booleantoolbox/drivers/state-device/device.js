@@ -40,12 +40,31 @@ class StateDevice extends Homey.Device {
   }
 
   async onFlowActionApplyState(args) {
-      const resetAll = args.reset_all === true;
-      return this._executeApply({ reset_all: resetAll });
+    const resetAll = args.reset_all === true;
+    return this._executeApply({ reset_all: resetAll });
+  }
+
+  async _finishApply(errors, logErrors) {
+    if (errors.length > 0) {
+      const error = errors.join('; ');
+      this.error(`State application completed with ${errors.length} error(s): ${error}`);
+      if (logErrors) {
+        await this.homey.flow.getTriggerCard('state_error_occurred_sd')
+          .trigger(this, { error })
+          .catch(this.error);
+      }
+      return false;
+    }
+
+    await this.homey.flow.getTriggerCard('state_applied_successfully_sd')
+      .trigger(this)
+      .catch(this.error);
+    return true;
   }
 
   async _executeApply(options = {}) {
     this.debug('Applying state configuration...', options);
+    const preApplyErrors = [];
     
     // 1. Handle Reset All
     if (options.reset_all) {
@@ -58,22 +77,29 @@ class StateDevice extends Homey.Device {
                 // Turn off without triggering logic? Or just set value.
                 // Using setCapabilityValue triggers listeners usually.
                 // We just want to visually turn them off.
-                await device.setCapabilityValue('onoff', false).catch(() => {});
+                await device.setCapabilityValue('onoff', false).catch((error) => {
+                    preApplyErrors.push(`Failed to reset ${device.getName?.() || device.getData().id}: ${error.message || error}`);
+                });
             }
         } catch (e) {
             this.error('Error resetting other devices:', e);
+            preApplyErrors.push(`Failed to reset other state devices: ${e.message || e}`);
         }
     }
 
     // 2. Set Self to ON
-    await this.setCapabilityValue('onoff', true).catch(this.error);
+    await this.setCapabilityValue('onoff', true).catch((error) => {
+      this.error(error);
+      preApplyErrors.push(`Failed to activate this state device: ${error.message || error}`);
+    });
     
     const jsonStr = this.getSetting('json_data');
     const logErrors = this.getSetting('log_errors');
+    const errors = [...preApplyErrors];
 
     if (!jsonStr) {
-        this.error('No configuration data found.');
-        return;
+      this.error('No configuration data found.');
+      return this._finishApply([...errors, 'No configuration data found'], logErrors);
     }
 
     let configObj;
@@ -81,8 +107,7 @@ class StateDevice extends Homey.Device {
         configObj = JSON.parse(jsonStr);
     } catch (e) {
         this.error('Invalid JSON configuration:', e);
-        if (logErrors) this.homey.flow.getTriggerCard('state_error_occurred_sd').trigger(this, { error: 'Invalid JSON' }).catch(this.error);
-        return;
+        return this._finishApply([...errors, 'Invalid JSON configuration'], logErrors);
     }
 
     // 3. Build Execution Queue (Handle Hierarchical vs Flat)
@@ -125,22 +150,24 @@ class StateDevice extends Homey.Device {
     }
 
     if (queue.length === 0) {
-        this.debug('Queue empty, nothing to do.');
-        return;
+        return this._finishApply([...errors, 'Configuration contains no active state changes'], logErrors);
     }
 
     // 4. Execute Queue
     const api = this.homey.app.api;
     if (!api) {
-        this.error('Homey API not ready.');
-        return;
+        return this._finishApply([...errors, 'Homey API not ready'], logErrors);
     }
 
     this.debug(`Starting sequence with ${queue.length} items...`);
 
     for (const item of queue) {
         // Execute Item
-        if (!item.id || !item.capabilities) continue;
+        if (!item.id || !item.capabilities) {
+            errors.push(`Invalid item configuration for ${item.name || 'unnamed device'}`);
+            if (!ignoreErrors) return this._finishApply(errors, logErrors);
+            continue;
+        }
 
         let apiDevice;
         try {
@@ -153,9 +180,10 @@ class StateDevice extends Homey.Device {
                  this.error(`Failed to get device ${item.name}:`, e);
              }
              if (!ignoreErrors) {
-                 this.homey.flow.getTriggerCard('state_error_occurred_sd').trigger(this, { error: errMessage }).catch(this.error);
-                 return;
+                 errors.push(errMessage);
+                 return this._finishApply(errors, logErrors);
              }
+             errors.push(errMessage);
              continue; // Skip processing this item
         }
 
@@ -170,6 +198,7 @@ class StateDevice extends Homey.Device {
 
         // Filter for valid capabilities BEFORE waiting
         const validCaps = [];
+        const errorsBeforeCapabilities = errors.length;
         for (const capEntry of capsToSet) {
             const capId = capEntry.capability || capEntry.id;
             
@@ -180,15 +209,21 @@ class StateDevice extends Homey.Device {
                     validCaps.push(capEntry);
                 } else {
                     this.warn(`Skipping ${item.name} (${capId}): Capability is read-only.`);
+                    errors.push(`${item.name || item.id}: ${capId} is read-only`);
                 }
             } else {
                 this.warn(`Skipping ${item.name} (${capId}): Capability not found on device.`);
+                errors.push(`${item.name || item.id}: ${capId} is not available`);
             }
         }
 
         if (validCaps.length === 0) {
             this.debug(`Skipping item ${item.name}: No valid/setable capabilities found.`);
+            if (!ignoreErrors) return this._finishApply(errors, logErrors);
             continue; // Skip delay!
+        }
+        if (!ignoreErrors && errors.length > errorsBeforeCapabilities) {
+            return this._finishApply(errors, logErrors);
         }
 
         // Wait Delay (Only if we actually have work to do)
@@ -213,17 +248,15 @@ class StateDevice extends Homey.Device {
                     this.log(`[WARN] Skipped ${item.name} (${capId}): Device driver does not support controlling this capability.`);
                 } else if (typeof errMessage === 'string' && errMessage.includes('TRANSMIT_COMPLETE_NO_ACK')) {
                     this.error(`[NETWORK] Failed to set ${item.name} (${capId}): Device did not respond.`);
-                    if (!ignoreErrors) throw capError;
                 } else if (typeof errMessage === 'string' && (errMessage.includes('device is currently unavailable') || errMessage.includes('Could not reach device'))) {
                     this.error(`[UNREACHABLE] Failed to set ${item.name} (${capId}): Device is unavailable or unreachable.`);
-                    if (!ignoreErrors) throw capError;
                 } else if (capError.code === 'TIMEOUT' || (typeof errMessage === 'string' && errMessage.includes('Timed out'))) {
                     this.error(`[TIMEOUT] Failed to set ${item.name} (${capId}): Operation timed out.`);
-                    if (!ignoreErrors) throw capError;
                 } else {
                     this.error(`Failed to set ${item.name} (${capId}):`, capError);
-                    if (!ignoreErrors) throw capError;
                 }
+                errors.push(`${item.name || item.id}: failed to set ${capId}: ${errMessage}`);
+                if (!ignoreErrors) return this._finishApply(errors, logErrors);
             }
 
             // Add a small delay between capabilities
@@ -233,8 +266,7 @@ class StateDevice extends Homey.Device {
         }
     }
 
-    this.debug('Sequence completed.');
-    this.homey.flow.getTriggerCard('state_applied_successfully_sd').trigger(this).catch(this.error);
+    return this._finishApply(errors, logErrors);
   }
 
 }

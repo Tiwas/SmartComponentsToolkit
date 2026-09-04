@@ -19,13 +19,6 @@ const DEVICE_REGISTRY_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const HOMEY_API_MANAGER_MAX_LISTENERS = 50;
 const API_DEVICES_CACHE_TTL_MS = 1000;
 
-// Import autocomplete helpers from BaseLogicDriver
-// NOTE: Requires BaseLogicDriver to export them correctly
-const {
-    formulaAutocompleteHelper,
-    inputAutocompleteHelper,
-} = require("./lib/BaseLogicDriver");
-
 /**
  * Helper function for evaluate_expression action card.
  *
@@ -44,6 +37,70 @@ const {
  */
 function evaluateCondition(inputValue, operator, ruleValue) {
     return compareNumbers(inputValue, operator, ruleValue);
+}
+
+/**
+ * Evaluates the rule string used by the app-level evaluate_expression Flow
+ * action. Each rule has the form "min,max,output" and the first matching
+ * rule supplies the output token.
+ *
+ * @param {Object} args Flow card arguments
+ * @param {string} outsideLogicMessage Localized message for no matching rule
+ * @returns {{outputValue: number, errorMessage: string}} Flow token values
+ */
+function evaluateExpression(args, outsideLogicMessage) {
+    const input = Number(args.input);
+    if (!Number.isFinite(input)) {
+        throw new Error("Input value must be a valid number.");
+    }
+
+    const logicalOperator = String(args.logical_op?.id || args.logical_op || "").toUpperCase();
+    if (logicalOperator !== "AND" && logicalOperator !== "OR") {
+        throw new Error("Logical operator must be AND or OR.");
+    }
+
+    const rules = String(args.rules || "").trim();
+    if (!rules) {
+        throw new Error("Rule string cannot be empty.");
+    }
+
+    const ruleSets = rules
+        .split(";")
+        .map((rule) => rule.trim())
+        .filter(Boolean);
+
+    const parsedRules = ruleSets.map((ruleSet) => {
+        const parts = ruleSet.split(",").map((part) => part.trim());
+        if (parts.length !== 3 || parts.some((part) => !part)) {
+            throw new Error(
+                `Invalid rule '${ruleSet}'. Expected 'min,max,output'.`,
+            );
+        }
+
+        const [min, max, outputValue] = parts.map(Number);
+        if (![min, max, outputValue].every(Number.isFinite)) {
+            throw new Error(`Invalid numeric value in rule '${ruleSet}'.`);
+        }
+
+        return { min, max, outputValue };
+    });
+
+    for (const { min, max, outputValue } of parsedRules) {
+        const lowerMatch = evaluateCondition(input, args.op1, min);
+        const upperMatch = evaluateCondition(input, args.op2, max);
+        const matches = logicalOperator === "AND"
+            ? lowerMatch && upperMatch
+            : lowerMatch || upperMatch;
+
+        if (matches) {
+            return { outputValue, errorMessage: "" };
+        }
+    }
+
+    return {
+        outputValue: 0,
+        errorMessage: outsideLogicMessage,
+    };
 }
 
 /**
@@ -513,128 +570,49 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         return deviceList;
     }
 
-    // --- Helper for Autocomplete Registration ---
-    registerAutocomplete(card, argName, helperFn) {
-        try {
-            if (typeof helperFn !== "function") {
-                throw new Error(
-                    this.homey.__("errors.helper_not_function", { argName }),
-                );
-            }
-            card.registerArgumentAutocompleteListener(
-                argName,
-                async (query, args) => {
-                    const device = args?.device;
-                    // For device card arguments, check that we have a device
-                    if (argName === "formula" || argName === "input") {
-                        if (!device) {
-                            this.logger.warn(
-                                `Autocomplete for device arg '${argName}' on card '${card.id}' called without device context.`,
-                            );
-                            return [];
-                        }
-                        // Check if the device has the required method
-                        let requiredMethod = "";
-                        if (argName === "formula")
-                            requiredMethod = "getFormulas";
-                        if (argName === "input")
-                            requiredMethod = "getInputOptions";
-
-                        if (typeof device[requiredMethod] !== "function") {
-                            this.logger.warn(
-                                `Autocomplete for device arg '${argName}' on card '${card.id}': Device ${device.getName()} missing method ${requiredMethod}.`,
-                            );
-                            return [];
-                        }
-                    }
-                    // Run the helper itself
-                    try {
-                        return await helperFn(query, args); // Pass the entire args object, the helper must extract the device
-                    } catch (autocompleteError) {
-                        this.logger.error(
-                            `Error during autocomplete for ${argName} on card '${card.id}'`,
-                            autocompleteError,
-                        );
-                        return [];
-                    }
-                },
-            );
-            this.logger.debug(
-                `Registered ${argName.toUpperCase()} autocomplete for card '${card.id}'`,
-            );
-        } catch (e) {
-            this.logger.error(
-                ` -> FAILED to register autocomplete for '${argName}' on card '${card.id}'`,
-                e,
-            );
-        }
-    }
-
     // --- Register ALL Flow Cards Here ---
     async registerAllFlowCards() {
         this.logger.debug("app.registering_flow_cards", {});
 
-        // --- Actions ---
-        const actionCards = [
-            {
-                id: "evaluate_expression",
-                type: "app",
-            }, // App Action
-        ];
-        actionCards.forEach((cardInfo) => {
-            try {
-                const card = this.homey.flow.getActionCard(cardInfo.id);
-                card.registerRunListener(async (args, state) => {
-                    const device = args.device;
-                    if (!device)
-                        throw new Error(
-                            this.homey.__("errors.invalid_device_instance"),
-                        );
-                    const methodName = cardInfo.handler;
-                    if (typeof device[methodName] !== "function")
-                        throw new Error(
-                            this.homey.__("errors.method_missing_on_device", {
-                                methodName,
-                            }),
-                        );
-                    this.logger.flow(
-                        `Executing ACTION '${cardInfo.id}' on device ${device.getName()}`,
+        // --- App-level actions ---
+        try {
+            const evaluateExpressionCard = this.homey.flow.getActionCard(
+                "evaluate_expression",
+            );
+            evaluateExpressionCard.registerRunListener(async (args) => {
+                try {
+                    const result = evaluateExpression(
+                        args,
+                        this.homey.__("app.value_outside_logic", {
+                            input: args.input,
+                        }),
                     );
-                    return await device[methodName](args, state);
-                });
-
-                if (
-                    [
-                        "set_input_value_lu",
-                        "evaluate_formula_lu",
-                        "clear_error_state_lu",
-                    ].includes(cardInfo.id)
-                ) {
-                    this.registerAutocomplete(
-                        card,
-                        "formula",
-                        formulaAutocompleteHelper,
+                    this.logger.flow("Executing ACTION 'evaluate_expression'", {
+                        inputValue: args.input,
+                        ...result,
+                    });
+                    return result;
+                } catch (error) {
+                    const result = {
+                        outputValue: 0,
+                        errorMessage: `Configuration error: ${error.message}`,
+                    };
+                    this.logger.warn(
+                        "Failed to evaluate expression Flow card",
+                        error,
                     );
+                    return result;
                 }
-                if (
-                    ["set_input_value_lu", "set_input_lu"].includes(cardInfo.id)
-                ) {
-                    this.registerAutocomplete(
-                        card,
-                        "input",
-                        inputAutocompleteHelper,
-                    );
-                }
-                this.logger.debug(
-                    ` -> OK: ACTION card registered: '${cardInfo.id}'`,
-                );
-            } catch (e) {
-                this.logger.error(
-                    ` -> FAILED: Registering ACTION card '${cardInfo.id}'`,
-                    e,
-                );
-            }
-        });
+            });
+            this.logger.debug(
+                " -> OK: ACTION card registered: 'evaluate_expression'",
+            );
+        } catch (e) {
+            this.logger.error(
+                " -> FAILED: Registering ACTION card 'evaluate_expression'",
+                e,
+            );
+        }
 
         try {
             const gradientCard = this.homey.flow.getActionCard("calculate_gradient");
@@ -664,58 +642,28 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             this.logger.error(" -> FAILED: Registering ACTION card 'calculate_gradient'", e);
         }
 
-        // --- Conditions ---
-        const conditionCards = [
-            {
-                id: "has_error",
-                type: "app",
-            }, // App Condition
-        ];
-
-        conditionCards.forEach((cardInfo) => {
-            try {
-                const card = this.homey.flow.getConditionCard(cardInfo.id);
-                card.registerRunListener(async (args, state) => {
-                    const device = args.device;
-                    if (!device) return false;
-                    if (typeof device.onFlowCondition !== "function")
-                        return false;
-
-                    let checkType;
-                    if (cardInfo.checkType) {
-                        checkType = cardInfo.checkType;
-                    } else if (cardInfo.checkTypeFromArg) {
-                        checkType = args[cardInfo.checkTypeFromArg] === "true";
-                    }
-
-                    this.logger.flow(
-                        `Executing CONDITION '${cardInfo.id}' on device ${device.getName()}`,
-                    );
-                    return await device.onFlowCondition(args, state, checkType);
+        // --- App-level conditions ---
+        try {
+            const hasErrorCard = this.homey.flow.getConditionCard("has_error");
+            hasErrorCard.registerRunListener(async (args) => {
+                const textInput = args.text_input;
+                const hasError = Boolean(
+                    textInput && String(textInput).length > 0,
+                );
+                this.logger.flow("Executing CONDITION 'has_error'", {
+                    hasError,
                 });
-
-                if (
-                    [
-                        "formula_has_timed_out_lu",
-                        "formula_result_is_lu",
-                    ].includes(cardInfo.id)
-                ) {
-                    this.registerAutocomplete(
-                        card,
-                        "formula",
-                        formulaAutocompleteHelper,
-                    );
-                }
-                this.logger.debug(
-                    ` -> OK: CONDITION card registered: '${cardInfo.id}'`,
-                );
-            } catch (e) {
-                this.logger.error(
-                    ` -> FAILED: Registering CONDITION card '${cardInfo.id}'`,
-                    e,
-                );
-            }
-        });
+                return hasError;
+            });
+            this.logger.debug(
+                " -> OK: CONDITION card registered: 'has_error'",
+            );
+        } catch (e) {
+            this.logger.error(
+                " -> FAILED: Registering CONDITION card 'has_error'",
+                e,
+            );
+        }
 
         try {
             const mathCompareCard = this.homey.flow.getConditionCard("math_compare");

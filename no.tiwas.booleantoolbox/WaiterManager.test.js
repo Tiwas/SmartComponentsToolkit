@@ -103,4 +103,14 @@ describe('WaiterManager capability listener cleanup', () => {
 
     expect(instance.destroy).toHaveBeenCalledTimes(1);
   });
+
+  test('reinitializing a waiter with a wildcard in its ID only removes that exact waiter', async () => {
+    await createDeviceWaiter('job*');
+    await createDeviceWaiter('job1');
+
+    await createDeviceWaiter('job*');
+
+    expect(manager.waiters.has('job*')).toBe(true);
+    expect(manager.waiters.has('job1')).toBe(true);
+  });
 });

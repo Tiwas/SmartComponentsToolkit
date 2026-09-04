@@ -58,7 +58,7 @@ class WaiterManager {
         const existing = this.waiters.get(id);
         if (existing && existing.flowId === flowContext.flowId) {
             this.logger.debug(`♻️  Re-initializing existing waiter: ${id}`);
-            this.removeWaiter(id);
+            this.removeWaiterById(id);
         } else if (existing) {
             throw new Error(`Waiter ID "${id}" already exists`);
         }
@@ -117,22 +117,27 @@ class WaiterManager {
 
     removeWaiter(idPattern) {
         const matches = this.getWaitersByPattern(idPattern);
-        for (const { id, data } of matches) {
-            if (data.timeoutHandle) clearTimeout(data.timeoutHandle);
-            if (data.capabilityListener) {
-                try { data.capabilityListener.instance?.destroy(); } catch (e) {}
-            }
-            if (data.virtualGateConfig?.gateName) {
-                const gate = this.virtualGates.get(data.virtualGateConfig.gateName);
-                if (gate) gate.waiters.delete(id);
-            }
-            if (this.flowTracking.has(data.flowId)) {
-                this.flowTracking.get(data.flowId).delete(id);
-                if (this.flowTracking.get(data.flowId).size === 0) this.flowTracking.delete(data.flowId);
-            }
-            this.waiters.delete(id);
-        }
+        for (const { id } of matches) this.removeWaiterById(id);
         return matches.length;
+    }
+
+    removeWaiterById(id) {
+        const data = this.waiters.get(id);
+        if (!data) return false;
+        if (data.timeoutHandle) clearTimeout(data.timeoutHandle);
+        if (data.capabilityListener) {
+            try { data.capabilityListener.instance?.destroy(); } catch (e) {}
+        }
+        if (data.virtualGateConfig?.gateName) {
+            const gate = this.virtualGates.get(data.virtualGateConfig.gateName);
+            if (gate) gate.waiters.delete(id);
+        }
+        if (this.flowTracking.has(data.flowId)) {
+            this.flowTracking.get(data.flowId).delete(id);
+            if (this.flowTracking.get(data.flowId).size === 0) this.flowTracking.delete(data.flowId);
+        }
+        this.waiters.delete(id);
+        return true;
     }
 
     async registerCapabilityListener(waiterId, homey) {

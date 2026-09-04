@@ -80,6 +80,7 @@
             <div id="user-info" class="hidden text-right">
                 <p id="user-name" class="font-semibold text-gray-900"></p>
                 <p id="homey-name" class="text-sm text-gray-500"></p>
+                <button id="homey-switch-button" class="hidden text-sm text-blue-600 hover:text-blue-500 mr-2" data-i18n="homeySelect.switch">Switch Homey</button>
                 <button id="logout-button" class="text-sm text-red-600 hover:text-red-500" data-i18n="logout">Log out</button>
             </div>
         </div>
@@ -131,6 +132,15 @@
             <h2 class="text-2xl font-bold mb-4 text-gray-900" data-i18n="login.title">Connect to your Homey</h2>
             <p class="text-gray-600 mb-8" data-i18n="login.help">Log in with your Athom account to scan your flows for issues.</p>
             <button id="login-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg" data-i18n="login.button">Log in with Homey</button>
+        </div>
+
+        <!-- Homey Selection Screen -->
+        <div id="homey-select-screen" class="screen text-center p-8 md:p-16">
+            <div class="max-w-xl mx-auto">
+                <h2 class="text-2xl font-bold mb-3 text-gray-900" data-i18n="homeySelect.title">Choose a Homey</h2>
+                <p class="text-gray-600 mb-6" data-i18n="homeySelect.help">Select the Homey you want Flow Doctor to scan.</p>
+                <div id="homey-list" class="space-y-3 text-left"></div>
+            </div>
         </div>
 
         <!-- Loader -->
@@ -189,6 +199,7 @@
             <div class="bg-red-50 border border-red-200 rounded-lg p-6">
                 <h3 class="font-bold text-red-800 mb-2" data-i18n="error.title">Something went wrong</h3>
                 <p id="error-message" class="text-sm text-red-700 font-mono"></p>
+                <button id="choose-homey-button" class="hidden mt-4 mr-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" data-i18n="homeySelect.chooseAnother">Choose another Homey</button>
                 <button onclick="location.reload()" class="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded" data-i18n="error.reload">Reload</button>
             </div>
         </div>
@@ -259,6 +270,11 @@ const I18N = {
         'login.title': 'Connect to your Homey',
         'login.help': 'Log in with your Athom account to scan your flows for issues.',
         'login.button': 'Log in with Homey',
+        'homeySelect.title': 'Choose a Homey',
+        'homeySelect.help': 'Select the Homey you want Flow Doctor to scan.',
+        'homeySelect.select': 'Scan this Homey',
+        'homeySelect.switch': 'Switch Homey',
+        'homeySelect.chooseAnother': 'Choose another Homey',
         'filter.errors': 'Errors',
         'filter.warnings': 'Warnings',
         'filter.info': 'Info',
@@ -385,6 +401,11 @@ const I18N = {
         'login.title': 'Koble til Homey',
         'login.help': 'Logg inn med Athom-kontoen din for å skanne flows for feil.',
         'login.button': 'Logg inn med Homey',
+        'homeySelect.title': 'Velg en Homey',
+        'homeySelect.help': 'Velg Homey-en du vil at Flow Doctor skal skanne.',
+        'homeySelect.select': 'Skann denne Homey-en',
+        'homeySelect.switch': 'Bytt Homey',
+        'homeySelect.chooseAnother': 'Velg en annen Homey',
         'filter.errors': 'Feil',
         'filter.warnings': 'Advarsler',
         'filter.info': 'Info',
@@ -511,6 +532,11 @@ const I18N = {
         'login.title': 'Mit Homey verbinden',
         'login.help': 'Melden Sie sich mit Ihrem Athom-Konto an, um Ihre Flows zu prüfen.',
         'login.button': 'Mit Homey anmelden',
+        'homeySelect.title': 'Homey auswählen',
+        'homeySelect.help': 'Wählen Sie den Homey aus, den Flow Doctor prüfen soll.',
+        'homeySelect.select': 'Diesen Homey prüfen',
+        'homeySelect.switch': 'Homey wechseln',
+        'homeySelect.chooseAnother': 'Anderen Homey auswählen',
         'filter.errors': 'Fehler',
         'filter.warnings': 'Warnungen',
         'filter.info': 'Info',
@@ -637,6 +663,11 @@ const I18N = {
         'login.title': 'Verbinden met Homey',
         'login.help': 'Log in met je Athom-account om je flows op problemen te controleren.',
         'login.button': 'Inloggen met Homey',
+        'homeySelect.title': 'Kies een Homey',
+        'homeySelect.help': 'Kies de Homey die Flow Doctor moet controleren.',
+        'homeySelect.select': 'Deze Homey controleren',
+        'homeySelect.switch': 'Homey wisselen',
+        'homeySelect.chooseAnother': 'Kies een andere Homey',
         'filter.errors': 'Fouten',
         'filter.warnings': 'Waarschuwingen',
         'filter.info': 'Info',
@@ -738,6 +769,10 @@ class FlowDoctor {
         if (!I18N[this.lang]) this.lang = 'en';
         this.cloudApi = null;
         this.api = null;
+        this.homeys = [];
+        this.user = null;
+        this.scanInProgress = false;
+        this.connectingHomey = false;
         this.results = [];
         this.deviceRegistry = null;
         this.deviceRegistryStatus = 'not_loaded';
@@ -767,6 +802,7 @@ class FlowDoctor {
             return;
         }
         document.getElementById('error-message').textContent = text;
+        document.getElementById('choose-homey-button').classList.toggle('hidden', this.homeys.length < 2);
         this.showScreen('error-screen');
     }
 
@@ -776,6 +812,14 @@ class FlowDoctor {
         try {
             ['homey-api', 'homey_api_key', 'homey_access_token', 'homey_refresh_token'].forEach(k => localStorage.removeItem(k));
         } catch (e) { /* ignore */ }
+        this.api = null;
+        this.homeyId = null;
+        this.homeys = [];
+        this.user = null;
+        this.scanInProgress = false;
+        this.connectingHomey = false;
+        document.getElementById('user-info').classList.add('hidden');
+        document.getElementById('homey-switch-button').classList.add('hidden');
         this.showScreen('login-screen');
     }
 
@@ -805,6 +849,7 @@ class FlowDoctor {
                 localStorage.setItem('language', this.lang);
                 this.applyI18n();
                 document.getElementById('language-dropdown').classList.remove('active');
+                if (document.getElementById('homey-select-screen').classList.contains('active')) this.showHomeySelector();
                 if (this.results.length) { this.populateAppFilter(); this.renderFlows(); this.renderApps(); }
             });
         });
@@ -841,12 +886,15 @@ class FlowDoctor {
             if (confirm('Reset API credentials?')) {
                 localStorage.removeItem('flowdoctor_client_id');
                 localStorage.removeItem('flowdoctor_client_secret');
+                localStorage.removeItem('flowdoctor_homey_id');
                 location.reload();
             }
         });
 
         document.getElementById('login-button').addEventListener('click', () => this.login());
         document.getElementById('logout-button').addEventListener('click', () => this.logout());
+        document.getElementById('homey-switch-button').addEventListener('click', () => this.showHomeySelector());
+        document.getElementById('choose-homey-button').addEventListener('click', () => this.showHomeySelector());
 
         // Bug-report modal wiring
         const bugModal = document.getElementById('bug-modal');
@@ -910,19 +958,83 @@ class FlowDoctor {
 
     async postLogin() {
         try {
-            this.showLoader(this.t('loadingFlows'));
-            const user = await this.cloudApi.getAuthenticatedUser();
-            const homeys = await user.getHomeys();
-            const homey = homeys[0];
-            if (!homey) throw new Error('No Homey found on this account.');
-            this.homeyId = homey.id;
-            this.api = await homey.authenticate();
-            document.getElementById('user-name').textContent = user.nickname || user.firstname || '';
-            document.getElementById('homey-name').textContent = 'Homey: ' + homey.name;
+            this.showLoader(this.t('loading'));
+            this.user = await this.cloudApi.getAuthenticatedUser();
+            this.homeys = await this.user.getHomeys();
+            if (!this.homeys.length) throw new Error('No Homey found on this account.');
+
+            const savedHomeyId = localStorage.getItem('flowdoctor_homey_id');
+            const savedHomey = savedHomeyId && this.homeys.find(homey => homey.id === savedHomeyId);
+            if (savedHomey || this.homeys.length === 1) {
+                await this.connectToHomey(savedHomey || this.homeys[0]);
+                return;
+            }
+
+            document.getElementById('user-name').textContent = this.user.nickname || this.user.firstname || '';
+            document.getElementById('homey-name').textContent = '';
             document.getElementById('user-info').classList.remove('hidden');
-            await this.scan();
+            this.showHomeySelector();
         } catch (e) {
             this.showError(e.message || String(e));
+        }
+    }
+
+    showHomeySelector() {
+        if (this.scanInProgress || this.connectingHomey) return;
+        if (!this.homeys.length) {
+            this.showError('No Homey found on this account.');
+            return;
+        }
+
+        const list = document.getElementById('homey-list');
+        list.replaceChildren();
+        for (const homey of this.homeys) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'w-full text-left p-4 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg transition-colors flex items-center justify-between gap-4';
+
+            const name = document.createElement('span');
+            name.className = 'font-semibold text-gray-900';
+            name.textContent = homey.name || homey.id;
+
+            const action = document.createElement('span');
+            action.className = 'text-sm text-blue-600 whitespace-nowrap';
+            action.textContent = this.t('homeySelect.select');
+
+            button.append(name, action);
+            button.addEventListener('click', () => this.connectToHomey(homey));
+            list.appendChild(button);
+        }
+        this.showScreen('homey-select-screen');
+    }
+
+    async connectToHomey(homey) {
+        if (this.scanInProgress || this.connectingHomey) return;
+        if (!homey) {
+            this.showError('Selected Homey is unavailable.');
+            return;
+        }
+
+        this.connectingHomey = true;
+        document.getElementById('homey-switch-button').classList.add('hidden');
+        this.showLoader(this.t('loadingFlows'));
+        try {
+            this.homeyId = homey.id;
+            this.api = await homey.authenticate();
+            localStorage.setItem('flowdoctor_homey_id', homey.id);
+            document.getElementById('user-name').textContent = this.user?.nickname || this.user?.firstname || '';
+            document.getElementById('homey-name').textContent = 'Homey: ' + (homey.name || homey.id);
+            document.getElementById('user-info').classList.remove('hidden');
+            document.getElementById('homey-switch-button').classList.add('hidden');
+            await this.scan();
+        } catch (e) {
+            this.api = null;
+            this.showError(e.message || String(e));
+        } finally {
+            this.connectingHomey = false;
+            if (this.api && !this.scanInProgress && this.homeys.length > 1) {
+                document.getElementById('homey-switch-button').classList.remove('hidden');
+            }
         }
     }
 
@@ -1358,6 +1470,9 @@ class FlowDoctor {
     }
 
     async scan() {
+        if (this.scanInProgress) return;
+        this.scanInProgress = true;
+        document.getElementById('homey-switch-button').classList.add('hidden');
         try {
             this.showLoader(this.t('scanning'));
 
@@ -1655,6 +1770,11 @@ class FlowDoctor {
             this.fetchStoreVersions().catch(() => {});
         } catch (e) {
             this.showError(e.message || String(e));
+        } finally {
+            this.scanInProgress = false;
+            if (this.api && !this.connectingHomey && this.homeys.length > 1) {
+                document.getElementById('homey-switch-button').classList.remove('hidden');
+            }
         }
     }
 

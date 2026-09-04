@@ -114,3 +114,114 @@ describe('WaiterManager capability listener cleanup', () => {
     expect(manager.waiters.has('job1')).toBe(true);
   });
 });
+
+describe('WaiterManager orphan cleanup', () => {
+  let manager;
+  let logger;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    WaiterManager.instance = null;
+    logger = createLogger();
+    manager = new WaiterManager({}, logger);
+  });
+
+  afterEach(() => {
+    manager.destroy();
+    WaiterManager.instance = null;
+    jest.useRealTimers();
+  });
+
+  async function createWaiter(id, timeoutValue = 0, virtualGateConfig = null) {
+    await manager.createWaiter(
+      id,
+      { timeoutValue, timeoutUnit: 'ms' },
+      { flowId: `flow-${id}` },
+      null,
+      virtualGateConfig,
+    );
+  }
+
+  test('reaps an indefinite waiter after the orphan age and resolves its Flow as false', async () => {
+    await createWaiter('orphan');
+    const waiter = manager.waiters.get('orphan');
+    waiter.resolver = jest.fn();
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(1);
+
+    expect(waiter.resolver).toHaveBeenCalledWith(false);
+    expect(manager.waiters.has('orphan')).toBe(false);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Reaping orphan waiter "orphan"'));
+  });
+
+  test('does not reap a waiter that completed through its gate before cleanup', async () => {
+    await createWaiter('completed', 0, { gateName: 'gate-1', targetState: 'GO' });
+    const waiter = manager.waiters.get('completed');
+    waiter.resolver = jest.fn();
+
+    expect(manager.setGateState('gate-1', 'GO')).toBe(1);
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(0);
+    expect(waiter.resolver).toHaveBeenCalledWith({ gate_state: true, gate_state_text: 'GO' });
+    expect(manager.waiters.has('completed')).toBe(false);
+  });
+
+  test('lets timed waiters expire through their own timeout instead of orphan cleanup', async () => {
+    await createWaiter('timed', 100);
+    const waiter = manager.waiters.get('timed');
+    waiter.resolver = jest.fn();
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(0);
+    expect(manager.waiters.has('timed')).toBe(true);
+    await jest.advanceTimersByTimeAsync(100);
+
+    expect(waiter.resolver).toHaveBeenCalledWith(false);
+    expect(manager.waiters.has('timed')).toBe(false);
+  });
+
+  test('does not revisit a waiter that was explicitly stopped', async () => {
+    await createWaiter('stopped');
+
+    expect(manager.stopWaiter('stopped')).toBe(1);
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(0);
+    expect(manager.waiters.has('stopped')).toBe(false);
+  });
+
+  test('starts the orphan age when a timed waiter is changed to no timeout', async () => {
+    await createWaiter('changed-timeout', 1000);
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.updateWaiter('changed-timeout', { timeoutMs: 0 })).toBe(true);
+    expect(manager.cleanupOrphans()).toBe(0);
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(1);
+    expect(manager.waiters.has('changed-timeout')).toBe(false);
+  });
+
+  test('reclaims stale indefinite waiters so the waiter limit recovers', async () => {
+    for (let index = 0; index < manager.MAX_WAITERS; index++) {
+      await createWaiter(`stale-${index}`);
+    }
+    jest.setSystemTime(Date.now() + manager.MAX_ORPHAN_AGE_MS);
+
+    expect(manager.cleanupOrphans()).toBe(manager.MAX_WAITERS);
+    await expect(createWaiter('fresh')).resolves.toBeUndefined();
+    expect(manager.waiters.has('fresh')).toBe(true);
+  });
+
+  test('stops the orphan cleanup interval during shutdown', async () => {
+    const cleanupOrphans = jest.spyOn(manager, 'cleanupOrphans');
+
+    manager.destroy();
+    await jest.advanceTimersByTimeAsync(2 * 60000);
+
+    expect(cleanupOrphans).not.toHaveBeenCalled();
+  });
+});

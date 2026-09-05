@@ -134,6 +134,22 @@ describe('StateCaptureDevice application result', () => {
     expect(device.stateManager.popState).not.toHaveBeenCalled();
   });
 
+  test('treats items without capability values as failed application', async () => {
+    const api = { devices: { getDevice: jest.fn().mockResolvedValue({
+      capabilitiesObj: {},
+      setCapabilityValue: jest.fn(),
+    }) } };
+    const state = { config: { ignore_errors: true }, zones: {
+      Home: { items: [{ id: 'light', name: 'Light', capabilities: [] }] },
+    } };
+    const { device, flow } = createCaptureDevice(api, state);
+
+    await expect(device.onFlowApplyState({ state_name: 'Empty item' })).resolves.toBe(false);
+
+    expect(flow.cards.get('state_applied_scd')).toBeUndefined();
+    expect(flow.cards.get('capture_error_scd').trigger).toHaveBeenCalledTimes(1);
+  });
+
   test('serializes concurrent pop-and-apply actions so each removes the state it applied', async () => {
     const { device } = createCaptureDevice({}, { id: 'first' });
     const secondState = { id: 'second' };
@@ -150,10 +166,12 @@ describe('StateCaptureDevice application result', () => {
     const first = device.onFlowPopState({});
     const second = device.onFlowPopState({});
     await Promise.resolve();
+    await Promise.resolve();
     expect(device._executeApply).toHaveBeenCalledTimes(1);
 
     resolveFirst({ success: true, errors: [] });
     await first;
+    await Promise.resolve();
     await Promise.resolve();
     expect(device._executeApply).toHaveBeenCalledTimes(2);
 
@@ -162,5 +180,56 @@ describe('StateCaptureDevice application result', () => {
 
     expect(device.stateManager.peekState).toHaveBeenCalledTimes(2);
     expect(device.stateManager.popState).toHaveBeenCalledTimes(2);
+  });
+
+  test('queues stack pushes behind pop-and-apply', async () => {
+    const { device } = createCaptureDevice({}, { id: 'first' });
+    let resolveApply;
+    let resolvePush;
+    device.stateManager.peekState = jest.fn().mockReturnValue({ id: 'first' });
+    device._executeApply = jest.fn(() => new Promise(resolve => { resolveApply = resolve; }));
+    device._finishFlowApply = jest.fn().mockResolvedValue(true);
+    device.stateManager.pushState = jest.fn(() => new Promise(resolve => { resolvePush = resolve; }));
+
+    const pop = device.onFlowPopState({});
+    await Promise.resolve();
+    await Promise.resolve();
+    const push = device.onFlowPushState({});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(device.stateManager.pushState).not.toHaveBeenCalled();
+
+    resolveApply({ success: true, errors: [] });
+    await pop;
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(device.stateManager.popState).toHaveBeenCalledTimes(1);
+    expect(device.stateManager.pushState).toHaveBeenCalledTimes(1);
+
+    resolvePush({ depth: 1 });
+    await expect(push).resolves.toBe(true);
+  });
+
+  test('queues stack clearing behind pop-and-apply', async () => {
+    const { device } = createCaptureDevice({}, { id: 'first' });
+    let resolveApply;
+    device.stateManager.peekState = jest.fn().mockReturnValue({ id: 'first' });
+    device._executeApply = jest.fn(() => new Promise(resolve => { resolveApply = resolve; }));
+    device._finishFlowApply = jest.fn().mockResolvedValue(true);
+    device.stateManager.clearStack = jest.fn().mockReturnValue(1);
+
+    const pop = device.onFlowPopState({});
+    await Promise.resolve();
+    await Promise.resolve();
+    const clear = device.onFlowClearStack({});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(device.stateManager.clearStack).not.toHaveBeenCalled();
+
+    resolveApply({ success: true, errors: [] });
+    await pop;
+    await expect(clear).resolves.toBe(true);
+    expect(device.stateManager.popState).toHaveBeenCalledTimes(1);
+    expect(device.stateManager.clearStack).toHaveBeenCalledTimes(1);
   });
 });

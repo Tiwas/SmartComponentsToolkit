@@ -146,6 +146,14 @@ class StateCaptureDevice extends Homey.Device {
                 capsToSet = Object.entries(item.capabilities).map(([k, v]) => ({ capability: k, value: v }));
             }
 
+            if (capsToSet.length === 0) {
+                const error = 'No capability values to apply';
+                this.debug(`Skipping item ${item.name}: ${error}`);
+                errors.push({ device: item.name, device_id: item.id, error });
+                if (!ignoreErrors) return { success: false, errors };
+                continue;
+            }
+
             // Filter for valid/setable capabilities
             const validCaps = [];
             for (const capEntry of capsToSet) {
@@ -347,75 +355,90 @@ class StateCaptureDevice extends Homey.Device {
     // ==================== FLOW ACTIONS: STACK ====================
 
     /**
+     * Serialize all stack mutations. A pop must keep the stack unchanged while
+     * it applies the peeked state, otherwise a concurrent push or clear can
+     * change which entry gets removed afterwards.
+     */
+    async _withStackMutationLock(operation) {
+        const previous = this.stackMutationQueue || Promise.resolve();
+        let release;
+        const current = new Promise(resolve => { release = resolve; });
+        this.stackMutationQueue = current;
+
+        try {
+            await previous.catch(() => {});
+            return await operation();
+        } finally {
+            release();
+            if (this.stackMutationQueue === current) this.stackMutationQueue = null;
+        }
+    }
+
+    /**
      * Flow Action: Push current state onto stack
      */
     async onFlowPushState(args) {
-        const template = this.getTemplate();
-        const api = this.homey.app.api;
+        return this._withStackMutationLock(async () => {
+            const template = this.getTemplate();
+            const api = this.homey.app.api;
 
-        try {
-            const result = await this.stateManager.pushState(
-                this.getDeviceId(),
-                template,
-                api
-            );
+            try {
+                const result = await this.stateManager.pushState(
+                    this.getDeviceId(),
+                    template,
+                    api
+                );
 
-            // Trigger success (state_name is empty for stack operations)
-            await this.homey.flow.getTriggerCard('state_captured_scd')
-                .trigger(this, { state_name: '' })
-                .catch(this.error);
+                // Trigger success (state_name is empty for stack operations)
+                await this.homey.flow.getTriggerCard('state_captured_scd')
+                    .trigger(this, { state_name: '' })
+                    .catch(this.error);
 
-            this.debug(`Pushed state onto stack (depth: ${result.depth})`);
-            return true;
+                this.debug(`Pushed state onto stack (depth: ${result.depth})`);
+                return true;
 
-        } catch (e) {
-            this.error('Push failed:', e);
+            } catch (e) {
+                this.error('Push failed:', e);
 
-            await this.homey.flow.getTriggerCard('capture_error_scd')
-                .trigger(this, { error: e.message, state_name: '' })
-                .catch(this.error);
+                await this.homey.flow.getTriggerCard('capture_error_scd')
+                    .trigger(this, { error: e.message, state_name: '' })
+                    .catch(this.error);
 
-            throw e;
-        }
+                throw e;
+            }
+        });
     }
 
     /**
      * Flow Action: Pop state from stack and apply it
      */
     async onFlowPopState(args) {
-        const previousPop = this.popApplyQueue || Promise.resolve();
-        let finishPop;
-        const currentPop = new Promise(resolve => { finishPop = resolve; });
-        this.popApplyQueue = currentPop;
+        return this._withStackMutationLock(async () => {
+            try {
+                // Get state with template for legacy format conversion
+                const template = this.getTemplate();
+                const state = this.stateManager.peekState(this.getDeviceId(), template);
 
-        try {
-            await previousPop;
-        // Get state with template for legacy format conversion
-            const template = this.getTemplate();
-            const state = this.stateManager.peekState(this.getDeviceId(), template);
+                if (!state) {
+                    throw new Error(this.homey.__('errors.stack_empty') || 'Stack is empty');
+                }
 
-            if (!state) {
-                throw new Error(this.homey.__('errors.stack_empty') || 'Stack is empty');
+                // Use _executeApply with full state object
+                const result = await this._executeApply(state);
+
+                const applied = await this._finishFlowApply(result, '');
+                if (applied) this.stateManager.popState(this.getDeviceId(), template);
+                return applied;
+            } catch (e) {
+                this.error('Pop/Apply failed:', e);
+
+                await this.homey.flow.getTriggerCard('capture_error_scd')
+                    .trigger(this, { error: e.message, state_name: '' })
+                    .catch(this.error);
+
+                throw e;
             }
-
-            // Use _executeApply with full state object
-            const result = await this._executeApply(state);
-
-            const applied = await this._finishFlowApply(result, '');
-            if (applied) this.stateManager.popState(this.getDeviceId(), template);
-            return applied;
-        } catch (e) {
-            this.error('Pop/Apply failed:', e);
-
-            await this.homey.flow.getTriggerCard('capture_error_scd')
-                .trigger(this, { error: e.message, state_name: '' })
-                .catch(this.error);
-
-            throw e;
-        } finally {
-            finishPop();
-            if (this.popApplyQueue === currentPop) this.popApplyQueue = null;
-        }
+        });
     }
 
     /**
@@ -451,9 +474,11 @@ class StateCaptureDevice extends Homey.Device {
      * Flow Action: Clear the stack
      */
     async onFlowClearStack(args) {
-        const count = this.stateManager.clearStack(this.getDeviceId());
-        this.debug(`Cleared stack (${count} items removed)`);
-        return true;
+        return this._withStackMutationLock(async () => {
+            const count = this.stateManager.clearStack(this.getDeviceId());
+            this.debug(`Cleared stack (${count} items removed)`);
+            return true;
+        });
     }
 
     // ==================== FLOW ACTIONS: EXPORT/IMPORT ====================

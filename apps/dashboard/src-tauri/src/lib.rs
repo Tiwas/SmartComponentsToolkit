@@ -3,7 +3,10 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+#[cfg(test)]
+use std::sync::Mutex;
 
 use device_query::{DeviceQuery, DeviceState};
 use tauri::menu::{Menu, MenuItem};
@@ -16,6 +19,9 @@ static SNAPPING: AtomicBool = AtomicBool::new(false);
 /// Configured screen edge for the hotzone trigger. 0 = disabled, 1 = left,
 /// 2 = right, 3 = top, 4 = bottom. Updated from JS via `set_hotzone_edge`.
 static HOTZONE_EDGE: AtomicI32 = AtomicI32::new(0);
+static OAUTH_CANCELLED: AtomicBool = AtomicBool::new(false);
+#[cfg(test)]
+static OAUTH_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 const SNAP_THRESHOLD_PX: i32 = 24;
 const HOTZONE_TRIGGER_PX: i32 = 4;
@@ -27,30 +33,49 @@ const SUCCESS_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><
 const ERROR_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Sign-in failed</title></head>
 <body><h2>Sign-in failed</h2><p>No <code>code</code> parameter received.</p></body></html>"#;
 
-/// Blocks until the browser hits http://127.0.0.1:<port>/callback?code=...
+/// Blocks until the browser hits http://127.0.0.1:<port>/callback?code=...&state=...
 /// Returns the `code` query parameter, or an error string suitable for surfacing
 /// to the frontend.
 #[tauri::command]
-async fn await_oauth_code(port: u16) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || run_listener(port))
+async fn await_oauth_code(port: u16, state: String, timeout_ms: Option<u64>) -> Result<String, String> {
+    OAUTH_CANCELLED.store(false, Ordering::SeqCst);
+    let timeout = Duration::from_millis(timeout_ms.unwrap_or(120_000).clamp(1_000, 300_000));
+    tauri::async_runtime::spawn_blocking(move || run_listener(port, &state, timeout))
         .await
         .map_err(|e| format!("listener task panicked: {e}"))?
 }
 
-fn run_listener(port: u16) -> Result<String, String> {
+#[tauri::command]
+fn cancel_oauth_listener() {
+    OAUTH_CANCELLED.store(true, Ordering::SeqCst);
+}
+
+fn run_listener(port: u16, expected_state: &str, timeout: Duration) -> Result<String, String> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let listener = TcpListener::bind(addr).map_err(|e| format!("could not bind {addr}: {e}"))?;
-    // Don't let a stray browser request hang us forever.
     listener
-        .set_nonblocking(false)
+        .set_nonblocking(true)
         .map_err(|e| format!("set_nonblocking: {e}"))?;
+    let deadline = Instant::now() + timeout;
 
     loop {
-        let (mut stream, _peer) = listener
-            .accept()
-            .map_err(|e| format!("accept failed: {e}"))?;
+        if OAUTH_CANCELLED.load(Ordering::SeqCst) {
+            return Err("OAuth sign-in cancelled".to_string());
+        }
+        if Instant::now() >= deadline {
+            return Err("OAuth sign-in timed out".to_string());
+        }
+
+        let (mut stream, _peer) = match listener.accept() {
+            Ok(connection) => connection,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(25));
+                continue;
+            }
+            Err(error) => return Err(format!("accept failed: {error}")),
+        };
         stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
+            .set_read_timeout(Some(Duration::from_secs(1)))
             .map_err(|e| format!("set_read_timeout: {e}"))?;
 
         let mut reader = BufReader::new(stream.try_clone().map_err(|e| format!("clone: {e}"))?);
@@ -59,14 +84,11 @@ fn run_listener(port: u16) -> Result<String, String> {
             continue;
         }
 
-        // Request line: "GET /callback?code=abc&state=xyz HTTP/1.1"
-        let path = request_line.split_whitespace().nth(1).unwrap_or("");
-        let code = extract_code(path);
+        let callback = parse_callback_request(&request_line, expected_state);
 
-        let (status, body) = if code.is_some() {
-            ("HTTP/1.1 200 OK", SUCCESS_HTML)
-        } else {
-            ("HTTP/1.1 400 Bad Request", ERROR_HTML)
+        let (status, body) = match &callback {
+            Ok(_) => ("HTTP/1.1 200 OK", SUCCESS_HTML),
+            Err(_) => ("HTTP/1.1 400 Bad Request", ERROR_HTML),
         };
 
         let response = format!(
@@ -76,21 +98,44 @@ fn run_listener(port: u16) -> Result<String, String> {
         let _ = stream.write_all(response.as_bytes());
         let _ = stream.flush();
 
-        if let Some(code) = code {
+        if let Ok(code) = callback {
             return Ok(code);
         }
-        // Otherwise keep listening — could be a favicon request or a stray probe.
+        // Keep listening after malformed or stray requests until the valid
+        // callback, cancellation, or overall deadline closes the listener.
     }
 }
 
-fn extract_code(path: &str) -> Option<String> {
-    let query = path.split_once('?')?.1;
+fn parse_callback_request(request_line: &str, expected_state: &str) -> Result<String, &'static str> {
+    let mut parts = request_line.split_whitespace();
+    if parts.next() != Some("GET") {
+        return Err("callback must use GET");
+    }
+    let target = parts.next().ok_or("missing request target")?;
+    if !matches!(parts.next(), Some(version) if version.starts_with("HTTP/")) || parts.next().is_some() {
+        return Err("malformed request line");
+    }
+    let (path, query) = target.split_once('?').ok_or("missing callback query")?;
+    if path != "/callback" {
+        return Err("unexpected callback path");
+    }
+
+    let mut code = None;
+    let mut state = None;
     for pair in query.split('&') {
-        if let Some(("code", value)) = pair.split_once('=') {
-            return Some(url_decode(value));
+        if let Some((key, value)) = pair.split_once('=') {
+            match key {
+                "code" => code = Some(url_decode(value)),
+                "state" => state = Some(url_decode(value)),
+                _ => {}
+            }
         }
     }
-    None
+    let code = code.filter(|value| !value.is_empty()).ok_or("missing code")?;
+    if state.as_deref() != Some(expected_state) {
+        return Err("invalid OAuth state");
+    }
+    Ok(code)
 }
 
 fn url_decode(s: &str) -> String {
@@ -453,6 +498,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             await_oauth_code,
+            cancel_oauth_listener,
             load_favorites,
             save_favorites,
             load_settings,
@@ -473,24 +519,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_simple_code() {
+    fn accepts_callback_with_matching_state() {
         assert_eq!(
-            extract_code("/callback?code=abc123&state=x"),
-            Some("abc123".to_string())
+            parse_callback_request("GET /callback?code=abc123&state=x HTTP/1.1", "x"),
+            Ok("abc123".to_string())
         );
     }
 
     #[test]
-    fn extracts_urlencoded_code() {
+    fn decodes_callback_code() {
         assert_eq!(
-            extract_code("/callback?code=ab%2Bcd"),
-            Some("ab+cd".to_string())
+            parse_callback_request("GET /callback?code=ab%2Bcd&state=x HTTP/1.1", "x"),
+            Ok("ab+cd".to_string())
         );
     }
 
     #[test]
-    fn returns_none_without_code() {
-        assert_eq!(extract_code("/callback?state=x"), None);
-        assert_eq!(extract_code("/callback"), None);
+    fn rejects_missing_or_wrong_state() {
+        assert!(parse_callback_request("GET /callback?code=abc HTTP/1.1", "x").is_err());
+        assert!(parse_callback_request("GET /callback?code=abc&state=y HTTP/1.1", "x").is_err());
+    }
+
+    #[test]
+    fn rejects_wrong_path_or_method() {
+        assert!(parse_callback_request("GET /wrong?code=abc&state=x HTTP/1.1", "x").is_err());
+        assert!(parse_callback_request("POST /callback?code=abc&state=x HTTP/1.1", "x").is_err());
+        assert!(parse_callback_request("GET /callback?code=abc&state=x malformed", "x").is_err());
+    }
+
+    #[test]
+    fn listener_times_out_without_a_callback() {
+        let _lock = OAUTH_TEST_LOCK.lock().unwrap();
+        OAUTH_CANCELLED.store(false, Ordering::SeqCst);
+        let error = run_listener(0, "state", Duration::from_millis(1)).unwrap_err();
+        assert_eq!(error, "OAuth sign-in timed out");
+    }
+
+    #[test]
+    fn listener_can_be_cancelled_without_leaving_the_port_open() {
+        let _lock = OAUTH_TEST_LOCK.lock().unwrap();
+        OAUTH_CANCELLED.store(true, Ordering::SeqCst);
+        let error = run_listener(0, "state", Duration::from_secs(1)).unwrap_err();
+        OAUTH_CANCELLED.store(false, Ordering::SeqCst);
+        assert_eq!(error, "OAuth sign-in cancelled");
     }
 }

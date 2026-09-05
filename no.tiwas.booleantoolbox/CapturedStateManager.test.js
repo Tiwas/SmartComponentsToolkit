@@ -55,4 +55,19 @@ describe('CapturedStateManager named state import/export', () => {
     expect(result).toEqual({ imported: 1, overwritten: 0, errors: [] });
     expect(manager.exportNamedStates(deviceId)).toEqual(exported);
   });
+
+  test('rejects malformed hierarchical zone records during import', () => {
+    const manager = createManager();
+
+    const result = manager.importNamedStates('capture-device', {
+      states: { Broken: { zones: { Kitchen: [] } } },
+    });
+
+    expect(result.imported).toBe(0);
+    expect(result.errors).toEqual([{
+      name: 'Broken',
+      error: 'Invalid zone "Kitchen": expected object',
+    }]);
+    expect(manager.listStateNames('capture-device')).toEqual([]);
+  });
 });

@@ -378,7 +378,7 @@ class CapturedStateManager {
      */
     _validateHierarchicalState(stateData) {
         for (const [zoneName, zoneData] of Object.entries(stateData.zones)) {
-            if (!zoneData || typeof zoneData !== 'object') {
+            if (!zoneData || typeof zoneData !== 'object' || Array.isArray(zoneData)) {
                 throw new Error(`Invalid zone "${zoneName}": expected object`);
             }
 

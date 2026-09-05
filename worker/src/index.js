@@ -8,6 +8,8 @@
 //   →  { "no.tiwas.booleantoolbox": { "stable": "1.10.8", "test": "1.10.9-rc.2" } }
 
 const CACHE_TTL_SECONDS = 3600;
+const NEGATIVE_CACHE_TTL_SECONDS = 300;
+const MAX_BODY_BYTES = 16 * 1024;
 // We process ids serially inside an invocation (parallel fan-out caused
 // homey.app to rate-limit us). 10 ids serial × 2 fetches each was slow
 // enough to time out, so cap at 5. The Flow Doctor client fans out across
@@ -16,30 +18,36 @@ const CACHE_TTL_SECONDS = 3600;
 // connection.
 const MAX_IDS_PER_REQUEST = 5;
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
+const DEFAULT_ALLOWED_ORIGINS = new Set(['https://my.homey.app']);
 
 const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
 };
 
-export default {
-    async fetch(request, env, ctx) {
+export function createWorker({ cache = null, fetchImpl = fetch, observe = defaultObserve } = {}) {
+    return {
+    async fetch(request, env = {}, ctx = { waitUntil: () => {} }) {
+        const origin = allowedOrigin(request, env);
         if (request.method === 'OPTIONS') {
-            return new Response(null, { headers: CORS_HEADERS });
+            return origin ? new Response(null, { headers: corsHeaders(origin) }) : json({ error: 'origin not allowed' }, 403);
         }
 
         const url = new URL(request.url);
         if (request.method !== 'POST' || url.pathname !== '/versions') {
-            return json({ error: 'POST /versions only' }, 404);
+            return json({ error: 'POST /versions only' }, 404, origin);
         }
+        if (!origin) return json({ error: 'origin not allowed' }, 403);
+
+        const limited = await enforceRateLimit(request, env, observe);
+        if (limited) return json({ error: 'rate limit exceeded' }, 429, origin, { 'Retry-After': '60' });
 
         let body;
         try {
-            body = await request.json();
+            body = await readJsonBody(request);
         } catch {
-            return json({ error: 'invalid JSON body' }, 400);
+            return json({ error: 'invalid or oversized JSON body' }, 400, origin);
         }
 
         const ids = Array.isArray(body?.ids)
@@ -48,7 +56,7 @@ export default {
                   .slice(0, MAX_IDS_PER_REQUEST)
             : [];
 
-        if (!ids.length) return json({}, 200);
+        if (!ids.length) return json({}, 200, origin);
 
         // Serialize across ids inside one invocation. Earlier parallel
         // fan-out (20 upstream fetches in flight at once per Worker) caused
@@ -57,37 +65,45 @@ export default {
         // only 2 concurrent requests per id, which homey.app tolerates.
         const out = {};
         for (const id of ids) {
-            out[id] = await getVersions(id, ctx);
+            out[id] = await getVersions(id, ctx, { cache: cache || caches.default, fetchImpl, observe });
         }
-        return json(out, 200);
+        return json(out, 200, origin);
     },
 };
+}
 
-async function getVersions(id, ctx) {
+export default createWorker();
+
+export async function getVersions(id, ctx, { cache, fetchImpl = fetch, observe = defaultObserve } = {}) {
     const cacheKey = new Request(`https://flow-doctor-versions.cache/v5/${encodeURIComponent(id)}`);
-    const cache = caches.default;
     const cached = await cache.match(cacheKey);
     if (cached) {
         try {
+            observe('cache_hit');
             return await cached.json();
         } catch {
             /* fall through and refetch */
         }
     }
 
-    const [stable, test] = await Promise.all([fetchChannelVersion(id, 'stable'), fetchChannelVersion(id, 'test')]);
-    const result = { stable, test };
+    observe('cache_miss');
+    const [stable, test] = await Promise.all([
+        fetchChannelVersion(id, 'stable', fetchImpl, observe),
+        fetchChannelVersion(id, 'test', fetchImpl, observe),
+    ]);
+    const result = { stable: stable.version, test: test.version };
 
-    // Only cache when the stable lookup succeeded. A null stable usually
-    // means the upstream fetch failed (timeout, subrequest exhaustion, or
-    // homey.app being unhappy with us) — caching that would lock in a bad
-    // answer for an hour. test=null is common and legitimate (most apps
-    // don't publish a separate test build), so we don't gate on it.
-    if (stable) {
+    // Cache confirmed misses briefly, but never cache upstream failures.
+    // This prevents random nonexistent IDs from bypassing the cache while
+    // allowing transient Homey App Store failures to recover promptly.
+    if (stable.cacheable && test.cacheable) {
+        const negative = !stable.version && !test.version;
+        const ttl = negative ? NEGATIVE_CACHE_TTL_SECONDS : CACHE_TTL_SECONDS;
         const cacheResponse = new Response(JSON.stringify(result), {
             headers: {
                 'Content-Type': 'application/json',
-                'Cache-Control': `public, max-age=${CACHE_TTL_SECONDS}`,
+                'Cache-Control': `public, max-age=${ttl}`,
+                'X-Cache-Result': negative ? 'negative' : 'positive',
             },
         });
         ctx.waitUntil(cache.put(cacheKey, cacheResponse));
@@ -95,7 +111,7 @@ async function getVersions(id, ctx) {
     return result;
 }
 
-async function fetchChannelVersion(id, channel) {
+async function fetchChannelVersion(id, channel, fetchImpl, observe) {
     // homey.app/a/<id>[/test] is the public app page. It redirects through
     // a locale prefix to e.g. /no-no/app/<id>/<App-Title>/ (or .../test/ if
     // there is a separately-published test build). Apps without a test build
@@ -105,19 +121,24 @@ async function fetchChannelVersion(id, channel) {
     const path = channel === 'test' ? `${encodeURIComponent(id)}/test` : encodeURIComponent(id);
     const upstream = `https://homey.app/a/${path}`;
     try {
-        const res = await fetch(upstream, {
+        const res = await fetchImpl(upstream, {
             cf: { cacheTtl: CACHE_TTL_SECONDS, cacheEverything: true },
             headers: { 'User-Agent': 'flow-doctor-versions/1.0 (+https://tiwas.github.io/SmartComponentsToolkit/)' },
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            observe('upstream_error', { status: res.status });
+            return { version: null, cacheable: res.status === 404 };
+        }
         if (channel === 'test' && !/\/test\/?$/i.test(new URL(res.url).pathname)) {
             // Redirected away from /test → no separate test build published.
-            return null;
+            return { version: null, cacheable: true };
         }
         const html = await res.text();
-        return extractVersion(html);
+        const version = extractVersion(html);
+        return { version, cacheable: Boolean(version) };
     } catch {
-        return null;
+        observe('upstream_error', { status: 'network' });
+        return { version: null, cacheable: false };
     }
 }
 
@@ -133,9 +154,53 @@ function extractVersion(html) {
     return null;
 }
 
-function json(payload, status) {
+function allowedOrigin(request, env) {
+    const origin = request.headers.get('Origin');
+    if (!origin) return null;
+    const configured = String(env.ALLOWED_ORIGINS || '')
+        .split(',').map(value => value.trim()).filter(Boolean);
+    return new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured]).has(origin) ? origin : null;
+}
+
+function corsHeaders(origin) {
+    return { ...CORS_HEADERS, 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
+}
+
+async function enforceRateLimit(request, env, observe) {
+    if (!env.VERSIONS_RATE_LIMITER) return false;
+    const key = request.headers.get('CF-Connecting-IP') || 'unknown-client';
+    const { success } = await env.VERSIONS_RATE_LIMITER.limit({ key });
+    if (!success) observe('rate_limited');
+    return !success;
+}
+
+async function readJsonBody(request) {
+    const contentLength = Number(request.headers.get('Content-Length'));
+    if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) throw new Error('body too large');
+    const reader = request.body?.getReader();
+    if (!reader) return {};
+    let size = 0;
+    const chunks = [];
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > MAX_BODY_BYTES) throw new Error('body too large');
+        chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function defaultObserve(event, fields = {}) {
+    console.log(JSON.stringify({ service: 'flow-doctor-versions', event, ...fields }));
+}
+
+function json(payload, status, origin, headers = {}) {
     return new Response(JSON.stringify(payload), {
         status,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...(origin ? corsHeaders(origin) : {}), ...headers, 'Content-Type': 'application/json' },
     });
 }

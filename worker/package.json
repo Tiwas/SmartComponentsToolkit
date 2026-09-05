@@ -1,8 +1,10 @@
 {
   "name": "flow-doctor-versions",
   "private": true,
+  "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "test": "node --test"
   }
 }

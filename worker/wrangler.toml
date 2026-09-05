@@ -2,4 +2,11 @@ name = "flow-doctor-versions"
 main = "src/index.js"
 compatibility_date = "2026-05-01"
 
-# No bindings needed — uses the global edge cache (caches.default).
+# Public-client request budget, enforced at the Cloudflare edge. The namespace
+# id is private to this Worker and must remain unique within the account.
+[[ratelimits]]
+name = "VERSIONS_RATE_LIMITER"
+namespace_id = "318004721"
+  [ratelimits.simple]
+  limit = 10
+  period = 60

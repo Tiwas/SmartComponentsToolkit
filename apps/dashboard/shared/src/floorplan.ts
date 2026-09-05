@@ -36,7 +36,7 @@ const MAX_SVG_SIZE = 1_000_000;
 const MAX_SVG_ELEMENTS = 10_000;
 const MAX_SVG_ATTRIBUTES = 50_000;
 const SAFE_SVG_ELEMENTS = new Set([
-  "svg", "g", "defs", "desc", "title", "view", "path", "rect", "circle", "ellipse", "line",
+  "svg", "g", "defs", "view", "switch", "path", "rect", "circle", "ellipse", "line",
   "polyline", "polygon", "text", "tspan", "textpath", "use", "symbol", "marker", "pattern",
   "clippath", "mask", "lineargradient", "radialgradient", "stop", "filter", "feblend",
   "fecolormatrix", "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
@@ -47,6 +47,15 @@ const SAFE_SVG_ELEMENTS = new Set([
 
 function hasOnlyLocalUrlReferences(value: string): boolean {
   const normalized = value.toLowerCase();
+  if (
+    normalized.includes("image(") ||
+    normalized.includes("image-set(") ||
+    normalized.includes("cross-fade(") ||
+    normalized.includes("element(") ||
+    normalized.includes("paint(")
+  ) {
+    return false;
+  }
   let cursor = 0;
   while (true) {
     const start = normalized.indexOf("url(", cursor);
@@ -168,10 +177,11 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
 
       const name = attribute.name.toLowerCase();
       const value = attribute.value.trim();
-      const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src" || name === "srcset";
+      const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src";
       if (
         name.startsWith("on") ||
         name === "style" ||
+        name === "srcset" ||
         value.includes("\\") ||
         (isUrlAttribute && !isSafeSvgReference(value)) ||
         !hasOnlyLocalUrlReferences(value)
@@ -308,26 +318,30 @@ function removeFloorsExcept(svg: string, keep: Set<string>): string {
     const name = open[1] ?? "";
     const startIdx = open.index;
     const headerEnd = startIdx + open[0].length;
+    const isSelfClosing = /\/\s*>$/.test(open[0]);
     if (keep.has(name)) {
       // Replace the attribute so we don't re-match, but keep the group.
       const replaced = open[0].replace(/data-floor="[^"]*"/i, `data-floor-kept="${name}"`);
       out = out.slice(0, startIdx) + replaced + out.slice(headerEnd);
       continue;
     }
+    if (isSelfClosing) {
+      out = out.slice(0, startIdx) + out.slice(headerEnd);
+      continue;
+    }
     // Find the matching </g> by counting nesting depth.
     let depth = 1;
     let i = headerEnd;
-    while (i < out.length && depth > 0) {
-      const nextOpen = out.toLowerCase().indexOf("<g", i);
-      const nextClose = out.toLowerCase().indexOf("</g>", i);
-      if (nextClose === -1) break;
-      if (nextOpen !== -1 && nextOpen < nextClose) {
-        depth++;
-        i = nextOpen + 2;
-      } else {
+    const tagRegex = /<g\b[^>]*\/?>|<\/g\s*>/gi;
+    tagRegex.lastIndex = headerEnd;
+    let tag: RegExpExecArray | null;
+    while ((tag = tagRegex.exec(out)) !== null && depth > 0) {
+      if (tag[0].startsWith("</")) {
         depth--;
-        i = nextClose + 4;
+      } else if (!/\/\s*>$/.test(tag[0])) {
+        depth++;
       }
+      i = tagRegex.lastIndex;
     }
     out = out.slice(0, startIdx) + out.slice(i);
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { normalizeFloorplan, validateSvg } from "../src/floorplan.js";
+import { filterFloors, normalizeFloorplan, validateSvg } from "../src/floorplan.js";
 
 const window = new JSDOM().window;
 Object.assign(globalThis, {
@@ -31,6 +31,7 @@ const hostile = sanitized(`
     <image href="https://attacker.example/pixel.svg"/>
     <img srcset="https://attacker.example/pixel 1x"/>
     <p><video poster="https://attacker.example/poster"/></p>
+    <rect mask-image="image-set('https://attacker.example/mask.png' 1x)"/>
     <use href="javascript:alert(1)"/>
     <rect style="fill: url(data:image/svg+xml,evil)" fill="url(https://attacker.example/paint)" stroke="u\\rl(https://attacker.example/escaped)"/>
   </svg>
@@ -43,6 +44,17 @@ assert.doesNotMatch(commented, /<!--|https:/, "comments cannot be reactivated by
 
 const cdata = sanitized(`<svg><g data-floor="bad"><![CDATA[</g><image href="https://attacker.example/pixel"/>]]></g></svg>`);
 assert.doesNotMatch(cdata, /<!\[CDATA|https:/, "CDATA cannot be reactivated by floor filtering");
+
+const titleIntegrationPoint = sanitized(`<svg><title><image srcset="#local 1x, https://attacker.example/pixel 2x"/></title></svg>`);
+assert.doesNotMatch(titleIntegrationPoint, /<title\b|srcset=|https:/, "integration-point content is removed");
+
+const floorSvg = sanitized(`<svg><g data-floor="hidden"></g><g data-floor="visible"><rect/></g></svg>`);
+const filteredFloors = filterFloors(floorSvg, new Set(["visible"]));
+assert.doesNotMatch(filteredFloors, /data-floor="hidden"/);
+assert.match(filteredFloors, /data-floor="visible"/, "self-closing hidden groups do not remove visible floors");
+
+const withSwitch = sanitized(`<svg><switch><g data-floor="Main"><rect data-zone="zone"/></g></switch></svg>`);
+assert.match(withSwitch, /<switch\b/i, "standard SVG switch containers are retained");
 
 const stored = normalizeFloorplan({ svg: `<svg><script>alert(1)</script><rect/></svg>`, placements: [] });
 assert.doesNotMatch(stored.svg, /<script\b/i, "stored SVG is sanitized before rendering");

@@ -7,10 +7,10 @@
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
 [![Stable](https://img.shields.io/badge/stable-1.10.9-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
-[![Test](https://img.shields.io/badge/test-1.10.26-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
+[![Test](https://img.shields.io/badge/test-1.10.27-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.26 test** — improves Logic Device listener recovery and prevents stale formula results during bursts of updates.
+> **v1.10.27 test** — prevents stale Logic Device formula results during bursts of updates and reduces routine Logic Unit logging.
 
 ---
 
@@ -138,7 +138,7 @@ THEN: Pop state (restore previous)
 
 ---
 
-### Circadian Light Group *(stable v1.10.16 / test v1.10.26)*
+### Circadian Light Group *(stable v1.10.16 / test v1.10.27)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 

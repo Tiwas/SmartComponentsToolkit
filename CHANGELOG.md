@@ -6,15 +6,19 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
-## [1.10.26] - September 2026 (Test channel)
+## [1.10.27] - September 2026 (Test channel)
 
 ### Fixed
 - Logic Device now serializes formula evaluations and discards stale results, preventing bursts of linked-device updates from leaving the device on an old result.
-- Linked-input listeners recover safely when Homey reconnects or a replacement listener fails, without dropping the last working listener.
 
 ### Changed
 - Reduced routine Logic Unit logging so normal device updates do not flood the app log.
 - The packaged app now excludes development material and validates manifest assets before release.
+
+## [1.10.26] - September 2026 (Test channel)
+
+### Fixed
+- Linked-input listeners recover safely when Homey reconnects or a replacement listener fails, without dropping the last working listener.
 
 ## [1.10.25] - September 2026 (Test channel)
 

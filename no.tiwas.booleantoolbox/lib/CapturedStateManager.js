@@ -378,7 +378,7 @@ class CapturedStateManager {
      */
     _validateHierarchicalState(stateData) {
         for (const [zoneName, zoneData] of Object.entries(stateData.zones)) {
-            if (!zoneData || typeof zoneData !== 'object') {
+            if (!zoneData || typeof zoneData !== 'object' || Array.isArray(zoneData)) {
                 throw new Error(`Invalid zone "${zoneName}": expected object`);
             }
 
@@ -546,7 +546,7 @@ class CapturedStateManager {
     /**
      * Export all named states as JSON object
      * @param {string} deviceId - State capture device ID
-     * @returns {object} - { states: { name: { captured_at, values }, ... } }
+     * @returns {object} - { states: { name: stateData, ... } }
      */
     exportNamedStates(deviceId) {
         const data = this._getDeviceData(deviceId);
@@ -585,9 +585,17 @@ class CapturedStateManager {
                     continue;
                 }
 
-                if (!stateData.values || typeof stateData.values !== 'object') {
-                    errors.push({ name: stateName, error: 'Missing or invalid values' });
+                const isHierarchical = stateData.zones && typeof stateData.zones === 'object' && !Array.isArray(stateData.zones);
+                const isFlat = stateData.values && typeof stateData.values === 'object' && !Array.isArray(stateData.values);
+                if (!isHierarchical && !isFlat) {
+                    errors.push({ name: stateName, error: 'Missing or invalid zones or values' });
                     continue;
+                }
+
+                if (isHierarchical) {
+                    this._validateHierarchicalState(stateData);
+                } else {
+                    this._validateFlatState(stateData);
                 }
 
                 // Check if we're overwriting
@@ -595,10 +603,11 @@ class CapturedStateManager {
                     overwritten++;
                 }
 
-                // Import the state
+                // Preserve all supported state configuration and metadata so an
+                // export can be imported without changing the stored format.
                 data.named[stateName] = {
-                    captured_at: stateData.captured_at || new Date().toISOString(),
-                    values: stateData.values
+                    ...stateData,
+                    captured_at: stateData.captured_at || new Date().toISOString()
                 };
                 imported++;
 

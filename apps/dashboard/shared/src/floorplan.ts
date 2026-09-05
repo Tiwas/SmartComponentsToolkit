@@ -389,4 +389,3 @@ export function getViewBox(svg: string): string {
   const m = /<svg\b[^>]*\bviewBox\s*=\s*"([^"]*)"/i.exec(svg);
   return m ? m[1]! : "0 0 100 70";
 }
-

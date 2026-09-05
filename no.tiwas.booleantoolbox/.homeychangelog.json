@@ -126,7 +126,7 @@
     "en": "Circadian Light Group Collection cards now wait for all member work, prioritize pause/resume over simultaneous on/off, and propagate pause state to every member group."
   },
   "1.10.26": {
-    "en": "Improve Logic Device listener recovery.",
-    "no": "Forbedrer gjenoppretting av Logic Device-lyttere."
+    "en": "Improve Logic Device listener recovery and serialize formula evaluations to prevent stale results.",
+    "no": "Forbedrer gjenoppretting av Logic Device-lyttere og serialiserer formelutregninger for å hindre foreldede resultater."
   }
 }

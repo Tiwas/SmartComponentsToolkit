@@ -14,7 +14,7 @@ export interface DevicePlacement {
 }
 
 export interface FloorplanData {
-  /** Raw SVG document as a string. Validated to contain a single <svg> root. */
+  /** Sanitized SVG document, safe to render in the dashboard WebView. */
   svg: string;
   /** Device/flow placements anchored to SVG coordinates. */
   placements: DevicePlacement[];
@@ -32,10 +32,145 @@ export const EMPTY_FLOORPLAN: FloorplanData = {
   hiddenFlows: [],
 };
 
+const MAX_SVG_SIZE = 1_000_000;
+const MAX_SVG_ELEMENTS = 10_000;
+const MAX_SVG_ATTRIBUTES = 50_000;
+const MAX_SVG_DEPTH = 256;
+const SAFE_SVG_ELEMENTS = new Set([
+  "svg", "g", "defs", "view", "switch", "path", "rect", "circle", "ellipse", "line",
+  "polyline", "polygon", "text", "tspan", "textpath", "symbol", "marker", "pattern",
+  "clippath", "mask", "lineargradient", "radialgradient", "stop", "filter", "feblend",
+  "fecolormatrix", "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
+  "fedisplacementmap", "fedistantlight", "fedropshadow", "feflood", "fefunca", "fefuncb", "fefuncg",
+  "fefuncr", "fegaussianblur", "feimage", "femerge", "femergenode", "femorphology", "feoffset",
+  "fepointlight", "fespecularlighting", "fespotlight", "fetile", "feturbulence", "image", "a",
+]);
+const CSS_URL_ATTRIBUTES = new Set([
+  "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor",
+]);
+const FORBIDDEN_SVG_ATTRIBUTES = new Set([
+  "base", "xml:base", "style", "class", "srcset", "mask-image", "background", "background-image", "border-image",
+  "content", "list-style-image", "poster", "shape-outside",
+]);
+
+function indexOfAsciiIgnoreCase(value: string, needle: string, from = 0): number {
+  outer: for (let index = from; index <= value.length - needle.length; index += 1) {
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      const actual = value.charCodeAt(index + offset);
+      const expected = needle.charCodeAt(offset);
+      if (actual !== expected && actual !== expected - 32) continue outer;
+    }
+    return index;
+  }
+  return -1;
+}
+
+function hasOnlyLocalUrlReferences(value: string): boolean {
+  if (
+    indexOfAsciiIgnoreCase(value, "image(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "image-set(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "cross-fade(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "element(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "paint(") !== -1
+  ) {
+    return false;
+  }
+  let cursor = 0;
+  while (true) {
+    const start = indexOfAsciiIgnoreCase(value, "url(", cursor);
+    if (start === -1) return true;
+
+    const end = value.indexOf(")", start + 4);
+    if (end === -1) return false;
+    let reference = value.slice(start + 4, end).trim();
+    const quote = reference[0];
+    if ((quote === "'" || quote === '"') && reference.endsWith(quote)) {
+      reference = reference.slice(1, -1).trim();
+    }
+    if (!reference.startsWith("#")) return false;
+    cursor = end + 1;
+  }
+}
+
+function isSafeSvgReference(value: string): boolean {
+  return value.trim().startsWith("#");
+}
+
+function isWithinSvgDepthLimit(input: string): boolean {
+  let depth = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    if (input[index] !== "<") continue;
+
+    if (input.startsWith("<!--", index)) {
+      const end = input.indexOf("-->", index + 4);
+      if (end === -1) return false;
+      index = end + 2;
+      continue;
+    }
+    if (input.startsWith("<![CDATA[", index)) {
+      const end = input.indexOf("]]>", index + 9);
+      if (end === -1) return false;
+      index = end + 2;
+      continue;
+    }
+    if (input.startsWith("<?", index)) {
+      const end = input.indexOf("?>", index + 2);
+      if (end === -1) return false;
+      index = end + 1;
+      continue;
+    }
+    if (input.startsWith("<!", index)) return false;
+
+    const isClosing = input[index + 1] === "/";
+    let quote: string | null = null;
+    let end = index + (isClosing ? 2 : 1);
+    for (; end < input.length; end += 1) {
+      const character = input[end]!;
+      if (quote) {
+        if (character === quote) quote = null;
+      } else if (character === "'" || character === '"') {
+        quote = character;
+      } else if (character === ">") {
+        break;
+      }
+    }
+    if (end === input.length || quote) return false;
+
+    if (isClosing) {
+      depth -= 1;
+      if (depth < 0) return false;
+    } else {
+      const isSelfClosing = /\/\s*$/.test(input.slice(index + 1, end));
+      if (!isSelfClosing) {
+        depth += 1;
+        if (depth > MAX_SVG_DEPTH) return false;
+      }
+    }
+    index = end;
+  }
+  return true;
+}
+
+function removeOpaqueNodes(node: Node): void {
+  const stack: Node[] = [node];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    for (const child of Array.from(current.childNodes)) {
+      if (child.nodeType !== 1 && child.nodeType !== 3) {
+        child.remove();
+      } else if (child.nodeType === 1) {
+        stack.push(child);
+      }
+    }
+  }
+}
+
 export function normalizeFloorplan(raw: unknown): FloorplanData {
   if (raw == null || typeof raw !== "object") return EMPTY_FLOORPLAN;
   const obj = raw as Record<string, unknown>;
-  const svg = typeof obj.svg === "string" ? obj.svg : "";
+  const svgInput = typeof obj.svg === "string" ? obj.svg : "";
+  const svgResult = svgInput ? validateSvg(svgInput) : null;
+  const svg = svgResult?.ok ? svgResult.svg : "";
   const placements = Array.isArray(obj.placements)
     ? (obj.placements
         .map(normalizePlacement)
@@ -76,21 +211,72 @@ function normalizePlacement(raw: unknown): DevicePlacement | null {
   };
 }
 
-/**
- * Cheap validation: does the input look like a single-root SVG document?
- * Doesn't try to parse XML fully — we accept anything that has an opening
- * `<svg` tag and at least one closing `</svg>`. The webview will reject
- * malformed XML at render time anyway.
- */
 export function validateSvg(input: string): { ok: true; svg: string } | { ok: false; error: string } {
   const trimmed = input.trim();
   if (!trimmed) return { ok: false, error: "empty input" };
-  const openIdx = trimmed.toLowerCase().indexOf("<svg");
-  const closeIdx = trimmed.toLowerCase().lastIndexOf("</svg>");
-  if (openIdx === -1 || closeIdx === -1 || closeIdx < openIdx) {
-    return { ok: false, error: "no <svg>…</svg> root found" };
+  if (trimmed.length > MAX_SVG_SIZE) {
+    return { ok: false, error: "SVG exceeds the 1 MB size limit" };
   }
-  return { ok: true, svg: trimmed.slice(openIdx, closeIdx + "</svg>".length) };
+  if (!isWithinSvgDepthLimit(trimmed)) {
+    return { ok: false, error: "SVG exceeds the nesting-depth limit" };
+  }
+  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
+    return { ok: false, error: "SVG validation is unavailable in this environment" };
+  }
+
+  const svgDocument = new DOMParser().parseFromString(trimmed, "image/svg+xml");
+  if (svgDocument.querySelector("parsererror")) {
+    return { ok: false, error: "SVG is not valid XML" };
+  }
+  if (svgDocument.doctype) {
+    return { ok: false, error: "SVG document types are not allowed" };
+  }
+  if (
+    svgDocument.documentElement?.localName.toLowerCase() !== "svg" ||
+    svgDocument.documentElement.prefix
+  ) {
+    return { ok: false, error: "document root must be <svg>" };
+  }
+
+  const elements = Array.from(svgDocument.querySelectorAll("*"));
+  if (elements.length > MAX_SVG_ELEMENTS) {
+    return { ok: false, error: "SVG exceeds the element limit" };
+  }
+
+  let attributeCount = 0;
+  for (const element of elements) {
+    if (element.prefix || !SAFE_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
+      element.remove();
+      continue;
+    }
+
+    for (const attribute of Array.from(element.attributes)) {
+      attributeCount += 1;
+      if (attributeCount > MAX_SVG_ATTRIBUTES) {
+        return { ok: false, error: "SVG exceeds the attribute limit" };
+      }
+
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src";
+      const isCssUrlAttribute = CSS_URL_ATTRIBUTES.has(name);
+      if (
+        name.startsWith("on") ||
+        FORBIDDEN_SVG_ATTRIBUTES.has(name) ||
+        (isUrlAttribute && !isSafeSvgReference(value)) ||
+        (isCssUrlAttribute && (value.includes("\\") || !hasOnlyLocalUrlReferences(value)))
+      ) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
+
+  removeOpaqueNodes(svgDocument);
+  const svg = new XMLSerializer().serializeToString(svgDocument.documentElement);
+  if (svg.length > MAX_SVG_SIZE) {
+    return { ok: false, error: "SVG exceeds the 1 MB size limit after parsing" };
+  }
+  return { ok: true, svg };
 }
 
 /**
@@ -115,12 +301,13 @@ export function extractFloors(svg: string): string[] {
  * is null or the SVG has no data-floor groups, returns the input unchanged.
  */
 export function filterFloors(svg: string, visibleFloors: Set<string> | null): string {
-  if (!visibleFloors) return svg;
-  const floors = extractFloors(svg);
-  if (floors.length === 0) return svg;
-  // Remove any <g data-floor="X">...</g> whose X isn't in visibleFloors.
-  // Need balanced tag matching since groups can contain nested groups.
-  return removeFloorsExcept(svg, visibleFloors);
+  if (!visibleFloors || typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") return svg;
+  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  if (document.querySelector("parsererror")) return svg;
+  for (const group of Array.from(document.querySelectorAll("g[data-floor]"))) {
+    if (!visibleFloors.has(group.getAttribute("data-floor") ?? "")) group.remove();
+  }
+  return new XMLSerializer().serializeToString(document.documentElement);
 }
 
 export interface RoomGeometry {
@@ -201,40 +388,4 @@ export function parseRooms(svg: string): RoomGeometry[] {
 export function getViewBox(svg: string): string {
   const m = /<svg\b[^>]*\bviewBox\s*=\s*"([^"]*)"/i.exec(svg);
   return m ? m[1]! : "0 0 100 70";
-}
-
-function removeFloorsExcept(svg: string, keep: Set<string>): string {
-  let out = svg;
-  const openRegex = /<g\b[^>]*\bdata-floor\s*=\s*"([^"]*)"[^>]*>/i;
-  while (true) {
-    const open = openRegex.exec(out);
-    if (!open) break;
-    const name = open[1] ?? "";
-    const startIdx = open.index;
-    const headerEnd = startIdx + open[0].length;
-    if (keep.has(name)) {
-      // Replace the attribute so we don't re-match, but keep the group.
-      const replaced = open[0].replace(/data-floor="[^"]*"/i, `data-floor-kept="${name}"`);
-      out = out.slice(0, startIdx) + replaced + out.slice(headerEnd);
-      continue;
-    }
-    // Find the matching </g> by counting nesting depth.
-    let depth = 1;
-    let i = headerEnd;
-    while (i < out.length && depth > 0) {
-      const nextOpen = out.toLowerCase().indexOf("<g", i);
-      const nextClose = out.toLowerCase().indexOf("</g>", i);
-      if (nextClose === -1) break;
-      if (nextOpen !== -1 && nextOpen < nextClose) {
-        depth++;
-        i = nextOpen + 2;
-      } else {
-        depth--;
-        i = nextClose + 4;
-      }
-    }
-    out = out.slice(0, startIdx) + out.slice(i);
-  }
-  // Restore the marker attribute name we used to skip the kept groups.
-  return out.replace(/data-floor-kept=/gi, "data-floor=");
 }

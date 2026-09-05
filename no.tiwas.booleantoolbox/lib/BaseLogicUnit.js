@@ -214,6 +214,8 @@ module.exports = class BaseLogicUnit extends Homey.Device {
    *   - BaseLogicUnit.startTimeoutChecks() - Start timeout interval
    */
   async onInit() {
+    this._evaluationQueue = Promise.resolve();
+    this._evaluationRevision = 0;
     const driverName = `Device: ${this.driver ? this.driver.id : "unknown-driver"}`;
     this.logger = new Logger(this, driverName);
 
@@ -1227,6 +1229,7 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     formula.inputStates[inputId] =
       value === true || value === false ? value : "undefined";
     formula.timedOut = false;
+    this.invalidateEvaluations();
 
     // DEBUG: Log the specific change
     this.logger.info("🔍 DEBUG: Input value changed", {
@@ -1313,7 +1316,35 @@ module.exports = class BaseLogicUnit extends Homey.Device {
    *   - FormulaEvaluator.evaluate() - AST evaluation
    *   - Homey flow.getDeviceTriggerCard() - Trigger flow cards
    */
+  /**
+   * Evaluations can be requested by multiple Flow cards in the same event turn.
+   * Keep output commits ordered and discard work superseded by a newer input or
+   * settings revision before it can write capabilities or fire Flow triggers.
+   */
+  queueEvaluation(work) {
+    this._evaluationQueue ??= Promise.resolve();
+    const queued = this._evaluationQueue.then(work, work);
+    this._evaluationQueue = queued.catch((error) => {
+      this.logger?.error("evaluation.queue_failed", error);
+    });
+    return queued;
+  }
+
+  invalidateEvaluations() {
+    this._evaluationRevision = (this._evaluationRevision || 0) + 1;
+    return this._evaluationRevision;
+  }
+
+  isCurrentEvaluation(revision) {
+    return !this._isDeleting && revision === (this._evaluationRevision || 0);
+  }
+
   async evaluateFormula(formulaId, resetLocks = false) {
+    const revision = this._evaluationRevision || 0;
+    return this.queueEvaluation(() => this._evaluateFormula(formulaId, resetLocks, revision));
+  }
+
+  async _evaluateFormula(formulaId, resetLocks = false, revision) {
     if (this._isDeleting) return null;
     const formula = this.formulas.find((f) => f.id === formulaId);
     if (!formula || !formula.enabled) {
@@ -1395,11 +1426,17 @@ module.exports = class BaseLogicUnit extends Homey.Device {
         result: result,
       });
 
+      if (!this.isCurrentEvaluation(revision)) return null;
       const previous = formula.result;
       formula.result = result;
       formula.timedOut = false;
 
       await this.syncOverallAlarmState();
+
+      if (!this.isCurrentEvaluation(revision)) {
+        formula.result = previous;
+        return null;
+      }
 
       if (result !== previous && previous !== null) {
         this.logger.flow(
@@ -1635,6 +1672,8 @@ module.exports = class BaseLogicUnit extends Homey.Device {
   }
 
   async onSettings({ oldSettings, newSettings, changedKeys }) {
+    this.invalidateEvaluations();
+    await (this._evaluationQueue ?? Promise.resolve()).catch((error) => this.logger.error("evaluation.queue_failed", error));
     this.logger.info("settings.changed", {
       keys: changedKeys.join(", "),
     });
@@ -1798,6 +1837,8 @@ module.exports = class BaseLogicUnit extends Homey.Device {
 
     // Check if formulas have changed
     if (this.lastKnownFormulas !== currentFormulas) {
+      this.invalidateEvaluations();
+      await (this._evaluationQueue ?? Promise.resolve()).catch((error) => this.logger.error("evaluation.queue_failed", error));
       this.logger.info("⚙️  Settings changed detected, reloading and validating...");
 
       // Update stored value

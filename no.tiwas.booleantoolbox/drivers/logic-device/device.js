@@ -41,6 +41,8 @@ let inputHealthCheckTimer = null;
  */
 module.exports = class LogicDeviceDevice extends Homey.Device {
   async onInit() {
+    this._evaluationQueue = Promise.resolve();
+    this._evaluationRevision = 0;
     const driverName = `Device: ${this.driver.id}`;
     this.logger = new Logger(this, driverName);
 
@@ -115,6 +117,8 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
     // Register on/off capability listener to enable/disable device
     this.registerCapabilityListener("onoff", async (value) => {
+      const previousEvaluations = this._evaluationQueue ?? Promise.resolve();
+      this.invalidateEvaluations();
       this.deviceEnabled = value;
       this.logger.info(`🔌 Device ${value ? "enabled" : "disabled"}`, {});
 
@@ -137,6 +141,10 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
           clearInterval(this.timeoutInterval);
           this.timeoutInterval = null;
         }
+        // A write already in progress cannot be cancelled. Wait for it before
+        // committing the disabled state so it cannot overwrite alarm_generic.
+        await previousEvaluations.catch((error) => this.logger.error("evaluation.queue_failed", error));
+        if (this.deviceEnabled !== false) return true;
         const previousAlarmState = this.getCapabilityValue("alarm_generic");
         await this.setCapabilityValue("alarm_generic", false).catch(() => {});
         
@@ -196,6 +204,8 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
     // Check if formulas or input_links have changed
     if (this.lastKnownFormulas !== currentFormulas || this.lastKnownInputLinks !== currentInputLinks) {
+      this.invalidateEvaluations();
+      await (this._evaluationQueue ?? Promise.resolve()).catch((error) => this.logger.error("evaluation.queue_failed", error));
       this.logger.info("⚙️  Settings changed detected, reloading and validating...");
 
       // Update stored values
@@ -790,6 +800,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
     formula.inputStates[inputId] = value;
     formula.timedOut = false;
+    this.invalidateEvaluations();
 
     if (
       formula.firstImpression &&
@@ -810,7 +821,30 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     return await this.evaluateFormula(formulaId);
   }
 
+  queueEvaluation(work) {
+    this._evaluationQueue ??= Promise.resolve();
+    const queued = this._evaluationQueue.then(work, work);
+    this._evaluationQueue = queued.catch((error) => {
+      this.logger?.error("evaluation.queue_failed", error);
+    });
+    return queued;
+  }
+
+  invalidateEvaluations() {
+    this._evaluationRevision = (this._evaluationRevision || 0) + 1;
+    return this._evaluationRevision;
+  }
+
+  isCurrentEvaluation(revision) {
+    return !this._isDeleting && this.deviceEnabled !== false && revision === (this._evaluationRevision || 0);
+  }
+
   async evaluateFormula(formulaId, resetLocks = false) {
+    const revision = this._evaluationRevision || 0;
+    return this.queueEvaluation(() => this._evaluateFormula(formulaId, resetLocks, revision));
+  }
+
+  async _evaluateFormula(formulaId, resetLocks = false, revision) {
     if (this._isDeleting) return null;
 
     // Check if device is enabled
@@ -888,13 +922,16 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         result,
       });
 
+      if (!this.isCurrentEvaluation(revision)) return null;
       const previousResult = formula.result;
-      formula.result = result;
-      formula.timedOut = false;
 
       // ✅ CRITICAL: Only set alarm_generic (formula output), NOT onoff!
       // onoff is user control (enable/disable), alarm_generic is formula result
       await this.safeSetCapabilityValue("alarm_generic", result);
+
+      if (!this.isCurrentEvaluation(revision)) return null;
+      formula.result = result;
+      formula.timedOut = false;
 
       // Trigger flows hvis resultatet endret seg
       if (previousResult !== null && previousResult !== result) {
@@ -1186,24 +1223,15 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
     if (!anyEvaluated) {
       this.logger.warn("evaluation.no_formulas_ready");
-      
-      // Store previous state before updating
-      const previousAlarmState = this.getCapabilityValue("alarm_generic");
-      
-      // ✅ CRITICAL: Only set alarm_generic, NOT onoff!
-      // onoff is user control, alarm_generic is formula result
-      await this.safeSetCapabilityValue("alarm_generic", false);
-      
-      // Fire alarm triggers if state changed
-      if (previousAlarmState !== false) {
+      const revision = this._evaluationRevision || 0;
+      await this.queueEvaluation(async () => {
+        if (!this.isCurrentEvaluation(revision)) return;
+        const previousAlarmState = this.getCapabilityValue("alarm_generic");
+        await this.safeSetCapabilityValue("alarm_generic", false);
+        if (!this.isCurrentEvaluation(revision) || previousAlarmState === false) return;
         const currentOnState = this.getCapabilityValue("onoff");
-        await this.fireAllRelevantTriggers(
-          false,              // newAlarmState
-          currentOnState,     // newOnState
-          previousAlarmState, // previousAlarmState
-          null               // previousOnState (not changing)
-        );
-      }
+        await this.fireAllRelevantTriggers(false, currentOnState, previousAlarmState, null);
+      });
     }
   }
 
@@ -1743,6 +1771,8 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
   }
 
   async onSettings({ newSettings, changedKeys }) {
+    this.invalidateEvaluations();
+    await (this._evaluationQueue ?? Promise.resolve()).catch((error) => this.logger.error("evaluation.queue_failed", error));
     this.logger.info("settings.changed", {
       keys: changedKeys.join(", "),
     });

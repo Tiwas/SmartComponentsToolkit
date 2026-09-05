@@ -359,19 +359,11 @@ module.exports = class BaseLogicUnit extends Homey.Device {
   }
 
   async onFlowCondition(args, state, checkType) {
-    // DEBUG: Log the condition check details
-    this.logger.info("🔍 DEBUG: onFlowCondition called", {
+    this.logger.debug("flow.condition_checked", {
       checkType: checkType,
       formulaId: args.formula?.id,
       formulaName: args.formula?.name,
-      cardId: args.cardId,
-      allFormulasState: this.formulas.map(f => ({
-        id: f.id,
-        name: f.name,
-        result: f.result,
-        timedOut: f.timedOut,
-        inputStates: { ...f.inputStates }
-      }))
+      cardId: args.cardId
     });
 
     this.logger.flow(`onFlowCondition called for checkType: '${checkType}'`, {
@@ -1174,22 +1166,6 @@ module.exports = class BaseLogicUnit extends Homey.Device {
       return null;
     }
 
-    // DEBUG: Log current state of ALL formulas before any changes
-    this.logger.info("🔍 DEBUG: setInputForFormula BEFORE changes", {
-      targetFormula: formulaId,
-      targetInput: inputId,
-      targetValue: value,
-      allFormulasState: this.formulas.map(f => ({
-        id: f.id,
-        name: f.name,
-        inputStates: { ...f.inputStates },
-        lockedInputs: { ...f.lockedInputs },
-        sessionComplete: f.sessionComplete,
-        firstImpression: f.firstImpression,
-        result: f.result
-      }))
-    });
-
     // NEW: If firstImpression mode and a complete session exists, reset for new flow run
     if (
       formula.firstImpression === true &&
@@ -1206,12 +1182,7 @@ module.exports = class BaseLogicUnit extends Homey.Device {
       });
       formula.sessionComplete = false;
       
-      // DEBUG: Log state after reset
-      this.logger.info("🔍 DEBUG: Formula state AFTER reset", {
-        formula: formula.name,
-        inputStates: { ...formula.inputStates },
-        lockedInputs: { ...formula.lockedInputs }
-      });
+      this.logger.debug("inputs.reset_for_new_session", { formula: formula.name });
     }
 
     if (
@@ -1231,8 +1202,7 @@ module.exports = class BaseLogicUnit extends Homey.Device {
     formula.timedOut = false;
     this.invalidateEvaluations();
 
-    // DEBUG: Log the specific change
-    this.logger.info("🔍 DEBUG: Input value changed", {
+    this.logger.debug("inputs.value_changed", {
       formula: formula.name,
       input: inputId,
       oldValue: oldValue,
@@ -1270,20 +1240,6 @@ module.exports = class BaseLogicUnit extends Homey.Device {
         });
       }
     }
-
-    // DEBUG: Log current state of ALL formulas after changes
-    this.logger.info("🔍 DEBUG: setInputForFormula AFTER changes", {
-      targetFormula: formulaId,
-      allFormulasState: this.formulas.map(f => ({
-        id: f.id,
-        name: f.name,
-        inputStates: { ...f.inputStates },
-        lockedInputs: { ...f.lockedInputs },
-        sessionComplete: f.sessionComplete,
-        firstImpression: f.firstImpression,
-        result: f.result
-      }))
-    });
 
     return await this.evaluateFormula(formulaId, false);
   }

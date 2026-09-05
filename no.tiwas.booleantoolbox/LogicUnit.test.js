@@ -130,6 +130,32 @@ describe("Logic Unit formula results", () => {
     await device.setInputForFormula("f1", "a", false);
     expect(device.capabilityValues.get("alarm_generic")).toBe(false);
   });
+
+  test("commits only the newest result when a capability write is delayed", async () => {
+    const formula = createFormula({ expression: "A", inputStates: { a: false, b: "undefined" }, result: false });
+    const device = createLogicUnit([formula]);
+    let releaseFirstWrite;
+    const firstWriteStarted = new Promise(resolve => { releaseFirstWrite = resolve; });
+    let allowFirstWrite;
+    const firstWriteReleased = new Promise(resolve => { allowFirstWrite = resolve; });
+    device.setCapabilityValue = jest.fn(async (capabilityId, value) => {
+      if (capabilityId === "alarm_generic" && device.setCapabilityValue.mock.calls.length === 1) {
+        releaseFirstWrite();
+        await firstWriteReleased;
+      }
+      device.capabilityValues.set(capabilityId, value);
+    });
+
+    const older = device.setInputForFormula("f1", "a", true);
+    await firstWriteStarted;
+    const newer = device.setInputForFormula("f1", "a", false);
+    allowFirstWrite();
+    await Promise.all([older, newer]);
+
+    expect(device.capabilityValues.get("alarm_generic")).toBe(false);
+    expect(formula.result).toBe(false);
+    expect(device.triggerCards.get("formula_changed_lu").trigger).not.toHaveBeenCalled();
+  });
 });
 
 describe("Logic Unit formula Flow cards", () => {

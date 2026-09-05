@@ -7,6 +7,7 @@ jest.mock('homey', () => ({
 
 const LogicDeviceDevice = require('./drivers/logic-device/device');
 const LogicDeviceDriver = require('./drivers/logic-device/driver');
+const FormulaEvaluator = require('./lib/FormulaEvaluator');
 
 function createLogger() {
   return {
@@ -105,6 +106,47 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(device.homey.app.ensureHomeyApi).toHaveBeenCalledTimes(1);
     expect(device.deviceListeners.has('a-logic-group-id-alarm_generic')).toBe(true);
     expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', true);
+  });
+
+  test('drops a stale linked-input evaluation after a delayed capability write', async () => {
+    const device = Object.create(LogicDeviceDevice.prototype);
+    const capabilityValues = new Map([['alarm_generic', false], ['onoff', true]]);
+    device.logger = createLogger();
+    device.formulaEvaluator = new FormulaEvaluator();
+    device.deviceEnabled = true;
+    device.availableInputs = ['a'];
+    device.getName = jest.fn(() => 'Logic Device');
+    device.getData = jest.fn(() => ({ id: 'logic-device-id' }));
+    device.formulas = [{
+      id: 'formula_1', name: 'Latest wins', expression: 'A', enabled: true,
+      inputStates: { a: false }, lockedInputs: {}, result: false, timedOut: false,
+    }];
+    device.getCapabilityValue = jest.fn(capabilityId => capabilityValues.get(capabilityId));
+    device.hasCapability = jest.fn(() => true);
+    device.fireAllRelevantTriggers = jest.fn(async () => {});
+    let releaseFirstWrite;
+    const firstWriteStarted = new Promise(resolve => { releaseFirstWrite = resolve; });
+    let allowFirstWrite;
+    const firstWriteReleased = new Promise(resolve => { allowFirstWrite = resolve; });
+    let writes = 0;
+    device.safeSetCapabilityValue = jest.fn(async (capabilityId, value) => {
+      writes += 1;
+      if (writes === 1) {
+        releaseFirstWrite();
+        await firstWriteReleased;
+      }
+      capabilityValues.set(capabilityId, value);
+    });
+
+    const older = device.setInputForFormula('formula_1', 'a', true);
+    await firstWriteStarted;
+    const newer = device.setInputForFormula('formula_1', 'a', false);
+    allowFirstWrite();
+    await Promise.all([older, newer]);
+
+    expect(capabilityValues.get('alarm_generic')).toBe(false);
+    expect(device.formulas[0].result).toBe(false);
+    expect(device.fireAllRelevantTriggers).not.toHaveBeenCalled();
   });
 
   test('shares linked-input health refreshes across Logic Devices', async () => {

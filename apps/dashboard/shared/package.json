@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "npm run test:smoke && npm run test:floorplan && npm run test:legacy-auth-storage && npm run test:boolean-editor-xss",
     "test:smoke": "tsx test/smoke.ts",
     "test:floorplan": "tsx test/floorplan-sanitizer.ts",
     "test:legacy-auth-storage": "tsx test/legacy-auth-storage.ts",

@@ -101,6 +101,28 @@ First launch flow:
 2. **Sign in** → opens system browser → consent → returns to app
 3. Dashboard loads your flows
 
+## Local release checks
+
+CI is intentionally disabled for this repository, so run the checks locally before creating a release:
+
+```sh
+# Shared OAuth/client, API-error, floorplan-sanitizer and editor-security tests
+cd shared
+npm install
+npm test
+npm run typecheck
+
+# Dashboard build
+cd ..
+npm run build
+
+# Native-shell tests
+cd src-tauri
+cargo test
+```
+
+`npm test` is the complete shared-package suite; individual `test:*` scripts remain available when narrowing down a failure.
+
 ## Building installers
 
 From this directory:

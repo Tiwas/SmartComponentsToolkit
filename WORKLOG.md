@@ -9,6 +9,7 @@
 - Prepared the v1.10.27 release notes for serialized Logic Device evaluations, reduced Logic Unit logging, and the leaner validated app bundle.
 - Updated the repository README, changelog, Homey changelog, and Community-listing source for the new test version.
 - Uploaded Homey Build 56 as version 1.10.27; the user published it to the test channel.
+- Posted the v1.10.27 release announcement to the existing Homey Community topic.
 
 ### Verification
 - `npm test -- --runInBand`: 14 suites and 197 tests passed.

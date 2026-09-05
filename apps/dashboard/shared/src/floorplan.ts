@@ -38,7 +38,7 @@ const MAX_SVG_ATTRIBUTES = 50_000;
 const MAX_SVG_DEPTH = 256;
 const SAFE_SVG_ELEMENTS = new Set([
   "svg", "g", "defs", "view", "switch", "path", "rect", "circle", "ellipse", "line",
-  "polyline", "polygon", "text", "tspan", "textpath", "use", "symbol", "marker", "pattern",
+  "polyline", "polygon", "text", "tspan", "textpath", "symbol", "marker", "pattern",
   "clippath", "mask", "lineargradient", "radialgradient", "stop", "filter", "feblend",
   "fecolormatrix", "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
   "fedisplacementmap", "fedistantlight", "fedropshadow", "feflood", "fefunca", "fefuncb", "fefuncg",
@@ -49,7 +49,7 @@ const CSS_URL_ATTRIBUTES = new Set([
   "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor",
 ]);
 const FORBIDDEN_SVG_ATTRIBUTES = new Set([
-  "base", "xml:base", "style", "srcset", "mask-image", "background", "background-image", "border-image",
+  "base", "xml:base", "style", "class", "srcset", "mask-image", "background", "background-image", "border-image",
   "content", "list-style-image", "poster", "shape-outside",
 ]);
 
@@ -301,12 +301,13 @@ export function extractFloors(svg: string): string[] {
  * is null or the SVG has no data-floor groups, returns the input unchanged.
  */
 export function filterFloors(svg: string, visibleFloors: Set<string> | null): string {
-  if (!visibleFloors) return svg;
-  const floors = extractFloors(svg);
-  if (floors.length === 0) return svg;
-  // Remove any <g data-floor="X">...</g> whose X isn't in visibleFloors.
-  // Need balanced tag matching since groups can contain nested groups.
-  return removeFloorsExcept(svg, visibleFloors);
+  if (!visibleFloors || typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") return svg;
+  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  if (document.querySelector("parsererror")) return svg;
+  for (const group of Array.from(document.querySelectorAll("g[data-floor]"))) {
+    if (!visibleFloors.has(group.getAttribute("data-floor") ?? "")) group.remove();
+  }
+  return new XMLSerializer().serializeToString(document.documentElement);
 }
 
 export interface RoomGeometry {
@@ -389,42 +390,3 @@ export function getViewBox(svg: string): string {
   return m ? m[1]! : "0 0 100 70";
 }
 
-function removeFloorsExcept(svg: string, keep: Set<string>): string {
-  let out = svg;
-  const openRegex = /<g\b[^>]*\bdata-floor\s*=\s*"([^"]*)"[^>]*>/i;
-  while (true) {
-    const open = openRegex.exec(out);
-    if (!open) break;
-    const name = open[1] ?? "";
-    const startIdx = open.index;
-    const headerEnd = startIdx + open[0].length;
-    const isSelfClosing = /\/\s*>$/.test(open[0]);
-    if (keep.has(name)) {
-      // Replace the attribute so we don't re-match, but keep the group.
-      const replaced = open[0].replace(/data-floor="[^"]*"/i, `data-floor-kept="${name}"`);
-      out = out.slice(0, startIdx) + replaced + out.slice(headerEnd);
-      continue;
-    }
-    if (isSelfClosing) {
-      out = out.slice(0, startIdx) + out.slice(headerEnd);
-      continue;
-    }
-    // Find the matching </g> by counting nesting depth.
-    let depth = 1;
-    let i = headerEnd;
-    const tagRegex = /<g\b[^>]*\/?>|<\/g\s*>/gi;
-    tagRegex.lastIndex = headerEnd;
-    let tag: RegExpExecArray | null;
-    while ((tag = tagRegex.exec(out)) !== null && depth > 0) {
-      if (tag[0].startsWith("</")) {
-        depth--;
-      } else if (!/\/\s*>$/.test(tag[0])) {
-        depth++;
-      }
-      i = tagRegex.lastIndex;
-    }
-    out = out.slice(0, startIdx) + out.slice(i);
-  }
-  // Restore the marker attribute name we used to skip the kept groups.
-  return out.replace(/data-floor-kept=/gi, "data-floor=");
-}

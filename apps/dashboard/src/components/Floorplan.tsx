@@ -167,7 +167,7 @@ export function Floorplan({
   const visibleFloors =
     floors.length > 0 ? new Set(floors.filter((f) => !hiddenFloors.has(f))) : null;
   const renderedSvg =
-    data.svg && visibleFloors ? filterFloors(data.svg, visibleFloors) : data.svg;
+    data.svg && visibleFloors && hiddenFloors.size > 0 ? filterFloors(data.svg, visibleFloors) : data.svg;
   const viewBox = data.svg ? getViewBox(data.svg) : "0 0 100 70";
 
   // Compute effective placements: persisted (devices + flows), plus

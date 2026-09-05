@@ -22,7 +22,7 @@ const safe = sanitized(`
   </svg>
 `);
 assert.match(safe, /fill="url\(#shade\)"/);
-assert.match(safe, /href="#room-symbol"/);
+assert.doesNotMatch(safe, /<use\b/i, "use elements are removed to prevent recursive expansion");
 
 const namedFloor = sanitized(`<svg><g data-floor="Image(s)"><rect/></g></svg>`);
 assert.match(namedFloor, /data-floor="Image\(s\)"/, "non-CSS metadata values are preserved");
@@ -71,6 +71,9 @@ assert.match(filteredFloors, /data-floor="visible"/, "self-closing hidden groups
 
 const withSwitch = sanitized(`<svg><switch><g data-floor="Main"><rect data-zone="zone"/></g></switch></svg>`);
 assert.match(withSwitch, /<switch\b/i, "standard SVG switch containers are retained");
+
+const styledRoot = sanitized(`<svg class="modal-backdrop"><rect/></svg>`);
+assert.doesNotMatch(styledRoot, /class=/, "imported classes cannot apply dashboard styles");
 
 assert.equal(
   validateSvg(`<svg>${"<g>".repeat(8_000)}${"</g>".repeat(8_000)}</svg>`).ok,

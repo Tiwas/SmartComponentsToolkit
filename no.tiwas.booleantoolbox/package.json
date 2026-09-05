@@ -3,7 +3,7 @@
   "version": "1.10.25",
   "main": "app.js",
   "dependencies": {
-    "homey-api": "^3.17.0",
+    "homey-api": "3.17.0",
     "suncalc": "^1.9.0"
   },
   "author": "Lars Kvanum",
@@ -11,6 +11,9 @@
   "description": "",
   "devDependencies": {
     "jest": "^30.2.0"
+  },
+  "overrides": {
+    "socket.io-parser": "3.3.6"
   },
   "scripts": {
     "test": "jest",

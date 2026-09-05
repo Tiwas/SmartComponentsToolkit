@@ -1,5 +1,20 @@
 # Worklog
 
+## 2026-09-05 — Test release v1.10.27
+
+### Requested
+- Publish the latest test version, update the Homey Community post, and install the newest version locally.
+
+### Implemented
+- Prepared the v1.10.27 release notes for serialized Logic Device evaluations, reduced Logic Unit logging, and the leaner validated app bundle.
+- Updated the repository README, changelog, Homey changelog, and Community-listing source for the new test version.
+- Uploaded Homey Build 56 as version 1.10.27; the user published it to the test channel.
+
+### Verification
+- `npm test -- --runInBand`: 14 suites and 197 tests passed.
+- `npm run test:package`: publish-level validation passed; bundle contains 764 files (8.16 MB) and all 17 manifest assets were verified.
+- `homey app install`: version 1.10.27 installed successfully on the configured Homey Pro.
+
 ## 2026-08-11 — Composite Device and Logic Unit documentation
 
 ### Requested

@@ -46,7 +46,7 @@ const SAFE_SVG_ELEMENTS = new Set([
   "fepointlight", "fespecularlighting", "fespotlight", "fetile", "feturbulence", "image", "a",
 ]);
 const CSS_URL_ATTRIBUTES = new Set([
-  "fill", "stroke", "filter", "clip-path", "mask", "marker-start", "marker-mid", "marker-end", "cursor",
+  "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor",
 ]);
 const FORBIDDEN_SVG_ATTRIBUTES = new Set([
   "base", "xml:base", "style", "srcset", "mask-image", "background", "background-image", "border-image",
@@ -259,12 +259,12 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
       const name = attribute.name.toLowerCase();
       const value = attribute.value.trim();
       const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src";
+      const isCssUrlAttribute = CSS_URL_ATTRIBUTES.has(name);
       if (
         name.startsWith("on") ||
         FORBIDDEN_SVG_ATTRIBUTES.has(name) ||
-        value.includes("\\") ||
         (isUrlAttribute && !isSafeSvgReference(value)) ||
-        (CSS_URL_ATTRIBUTES.has(name) && !hasOnlyLocalUrlReferences(value))
+        (isCssUrlAttribute && (value.includes("\\") || !hasOnlyLocalUrlReferences(value)))
       ) {
         element.removeAttribute(attribute.name);
       }

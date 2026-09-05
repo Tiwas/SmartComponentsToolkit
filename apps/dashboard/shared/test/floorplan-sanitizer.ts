@@ -27,6 +27,9 @@ assert.match(safe, /href="#room-symbol"/);
 const namedFloor = sanitized(`<svg><g data-floor="Image(s)"><rect/></g></svg>`);
 assert.match(namedFloor, /data-floor="Image\(s\)"/, "non-CSS metadata values are preserved");
 
+const escapedFloor = sanitized(`<svg><g data-floor="North\\South"><rect/></g></svg>`);
+assert.ok(escapedFloor.includes('data-floor="North\\South"'), "metadata escapes are preserved");
+
 const hostile = sanitized(`
   <svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
     <script>alert(1)</script>
@@ -48,6 +51,9 @@ assert.doesNotMatch(basedReference, /xml:base|https:/i, "base URLs cannot turn f
 const unicodePrefix = "İ".repeat(30);
 const unicodeUrl = sanitized(`<svg><rect fill="/*${unicodePrefix}*/url(https://attacker.example/p.svg#x)"/></svg>`);
 assert.doesNotMatch(unicodeUrl, /fill=|https:/i, "URL scanning retains original string offsets");
+
+const markerReference = sanitized(`<svg><path marker="url(https://attacker.example/marker.svg#x)"/></svg>`);
+assert.doesNotMatch(markerReference, /marker=|https:/i, "marker shorthand cannot use remote URLs");
 
 const commented = sanitized(`<svg><g data-floor="bad"><!--</g><image href="https://attacker.example/pixel"/>--></g></svg>`);
 assert.doesNotMatch(commented, /<!--|https:/, "comments cannot be reactivated by floor filtering");

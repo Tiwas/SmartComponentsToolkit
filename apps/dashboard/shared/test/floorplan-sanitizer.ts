@@ -30,15 +30,19 @@ const hostile = sanitized(`
     <foreignObject><img src="x" onerror="alert(1)"/></foreignObject>
     <image href="https://attacker.example/pixel.svg"/>
     <img srcset="https://attacker.example/pixel 1x"/>
+    <p><video poster="https://attacker.example/poster"/></p>
     <use href="javascript:alert(1)"/>
     <rect style="fill: url(data:image/svg+xml,evil)" fill="url(https://attacker.example/paint)" stroke="u\\rl(https://attacker.example/escaped)"/>
   </svg>
 `);
-assert.doesNotMatch(hostile, /<script\b|<foreignobject\b|onload=|onerror=/i);
+assert.doesNotMatch(hostile, /<script\b|<foreignobject\b|<img\b|<p\b|<video\b|onload=|onerror=/i);
 assert.doesNotMatch(hostile, /https:|javascript:|data:|style=|srcset=/i);
 
 const commented = sanitized(`<svg><g data-floor="bad"><!--</g><image href="https://attacker.example/pixel"/>--></g></svg>`);
 assert.doesNotMatch(commented, /<!--|https:/, "comments cannot be reactivated by floor filtering");
+
+const cdata = sanitized(`<svg><g data-floor="bad"><![CDATA[</g><image href="https://attacker.example/pixel"/>]]></g></svg>`);
+assert.doesNotMatch(cdata, /<!\[CDATA|https:/, "CDATA cannot be reactivated by floor filtering");
 
 const stored = normalizeFloorplan({ svg: `<svg><script>alert(1)</script><rect/></svg>`, placements: [] });
 assert.doesNotMatch(stored.svg, /<script\b/i, "stored SVG is sanitized before rendering");

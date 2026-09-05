@@ -35,9 +35,14 @@ export const EMPTY_FLOORPLAN: FloorplanData = {
 const MAX_SVG_SIZE = 1_000_000;
 const MAX_SVG_ELEMENTS = 10_000;
 const MAX_SVG_ATTRIBUTES = 50_000;
-const UNSAFE_SVG_ELEMENTS = new Set([
-  "script", "foreignobject", "iframe", "object", "embed", "style", "link",
-  "base", "meta", "animate", "animatemotion", "animatetransform", "set",
+const SAFE_SVG_ELEMENTS = new Set([
+  "svg", "g", "defs", "desc", "title", "view", "path", "rect", "circle", "ellipse", "line",
+  "polyline", "polygon", "text", "tspan", "textpath", "use", "symbol", "marker", "pattern",
+  "clippath", "mask", "lineargradient", "radialgradient", "stop", "filter", "feblend",
+  "fecolormatrix", "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
+  "fedisplacementmap", "fedistantlight", "fedropshadow", "feflood", "fefunca", "fefuncb", "fefuncg",
+  "fefuncr", "fegaussianblur", "feimage", "femerge", "femergenode", "femorphology", "feoffset",
+  "fepointlight", "fespecularlighting", "fespotlight", "fetile", "feturbulence", "image", "a",
 ]);
 
 function hasOnlyLocalUrlReferences(value: string): boolean {
@@ -63,12 +68,12 @@ function isSafeSvgReference(value: string): boolean {
   return value.trim().startsWith("#");
 }
 
-function removeComments(node: Node): void {
+function removeOpaqueNodes(node: Node): void {
   for (const child of Array.from(node.childNodes)) {
-    if (child.nodeType === 7 || child.nodeType === 8) {
+    if (child.nodeType !== 1 && child.nodeType !== 3) {
       child.remove();
     } else {
-      removeComments(child);
+      removeOpaqueNodes(child);
     }
   }
 }
@@ -150,7 +155,7 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
 
   let attributeCount = 0;
   for (const element of elements) {
-    if (element.prefix || UNSAFE_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
+    if (element.prefix || !SAFE_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
       element.remove();
       continue;
     }
@@ -176,7 +181,7 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
     }
   }
 
-  removeComments(svgDocument);
+  removeOpaqueNodes(svgDocument);
   const svg = new XMLSerializer().serializeToString(svgDocument.documentElement);
   if (svg.length > MAX_SVG_SIZE) {
     return { ok: false, error: "SVG exceeds the 1 MB size limit after parsing" };

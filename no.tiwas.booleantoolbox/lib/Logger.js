@@ -66,7 +66,7 @@ class Logger {
    * Gets the default configuration, loading from loggerConfig.js if available.
    *
    * Uses a static cache to avoid re-reading the config file on every Logger instantiation.
-   * Falls back to DEBUG level if config file is not found.
+   * Falls back to INFO level if config file is not found.
    *
    * @private
    * @static
@@ -90,7 +90,7 @@ class Logger {
       return Logger._globalConfig;
     } catch (e) {
       const defaultConfig = {
-        defaultLevel: "DEBUG", // ENDRET: Fallback til DEBUG
+        defaultLevel: "INFO",
         categoryLevels: {},
         options: {},
       };
@@ -157,7 +157,7 @@ class Logger {
       level = globalConfig.categoryLevels[category];
     }
     if (!level) {
-      level = globalConfig.defaultLevel || "DEBUG"; // ENDRET: Fallback til DEBUG
+      level = globalConfig.defaultLevel || "INFO";
     }
 
     this.options = {
@@ -171,7 +171,7 @@ class Logger {
     if (Logger.LEVELS[this.options.level] !== undefined) {
       this.minLevel = Logger.LEVELS[this.options.level];
     } else {
-      this.minLevel = Logger.LEVELS.DEBUG; // Fallback
+      this.minLevel = Logger.LEVELS.INFO;
     }
     // --- SLUTT FIKS ---
 

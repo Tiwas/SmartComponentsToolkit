@@ -156,6 +156,15 @@ describe("Logic Unit formula results", () => {
     expect(formula.result).toBe(false);
     expect(device.triggerCards.get("formula_changed_lu").trigger).not.toHaveBeenCalled();
   });
+
+  test("does not log whole formula collections while handling normal input", async () => {
+    const device = createLogicUnit([createFormula()]);
+
+    await device.setInputForFormula("f1", "a", true);
+
+    expect(device.logger.info.mock.calls.some(([, data]) => data?.allFormulasState)).toBe(false);
+    expect(device.logger.debug.mock.calls.some(([, data]) => data?.allFormulasState)).toBe(false);
+  });
 });
 
 describe("Logic Unit formula Flow cards", () => {

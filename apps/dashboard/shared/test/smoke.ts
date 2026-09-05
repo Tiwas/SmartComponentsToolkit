@@ -35,6 +35,7 @@ const triggered: string[] = [];
 const triggeredAdvanced: string[] = [];
 const updatedFlow: { id?: string; favorite?: boolean } = {};
 const updatedAdvanced: { id?: string; favorite?: boolean } = {};
+let logoutCalls = 0;
 
 const fakeApi: HomeyAPILike = {
   flow: {
@@ -82,7 +83,7 @@ class FakeCloud implements AthomCloudAPILike {
     return fakeUser;
   }
   async logout() {
-    /* noop */
+    logoutCalls += 1;
   }
 }
 
@@ -108,6 +109,8 @@ async function main() {
     credentials,
   });
   assert.equal(await session.isLoggedIn(), true);
+  await session.logout();
+  assert.equal(logoutCalls, 1, "sign-out delegates to the active Athom session");
 
   const client = await HomeyClient.connect(session);
   assert.equal(client.homey.id, "homey-abc");

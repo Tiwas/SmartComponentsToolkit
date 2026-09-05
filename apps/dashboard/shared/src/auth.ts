@@ -1,4 +1,9 @@
-import type { AthomCloudAPICtor, AthomCloudAPILike, AuthCredentials } from "./types.js";
+import type {
+  AthomCloudAPICtor,
+  AthomCloudAPILike,
+  AthomStorageAdapter,
+  AuthCredentials,
+} from "./types.js";
 
 const ATHOM_AUTHORIZE = "https://api.athom.com/oauth2/authorise";
 
@@ -21,6 +26,7 @@ export function buildAuthorizeUrl(creds: AuthCredentials, state?: string): strin
 export interface AuthSessionOpts {
   AthomCloudAPI: AthomCloudAPICtor;
   credentials: AuthCredentials;
+  store?: AthomStorageAdapter;
 }
 
 export class AuthSession {
@@ -28,7 +34,7 @@ export class AuthSession {
   private readonly creds: AuthCredentials;
 
   constructor(opts: AuthSessionOpts) {
-    this.cloud = new opts.AthomCloudAPI(opts.credentials);
+    this.cloud = new opts.AthomCloudAPI({ ...opts.credentials, store: opts.store });
     this.creds = opts.credentials;
   }
 

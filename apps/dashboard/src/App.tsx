@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -23,7 +23,12 @@ import { Floorplan } from "./components/Floorplan";
 import { Settings } from "./components/Settings";
 import { getAthomCloudAPI } from "./lib/cloud";
 import { performLoopbackOAuth, REDIRECT_URL } from "./lib/oauth";
-import { clearCredentials, loadCredentials } from "./lib/storage";
+import {
+  clearCloudStore,
+  clearCredentials,
+  createSecureCloudStorage,
+  loadCredentials,
+} from "./lib/storage";
 import { loadSettings, saveSettings } from "./lib/settings-tauri";
 import { I18nProvider, useI18n } from "./i18n/context";
 
@@ -63,6 +68,7 @@ function AppInner({
   const [fatal, setFatal] = useState<string | null>(null);
   const [homeys, setHomeys] = useState<Array<{ id: string; name: string }>>([]);
   const [activeShortcut, setActiveShortcut] = useState<string>("");
+  const activeSession = useRef<AuthSession | null>(null);
 
   useEffect(() => {
     bootstrap().catch((e) => setFatal(e instanceof Error ? e.message : String(e)));
@@ -189,7 +195,12 @@ function AppInner({
     }
     const creds: AuthCredentials = { ...stored, redirectUrl: REDIRECT_URL };
     const AthomCloudAPI = await getAthomCloudAPI();
-    const session = new AuthSession({ AthomCloudAPI, credentials: creds });
+    const session = new AuthSession({
+      AthomCloudAPI,
+      credentials: creds,
+      store: createSecureCloudStorage(AthomCloudAPI),
+    });
+    activeSession.current = session;
     if (await session.isLoggedIn()) {
       const homeyList = await HomeyClient.listHomeys(session).catch(() => []);
       setHomeys(homeyList);
@@ -214,8 +225,13 @@ function AppInner({
       clientSecret: screen.creds.clientSecret,
     });
     const AthomCloudAPI = await getAthomCloudAPI();
-    const session = new AuthSession({ AthomCloudAPI, credentials: screen.creds });
+    const session = new AuthSession({
+      AthomCloudAPI,
+      credentials: screen.creds,
+      store: createSecureCloudStorage(AthomCloudAPI),
+    });
     await session.exchangeCode(code);
+    activeSession.current = session;
     const homeyList = await HomeyClient.listHomeys(session).catch(() => []);
     setHomeys(homeyList);
     const client = await HomeyClient.connect(session, settings.homeyId || undefined);
@@ -224,30 +240,32 @@ function AppInner({
 
   async function handleLogout() {
     setFatal(null);
-    [
-      "homey-api",
-      "homey_api_key",
-      "homey_access_token",
-      "homey_refresh_token",
-      "athom_access_token",
-      "athom_refresh_token",
-      "athom_token_expires_at",
-    ].forEach((k) => localStorage.removeItem(k));
-    Object.keys(localStorage)
-      .filter((k) => /^(homey|athom)[-_]/i.test(k))
-      .forEach((k) => localStorage.removeItem(k));
-    const stored = loadCredentials();
-    setScreen(
-      stored
-        ? { kind: "login", creds: { ...stored, redirectUrl: REDIRECT_URL } }
-        : { kind: "setup" },
-    );
+    const session = activeSession.current;
+    try {
+      // AuthSession.logout intentionally tolerates a remote failure. The local
+      // keychain cleanup below must still complete when the user is offline.
+      await session?.logout();
+      await clearCloudStore();
+      const stored = await loadCredentials();
+      activeSession.current = null;
+      setScreen(
+        stored
+          ? { kind: "login", creds: { ...stored, redirectUrl: REDIRECT_URL } }
+          : { kind: "setup" },
+      );
+    } catch (cause) {
+      setFatal(cause instanceof Error ? cause.message : String(cause));
+    }
   }
 
-  function handleResetCredentials() {
+  async function handleResetCredentials() {
     setFatal(null);
-    clearCredentials();
-    handleLogout();
+    try {
+      await clearCredentials();
+      await handleLogout();
+    } catch (cause) {
+      setFatal(cause instanceof Error ? cause.message : String(cause));
+    }
   }
 
   async function persistSettings(next: AppSettings) {

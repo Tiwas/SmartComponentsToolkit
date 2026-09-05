@@ -8,11 +8,18 @@ export function Setup({ onSaved }: { onSaved: () => void }) {
   const [id, setId] = useState("");
   const [secret, setSecret] = useState("");
 
-  function submit(e: React.FormEvent) {
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!id.trim() || !secret.trim()) return;
-    saveCredentials(id.trim(), secret.trim());
-    onSaved();
+    setError(null);
+    try {
+      await saveCredentials(id.trim(), secret.trim());
+      onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
   }
 
   return (
@@ -36,6 +43,7 @@ export function Setup({ onSaved }: { onSaved: () => void }) {
         <button className="primary" type="submit">
           {t.setup_save}
         </button>
+        {error && <p className="error">{error}</p>}
       </form>
     </div>
   );

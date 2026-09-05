@@ -18,7 +18,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "jest --verbose",
-    "test:formula": "jest --runTestsByPath FormulaEvaluator.test.js"
+    "test:formula": "jest --runTestsByPath FormulaEvaluator.test.js",
+    "test:package": "node scripts/check-package.js"
   },
   "keywords": [
     "boolean",

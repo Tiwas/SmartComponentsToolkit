@@ -1,0 +1,33 @@
+# Build output, dependencies and development-only material
+.homeybuild/
+node_modules/
+coverage/
+tests/
+*.test.js
+*.backup
+*.backup/
+*.bak
+*.log
+.codex-logs/
+
+# Development notes, helpers and test configuration
+PROJECT_DOCUMENTATION.md
+DOCUMENTATION_PROMPT_TEMPLATE.md
+README.txt
+robots.md
+run_test.ps1
+jest.config.js
+.jestignore
+scripts/
+
+# Unused source/backup imagery. Referenced driver/app images remain included.
+assets/composite_device/
+assets/images_composite_device/source.svg
+assets/images_logic_device.backup/
+assets/images_logic_unit.backup/
+assets/images_circadian_light_group/circadian light group.png
+assets/images_circadian_light_group/Gemini_Generated_Image_*.png
+assets/images_circadian_light_group/logo_nobg.png
+assets/images_logic_device/ChatGPT Image*.png
+assets/images_logic_unit/ChatGPT Image*.png
+assets/images_state_capture_device/state capture device.png

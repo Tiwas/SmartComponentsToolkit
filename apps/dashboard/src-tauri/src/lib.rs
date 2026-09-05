@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 use std::sync::Mutex;
 
 use device_query::{DeviceQuery, DeviceState};
+use keyring::Entry;
+use serde::{Deserialize, Serialize};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, PhysicalPosition};
@@ -25,6 +27,217 @@ static OAUTH_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 const SNAP_THRESHOLD_PX: i32 = 24;
 const HOTZONE_TRIGGER_PX: i32 = 4;
+const KEYRING_SERVICE: &str = "no.tiwas.homeytoolbox.dashboard";
+const OAUTH_CREDENTIAL_ACCOUNT: &str = "oauth-credentials";
+const CLOUD_STORE_ACCOUNT: &str = "athom-cloud-store";
+const CLOUD_STORE_CHUNK_BYTES: usize = 2_000;
+const CLOUD_STORE_MAX_CHUNKS: usize = 16;
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OAuthCredentials {
+    client_id: String,
+    client_secret: String,
+}
+
+fn keyring_entry(account: &str) -> Result<Entry, String> {
+    Entry::new(KEYRING_SERVICE, account)
+        .map_err(|error| format!("could not access OS credential store: {error}"))
+}
+
+fn load_secret(account: &str) -> Result<Option<String>, String> {
+    match keyring_entry(account)?.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(format!("could not read OS credential store: {error}")),
+    }
+}
+
+fn clear_secret(account: &str) -> Result<(), String> {
+    match keyring_entry(account)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(format!("could not clear OS credential store: {error}")),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CloudStoreManifest {
+    generation: usize,
+    chunk_count: usize,
+}
+
+fn cloud_store_chunk_account(generation: usize, index: usize) -> String {
+    format!("{CLOUD_STORE_ACCOUNT}-{generation}-{index}")
+}
+
+fn split_utf8_chunks(value: &str) -> Vec<&str> {
+    let mut chunks = Vec::new();
+    let mut start = 0;
+    let mut size = 0;
+    for (index, character) in value.char_indices() {
+        let character_size = character.len_utf8();
+        if size + character_size > CLOUD_STORE_CHUNK_BYTES {
+            chunks.push(&value[start..index]);
+            start = index;
+            size = 0;
+        }
+        size += character_size;
+    }
+    if start < value.len() {
+        chunks.push(&value[start..]);
+    }
+    chunks
+}
+
+fn cloud_store_manifest() -> Result<Option<CloudStoreManifest>, String> {
+    let Some(manifest) = load_secret(CLOUD_STORE_ACCOUNT)? else {
+        return Ok(None);
+    };
+    let (generation, chunk_count) = manifest
+        .split_once(':')
+        .and_then(|(generation, count)| Some((generation.parse().ok()?, count.parse().ok()?)))
+        .filter(|(generation, count): &(usize, usize)| {
+            *generation < 2 && (1..=CLOUD_STORE_MAX_CHUNKS).contains(count)
+        })
+        .ok_or_else(|| "stored cloud credential manifest is invalid".to_string())?;
+    Ok(Some(CloudStoreManifest {
+        generation,
+        chunk_count,
+    }))
+}
+
+fn load_cloud_store_secret() -> Result<Option<String>, String> {
+    let Some(manifest) = cloud_store_manifest()? else {
+        return Ok(None);
+    };
+    let mut store = String::new();
+    for index in 0..manifest.chunk_count {
+        let Some(chunk) = load_secret(&cloud_store_chunk_account(manifest.generation, index))?
+        else {
+            // A partial clear is equivalent to a logged-out session. Leave
+            // best-effort cleanup for now, but never let a stale manifest
+            // prevent the dashboard from reaching its login screen.
+            let _ = clear_cloud_store_secret();
+            return Ok(None);
+        };
+        store.push_str(&chunk);
+    }
+    Ok(Some(store))
+}
+
+fn serialize_secure_cloud_store(value: &str) -> Result<String, String> {
+    let store = serde_json::from_str::<serde_json::Value>(&value)
+        .map_err(|error| format!("cloud storage payload must be JSON: {error}"))?;
+    // AthomCloudAPI persists a `user` cache alongside the OAuth token. It is
+    // not needed to resume a session, so keep only the token and avoid putting
+    // an unbounded cache into the platform credential store.
+    let persisted = store
+        .get("token")
+        .cloned()
+        .map(|token| serde_json::json!({ "token": token }))
+        .unwrap_or_else(|| serde_json::json!({}));
+    serde_json::to_string(&persisted)
+        .map_err(|error| format!("could not serialize cloud credential: {error}"))
+}
+
+fn save_cloud_store_secret(value: String) -> Result<(), String> {
+    let serialized = serialize_secure_cloud_store(&value)?;
+    let chunks = split_utf8_chunks(&serialized);
+    if chunks.len() > CLOUD_STORE_MAX_CHUNKS {
+        return Err("cloud credential exceeds the secure storage limit".to_string());
+    }
+
+    let previous = cloud_store_manifest()?;
+    let generation = previous.map_or(0, |manifest| manifest.generation ^ 1);
+    for (index, chunk) in chunks.iter().enumerate() {
+        keyring_entry(&cloud_store_chunk_account(generation, index))?
+            .set_password(chunk)
+            .map_err(|error| format!("could not save OS credential: {error}"))?;
+    }
+    keyring_entry(CLOUD_STORE_ACCOUNT)?
+        .set_password(&format!("{generation}:{}", chunks.len()))
+        .map_err(|error| format!("could not save OS credential manifest: {error}"))?;
+    if let Some(previous) = previous {
+        for index in 0..previous.chunk_count {
+            // The new manifest is already durable; stale chunks are cleaned
+            // opportunistically and can never become active again.
+            let _ = clear_secret(&cloud_store_chunk_account(previous.generation, index));
+        }
+    }
+    Ok(())
+}
+
+fn clear_cloud_store_secret() -> Result<(), String> {
+    // Scan both bounded generations so a retry cleans up even when an earlier
+    // sign-out failed halfway through deleting credential-store entries.
+    for generation in 0..2 {
+        for index in 0..CLOUD_STORE_MAX_CHUNKS {
+            clear_secret(&cloud_store_chunk_account(generation, index))?;
+        }
+    }
+    clear_secret(CLOUD_STORE_ACCOUNT)
+}
+
+#[tauri::command]
+async fn load_oauth_credentials() -> Result<Option<OAuthCredentials>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        load_secret(OAUTH_CREDENTIAL_ACCOUNT)?
+            .map(|value| {
+                serde_json::from_str(&value)
+                    .map_err(|error| format!("stored OAuth credentials are invalid: {error}"))
+            })
+            .transpose()
+    })
+    .await
+    .map_err(|error| format!("credential task panicked: {error}"))?
+}
+
+#[tauri::command]
+async fn save_oauth_credentials(client_id: String, client_secret: String) -> Result<(), String> {
+    if client_id.trim().is_empty() || client_secret.trim().is_empty() {
+        return Err("OAuth client ID and secret must not be empty".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let payload = serde_json::to_string(&OAuthCredentials {
+            client_id,
+            client_secret,
+        })
+        .map_err(|error| format!("could not serialize OAuth credentials: {error}"))?;
+        keyring_entry(OAUTH_CREDENTIAL_ACCOUNT)?
+            .set_password(&payload)
+            .map_err(|error| format!("could not save OS credential: {error}"))
+    })
+    .await
+    .map_err(|error| format!("credential task panicked: {error}"))?
+}
+
+#[tauri::command]
+async fn clear_oauth_credentials() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| clear_secret(OAUTH_CREDENTIAL_ACCOUNT))
+        .await
+        .map_err(|error| format!("credential task panicked: {error}"))?
+}
+
+#[tauri::command]
+async fn load_cloud_store() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(load_cloud_store_secret)
+        .await
+        .map_err(|error| format!("credential task panicked: {error}"))?
+}
+
+#[tauri::command]
+async fn save_cloud_store(value: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || save_cloud_store_secret(value))
+        .await
+        .map_err(|error| format!("credential task panicked: {error}"))?
+}
+
+#[tauri::command]
+async fn clear_cloud_store() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(clear_cloud_store_secret)
+        .await
+        .map_err(|error| format!("credential task panicked: {error}"))?
+}
 
 const SUCCESS_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Signed in</title>
 <style>body{font:14px system-ui;background:#14161c;color:#e8eaed;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}</style>
@@ -37,7 +250,11 @@ const ERROR_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><ti
 /// Returns the `code` query parameter, or an error string suitable for surfacing
 /// to the frontend.
 #[tauri::command]
-async fn await_oauth_code(port: u16, state: String, timeout_ms: Option<u64>) -> Result<String, String> {
+async fn await_oauth_code(
+    port: u16,
+    state: String,
+    timeout_ms: Option<u64>,
+) -> Result<String, String> {
     OAUTH_CANCELLED.store(false, Ordering::SeqCst);
     let timeout = Duration::from_millis(timeout_ms.unwrap_or(120_000).clamp(1_000, 300_000));
     tauri::async_runtime::spawn_blocking(move || run_listener(port, &state, timeout))
@@ -106,13 +323,18 @@ fn run_listener(port: u16, expected_state: &str, timeout: Duration) -> Result<St
     }
 }
 
-fn parse_callback_request(request_line: &str, expected_state: &str) -> Result<String, &'static str> {
+fn parse_callback_request(
+    request_line: &str,
+    expected_state: &str,
+) -> Result<String, &'static str> {
     let mut parts = request_line.split_whitespace();
     if parts.next() != Some("GET") {
         return Err("callback must use GET");
     }
     let target = parts.next().ok_or("missing request target")?;
-    if !matches!(parts.next(), Some(version) if version.starts_with("HTTP/")) || parts.next().is_some() {
+    if !matches!(parts.next(), Some(version) if version.starts_with("HTTP/"))
+        || parts.next().is_some()
+    {
         return Err("malformed request line");
     }
     let (path, query) = target.split_once('?').ok_or("missing callback query")?;
@@ -131,7 +353,9 @@ fn parse_callback_request(request_line: &str, expected_state: &str) -> Result<St
             }
         }
     }
-    let code = code.filter(|value| !value.is_empty()).ok_or("missing code")?;
+    let code = code
+        .filter(|value| !value.is_empty())
+        .ok_or("missing code")?;
     if state.as_deref() != Some(expected_state) {
         return Err("invalid OAuth state");
     }
@@ -258,8 +482,7 @@ fn show_toast(app: tauri::AppHandle, text: String, duration_ms: u64) -> Result<(
     // entrance animation and removal, so they accumulate top-down and fade
     // independently — newer toasts push older ones DOWN in the stack
     // (newest appears at the top of the visible stack since we prepend).
-    let escaped =
-        serde_json::to_string(&text).map_err(|e| format!("serialize text: {e}"))?;
+    let escaped = serde_json::to_string(&text).map_err(|e| format!("serialize text: {e}"))?;
     let js = format!(
         r#"(function(){{
             var s=document.getElementById('stack'); if(!s) return;
@@ -497,6 +720,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            load_oauth_credentials,
+            save_oauth_credentials,
+            clear_oauth_credentials,
+            load_cloud_store,
+            save_cloud_store,
+            clear_cloud_store,
             await_oauth_code,
             cancel_oauth_listener,
             load_favorites,
@@ -517,6 +746,35 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_store_discards_the_unbounded_user_cache() {
+        let input = serde_json::json!({
+            "token": { "access_token": "token", "refresh_token": "refresh" },
+            "user": { "large": "x".repeat(CLOUD_STORE_CHUNK_BYTES * 2) },
+        })
+        .to_string();
+        let stored = serialize_secure_cloud_store(&input).expect("valid cloud store");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored)
+                .expect("valid stored JSON")
+                .get("token")
+                .and_then(|token| token.get("access_token"))
+                .and_then(serde_json::Value::as_str),
+            Some("token")
+        );
+        assert!(stored.len() < CLOUD_STORE_CHUNK_BYTES);
+    }
+
+    #[test]
+    fn cloud_store_chunks_on_utf8_boundaries() {
+        let input = "å".repeat(CLOUD_STORE_CHUNK_BYTES);
+        let chunks = split_utf8_chunks(&input);
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.len() <= CLOUD_STORE_CHUNK_BYTES));
+        assert_eq!(chunks.concat(), input);
+    }
 
     #[test]
     fn accepts_callback_with_matching_state() {

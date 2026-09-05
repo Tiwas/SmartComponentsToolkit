@@ -34,6 +34,12 @@ export interface TokenStorage {
   clear(): Promise<void>;
 }
 
+/** Persistence interface consumed by AthomCloudAPI for its OAuth token and user cache. */
+export interface AthomStorageAdapter {
+  get(): Promise<object>;
+  set(value: object): Promise<void>;
+}
+
 export interface AthomCloudAPILike {
   isLoggedIn(): Promise<boolean>;
   authenticateWithAuthorizationCode(opts: { code: string; redirectUrl: string }): Promise<unknown>;
@@ -151,4 +157,7 @@ export interface RawFlowFolder {
   parent?: string | null;
 }
 
-export type AthomCloudAPICtor = new (opts: AuthCredentials) => AthomCloudAPILike;
+export interface AthomCloudAPICtor {
+  new (opts: AuthCredentials & { store?: AthomStorageAdapter }): AthomCloudAPILike;
+  StorageAdapter: new () => AthomStorageAdapter;
+}

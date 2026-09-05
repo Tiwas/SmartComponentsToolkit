@@ -7,9 +7,12 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:floorplan": "tsx test/floorplan-sanitizer.ts"
   },
   "devDependencies": {
+    "happy-dom": "^20.14.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.0"
   }
 }

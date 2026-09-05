@@ -14,7 +14,7 @@ export interface DevicePlacement {
 }
 
 export interface FloorplanData {
-  /** Raw SVG document as a string. Validated to contain a single <svg> root. */
+  /** Sanitized SVG document, safe to render in the dashboard WebView. */
   svg: string;
   /** Device/flow placements anchored to SVG coordinates. */
   placements: DevicePlacement[];
@@ -32,10 +32,32 @@ export const EMPTY_FLOORPLAN: FloorplanData = {
   hiddenFlows: [],
 };
 
+const MAX_SVG_SIZE = 1_000_000;
+const MAX_SVG_ELEMENTS = 10_000;
+const MAX_SVG_ATTRIBUTES = 50_000;
+const UNSAFE_SVG_ELEMENTS = new Set([
+  "script", "foreignobject", "iframe", "object", "embed", "style", "link",
+  "base", "meta", "animate", "animatemotion", "animatetransform", "set",
+]);
+
+function hasOnlyLocalUrlReferences(value: string): boolean {
+  const matches = value.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi);
+  for (const match of matches) {
+    if (!(match[2] ?? "").trim().startsWith("#")) return false;
+  }
+  return true;
+}
+
+function isSafeSvgReference(value: string): boolean {
+  return value.trim().startsWith("#");
+}
+
 export function normalizeFloorplan(raw: unknown): FloorplanData {
   if (raw == null || typeof raw !== "object") return EMPTY_FLOORPLAN;
   const obj = raw as Record<string, unknown>;
-  const svg = typeof obj.svg === "string" ? obj.svg : "";
+  const svgInput = typeof obj.svg === "string" ? obj.svg : "";
+  const svgResult = svgInput ? validateSvg(svgInput) : null;
+  const svg = svgResult?.ok ? svgResult.svg : "";
   const placements = Array.isArray(obj.placements)
     ? (obj.placements
         .map(normalizePlacement)
@@ -76,21 +98,57 @@ function normalizePlacement(raw: unknown): DevicePlacement | null {
   };
 }
 
-/**
- * Cheap validation: does the input look like a single-root SVG document?
- * Doesn't try to parse XML fully — we accept anything that has an opening
- * `<svg` tag and at least one closing `</svg>`. The webview will reject
- * malformed XML at render time anyway.
- */
 export function validateSvg(input: string): { ok: true; svg: string } | { ok: false; error: string } {
   const trimmed = input.trim();
   if (!trimmed) return { ok: false, error: "empty input" };
-  const openIdx = trimmed.toLowerCase().indexOf("<svg");
-  const closeIdx = trimmed.toLowerCase().lastIndexOf("</svg>");
-  if (openIdx === -1 || closeIdx === -1 || closeIdx < openIdx) {
-    return { ok: false, error: "no <svg>…</svg> root found" };
+  if (trimmed.length > MAX_SVG_SIZE) {
+    return { ok: false, error: "SVG exceeds the 1 MB size limit" };
   }
-  return { ok: true, svg: trimmed.slice(openIdx, closeIdx + "</svg>".length) };
+  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
+    return { ok: false, error: "SVG validation is unavailable in this environment" };
+  }
+
+  const svgDocument = new DOMParser().parseFromString(trimmed, "image/svg+xml");
+  if (svgDocument.querySelector("parsererror")) {
+    return { ok: false, error: "SVG is not valid XML" };
+  }
+  if (svgDocument.documentElement?.localName.toLowerCase() !== "svg") {
+    return { ok: false, error: "document root must be <svg>" };
+  }
+
+  const elements = Array.from(svgDocument.querySelectorAll("*"));
+  if (elements.length > MAX_SVG_ELEMENTS) {
+    return { ok: false, error: "SVG exceeds the element limit" };
+  }
+
+  let attributeCount = 0;
+  for (const element of elements) {
+    if (UNSAFE_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
+      element.remove();
+      continue;
+    }
+
+    for (const attribute of Array.from(element.attributes)) {
+      attributeCount += 1;
+      if (attributeCount > MAX_SVG_ATTRIBUTES) {
+        return { ok: false, error: "SVG exceeds the attribute limit" };
+      }
+
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src";
+      if (
+        name.startsWith("on") ||
+        name === "style" ||
+        (isUrlAttribute && !isSafeSvgReference(value)) ||
+        !hasOnlyLocalUrlReferences(value)
+      ) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
+
+  return { ok: true, svg: new XMLSerializer().serializeToString(svgDocument.documentElement) };
 }
 
 /**

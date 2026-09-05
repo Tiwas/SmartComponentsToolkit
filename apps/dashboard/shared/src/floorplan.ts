@@ -63,6 +63,16 @@ function isSafeSvgReference(value: string): boolean {
   return value.trim().startsWith("#");
 }
 
+function removeComments(node: Node): void {
+  for (const child of Array.from(node.childNodes)) {
+    if (child.nodeType === 7 || child.nodeType === 8) {
+      child.remove();
+    } else {
+      removeComments(child);
+    }
+  }
+}
+
 export function normalizeFloorplan(raw: unknown): FloorplanData {
   if (raw == null || typeof raw !== "object") return EMPTY_FLOORPLAN;
   const obj = raw as Record<string, unknown>;
@@ -126,7 +136,10 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
   if (svgDocument.doctype) {
     return { ok: false, error: "SVG document types are not allowed" };
   }
-  if (svgDocument.documentElement?.localName.toLowerCase() !== "svg") {
+  if (
+    svgDocument.documentElement?.localName.toLowerCase() !== "svg" ||
+    svgDocument.documentElement.prefix
+  ) {
     return { ok: false, error: "document root must be <svg>" };
   }
 
@@ -137,7 +150,7 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
 
   let attributeCount = 0;
   for (const element of elements) {
-    if (UNSAFE_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
+    if (element.prefix || UNSAFE_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
       element.remove();
       continue;
     }
@@ -150,7 +163,7 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
 
       const name = attribute.name.toLowerCase();
       const value = attribute.value.trim();
-      const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src";
+      const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src" || name === "srcset";
       if (
         name.startsWith("on") ||
         name === "style" ||
@@ -163,6 +176,7 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
     }
   }
 
+  removeComments(svgDocument);
   const svg = new XMLSerializer().serializeToString(svgDocument.documentElement);
   if (svg.length > MAX_SVG_SIZE) {
     return { ok: false, error: "SVG exceeds the 1 MB size limit after parsing" };

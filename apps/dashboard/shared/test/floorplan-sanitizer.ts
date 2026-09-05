@@ -24,6 +24,9 @@ const safe = sanitized(`
 assert.match(safe, /fill="url\(#shade\)"/);
 assert.match(safe, /href="#room-symbol"/);
 
+const namedFloor = sanitized(`<svg><g data-floor="Image(s)"><rect/></g></svg>`);
+assert.match(namedFloor, /data-floor="Image\(s\)"/, "non-CSS metadata values are preserved");
+
 const hostile = sanitized(`
   <svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
     <script>alert(1)</script>
@@ -38,6 +41,13 @@ const hostile = sanitized(`
 `);
 assert.doesNotMatch(hostile, /<script\b|<foreignobject\b|<img\b|<p\b|<video\b|onload=|onerror=/i);
 assert.doesNotMatch(hostile, /https:|javascript:|data:|style=|srcset=/i);
+
+const basedReference = sanitized(`<svg><image xml:base="https://attacker.example/p.svg" href="#pixel"/></svg>`);
+assert.doesNotMatch(basedReference, /xml:base|https:/i, "base URLs cannot turn fragments into remote references");
+
+const unicodePrefix = "İ".repeat(30);
+const unicodeUrl = sanitized(`<svg><rect fill="/*${unicodePrefix}*/url(https://attacker.example/p.svg#x)"/></svg>`);
+assert.doesNotMatch(unicodeUrl, /fill=|https:/i, "URL scanning retains original string offsets");
 
 const commented = sanitized(`<svg><g data-floor="bad"><!--</g><image href="https://attacker.example/pixel"/>--></g></svg>`);
 assert.doesNotMatch(commented, /<!--|https:/, "comments cannot be reactivated by floor filtering");
@@ -55,6 +65,12 @@ assert.match(filteredFloors, /data-floor="visible"/, "self-closing hidden groups
 
 const withSwitch = sanitized(`<svg><switch><g data-floor="Main"><rect data-zone="zone"/></g></switch></svg>`);
 assert.match(withSwitch, /<switch\b/i, "standard SVG switch containers are retained");
+
+assert.equal(
+  validateSvg(`<svg>${"<g>".repeat(8_000)}${"</g>".repeat(8_000)}</svg>`).ok,
+  false,
+  "excessive nesting is rejected before DOM parsing",
+);
 
 const stored = normalizeFloorplan({ svg: `<svg><script>alert(1)</script><rect/></svg>`, placements: [] });
 assert.doesNotMatch(stored.svg, /<script\b/i, "stored SVG is sanitized before rendering");

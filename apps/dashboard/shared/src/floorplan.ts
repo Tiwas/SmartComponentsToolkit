@@ -35,6 +35,7 @@ export const EMPTY_FLOORPLAN: FloorplanData = {
 const MAX_SVG_SIZE = 1_000_000;
 const MAX_SVG_ELEMENTS = 10_000;
 const MAX_SVG_ATTRIBUTES = 50_000;
+const MAX_SVG_DEPTH = 256;
 const SAFE_SVG_ELEMENTS = new Set([
   "svg", "g", "defs", "view", "switch", "path", "rect", "circle", "ellipse", "line",
   "polyline", "polygon", "text", "tspan", "textpath", "use", "symbol", "marker", "pattern",
@@ -44,21 +45,39 @@ const SAFE_SVG_ELEMENTS = new Set([
   "fefuncr", "fegaussianblur", "feimage", "femerge", "femergenode", "femorphology", "feoffset",
   "fepointlight", "fespecularlighting", "fespotlight", "fetile", "feturbulence", "image", "a",
 ]);
+const CSS_URL_ATTRIBUTES = new Set([
+  "fill", "stroke", "filter", "clip-path", "mask", "marker-start", "marker-mid", "marker-end", "cursor",
+]);
+const FORBIDDEN_SVG_ATTRIBUTES = new Set([
+  "base", "xml:base", "style", "srcset", "mask-image", "background", "background-image", "border-image",
+  "content", "list-style-image", "poster", "shape-outside",
+]);
+
+function indexOfAsciiIgnoreCase(value: string, needle: string, from = 0): number {
+  outer: for (let index = from; index <= value.length - needle.length; index += 1) {
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      const actual = value.charCodeAt(index + offset);
+      const expected = needle.charCodeAt(offset);
+      if (actual !== expected && actual !== expected - 32) continue outer;
+    }
+    return index;
+  }
+  return -1;
+}
 
 function hasOnlyLocalUrlReferences(value: string): boolean {
-  const normalized = value.toLowerCase();
   if (
-    normalized.includes("image(") ||
-    normalized.includes("image-set(") ||
-    normalized.includes("cross-fade(") ||
-    normalized.includes("element(") ||
-    normalized.includes("paint(")
+    indexOfAsciiIgnoreCase(value, "image(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "image-set(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "cross-fade(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "element(") !== -1 ||
+    indexOfAsciiIgnoreCase(value, "paint(") !== -1
   ) {
     return false;
   }
   let cursor = 0;
   while (true) {
-    const start = normalized.indexOf("url(", cursor);
+    const start = indexOfAsciiIgnoreCase(value, "url(", cursor);
     if (start === -1) return true;
 
     const end = value.indexOf(")", start + 4);
@@ -77,12 +96,71 @@ function isSafeSvgReference(value: string): boolean {
   return value.trim().startsWith("#");
 }
 
-function removeOpaqueNodes(node: Node): void {
-  for (const child of Array.from(node.childNodes)) {
-    if (child.nodeType !== 1 && child.nodeType !== 3) {
-      child.remove();
+function isWithinSvgDepthLimit(input: string): boolean {
+  let depth = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    if (input[index] !== "<") continue;
+
+    if (input.startsWith("<!--", index)) {
+      const end = input.indexOf("-->", index + 4);
+      if (end === -1) return false;
+      index = end + 2;
+      continue;
+    }
+    if (input.startsWith("<![CDATA[", index)) {
+      const end = input.indexOf("]]>", index + 9);
+      if (end === -1) return false;
+      index = end + 2;
+      continue;
+    }
+    if (input.startsWith("<?", index)) {
+      const end = input.indexOf("?>", index + 2);
+      if (end === -1) return false;
+      index = end + 1;
+      continue;
+    }
+    if (input.startsWith("<!", index)) return false;
+
+    const isClosing = input[index + 1] === "/";
+    let quote: string | null = null;
+    let end = index + (isClosing ? 2 : 1);
+    for (; end < input.length; end += 1) {
+      const character = input[end]!;
+      if (quote) {
+        if (character === quote) quote = null;
+      } else if (character === "'" || character === '"') {
+        quote = character;
+      } else if (character === ">") {
+        break;
+      }
+    }
+    if (end === input.length || quote) return false;
+
+    if (isClosing) {
+      depth -= 1;
+      if (depth < 0) return false;
     } else {
-      removeOpaqueNodes(child);
+      const isSelfClosing = /\/\s*$/.test(input.slice(index + 1, end));
+      if (!isSelfClosing) {
+        depth += 1;
+        if (depth > MAX_SVG_DEPTH) return false;
+      }
+    }
+    index = end;
+  }
+  return true;
+}
+
+function removeOpaqueNodes(node: Node): void {
+  const stack: Node[] = [node];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    for (const child of Array.from(current.childNodes)) {
+      if (child.nodeType !== 1 && child.nodeType !== 3) {
+        child.remove();
+      } else if (child.nodeType === 1) {
+        stack.push(child);
+      }
     }
   }
 }
@@ -139,6 +217,9 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
   if (trimmed.length > MAX_SVG_SIZE) {
     return { ok: false, error: "SVG exceeds the 1 MB size limit" };
   }
+  if (!isWithinSvgDepthLimit(trimmed)) {
+    return { ok: false, error: "SVG exceeds the nesting-depth limit" };
+  }
   if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
     return { ok: false, error: "SVG validation is unavailable in this environment" };
   }
@@ -180,11 +261,10 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
       const isUrlAttribute = name === "href" || name === "xlink:href" || name === "src";
       if (
         name.startsWith("on") ||
-        name === "style" ||
-        name === "srcset" ||
+        FORBIDDEN_SVG_ATTRIBUTES.has(name) ||
         value.includes("\\") ||
         (isUrlAttribute && !isSafeSvgReference(value)) ||
-        !hasOnlyLocalUrlReferences(value)
+        (CSS_URL_ATTRIBUTES.has(name) && !hasOnlyLocalUrlReferences(value))
       ) {
         element.removeAttribute(attribute.name);
       }

@@ -205,6 +205,14 @@ class StateDevice extends Homey.Device {
             capsToSet = Object.entries(item.capabilities).map(([k, v]) => ({ capability: k, value: v }));
         }
 
+        if (capsToSet.length === 0) {
+            const error = `${item.name || item.id}: no capability values to apply`;
+            this.debug(`Skipping item ${item.name}: ${error}`);
+            errors.push(error);
+            if (!ignoreErrors) return this._finishApply(errors, logErrors);
+            continue;
+        }
+
         // Filter for valid capabilities BEFORE waiting
         const validCaps = [];
         const errorsBeforeCapabilities = errors.length;

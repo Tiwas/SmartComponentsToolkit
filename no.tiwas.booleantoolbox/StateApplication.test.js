@@ -128,6 +128,19 @@ describe('StateDevice application result', () => {
     expect(flow.cards.get('state_applied_successfully_sd')).toBeUndefined();
     expect(flow.cards.get('state_error_occurred_sd').trigger).toHaveBeenCalledTimes(1);
   });
+
+  test('does not emit success for an item without capability values', async () => {
+    const api = { devices: { getDevice: jest.fn().mockResolvedValue({ capabilitiesObj: {} }) } };
+    const { device, flow } = createStateDevice(JSON.stringify({
+      config: { ignore_errors: false },
+      items: [{ id: 'light', name: 'Light', capabilities: [] }],
+    }), api);
+
+    await expect(device._executeApply()).resolves.toBe(false);
+
+    expect(flow.cards.get('state_applied_successfully_sd')).toBeUndefined();
+    expect(flow.cards.get('state_error_occurred_sd').trigger).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('StateCaptureDevice application result', () => {

@@ -19,7 +19,7 @@
     "test:coverage": "jest --coverage",
     "test:verbose": "jest --verbose",
     "test:formula": "jest --runTestsByPath FormulaEvaluator.test.js",
-    "test:package": "powershell -ExecutionPolicy Bypass -File scripts/check-package.ps1"
+    "test:package": "node scripts/check-package.js"
   },
   "keywords": [
     "boolean",

@@ -603,8 +603,15 @@ a or (b and c)"></textarea>
                         document.getElementById('redirect-url-display').value = this.getRedirectUrl();
                         await this.initLanguageSelector();
 
-                        this.CLIENT_ID = localStorage.getItem('homey_client_id');
-                        this.CLIENT_SECRET = localStorage.getItem('homey_client_secret');
+                        // Remove credentials left by versions that used durable
+                        // localStorage. Users re-enter them once per browser session.
+                        localStorage.removeItem('homey_client_id');
+                        localStorage.removeItem('homey_client_secret');
+                        // OAuth credentials are intentionally scoped to the current
+                        // browser session. A public static tool must not leave a
+                        // client secret in durable Web Storage after it closes.
+                        this.CLIENT_ID = sessionStorage.getItem('homey_client_id');
+                        this.CLIENT_SECRET = sessionStorage.getItem('homey_client_secret');
 
                         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
                             this.showScreen('api-setup-screen');
@@ -647,8 +654,8 @@ a or (b and c)"></textarea>
                         const clientSecret = document.getElementById('client-secret-input').value.trim();
                         
                         if (clientId && clientSecret) {
-                            localStorage.setItem('homey_client_id', clientId);
-                            localStorage.setItem('homey_client_secret', clientSecret);
+                            sessionStorage.setItem('homey_client_id', clientId);
+                            sessionStorage.setItem('homey_client_secret', clientSecret);
                             this.CLIENT_ID = clientId;
                             this.CLIENT_SECRET = clientSecret;
                             window.location.reload();
@@ -657,9 +664,6 @@ a or (b and c)"></textarea>
                 }
                 
                 setupEventListeners() {
-                    document.getElementById('main-content').addEventListener('click', (event) => {
-                        if (event.target.id === 'login-button') this.login();
-                    });
                     document.getElementById('logout-button').addEventListener('click', () => this.logout());
                     document.getElementById('settings-modal-close').addEventListener('click', () => this.closeSettingsModal());
                     document.getElementById('settings-modal-save').addEventListener('click', () => this.saveSettings());
@@ -667,8 +671,8 @@ a or (b and c)"></textarea>
                 }
 
                 showApiSettings() {
-                    const currentId = localStorage.getItem('homey_client_id') || '';
-                    const currentSecret = localStorage.getItem('homey_client_secret') || '';
+                    const currentId = sessionStorage.getItem('homey_client_id') || '';
+                    const currentSecret = sessionStorage.getItem('homey_client_secret') || '';
                     
                     if (confirm(this.t('apiSetup.changeConfirm'))) {
                         document.getElementById('client-id-input').value = currentId;
@@ -759,10 +763,17 @@ a or (b and c)"></textarea>
                 renderAll() { 
                     this.renderEditDevices(); 
                 }
+
+                element(tag, className, text) {
+                    const element = document.createElement(tag);
+                    if (className) element.className = className;
+                    if (text !== undefined) element.textContent = String(text);
+                    return element;
+                }
                 
                 renderEditDevices() {
                     const container = document.getElementById('edit-devices-list');
-                    container.innerHTML = '';
+                    container.replaceChildren();
                     const allDevicesList = Object.values(this.allDevices);
                     const possibleDriverIds = ['booleantoolbox', 'logic', 'boolean', 'toolbox'];
                     let toolboxDevices = allDevicesList.filter(d => 
@@ -770,7 +781,9 @@ a or (b and c)"></textarea>
                     );
                     
                     if (toolboxDevices.length === 0) {
-                        container.innerHTML = `<div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-center"><p class="font-semibold mb-2 text-yellow-800">${this.t('editDevices.noDevices')}</p></div>`;
+                        const message = this.element('div', 'bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-center');
+                        message.append(this.element('p', 'font-semibold mb-2 text-yellow-800', this.t('editDevices.noDevices')));
+                        container.append(message);
                         return;
                     }
                     
@@ -783,35 +796,36 @@ a or (b and c)"></textarea>
                         const zoneDevices = devicesByZone[zoneId];
                         const zoneEl = document.createElement('div');
                         zoneEl.className = 'mt-6';
-                        zoneEl.innerHTML = `<h3 class="text-lg font-semibold border-b border-gray-200 pb-2 mb-4 text-gray-800">${zone.name}</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${zoneDevices.map(device => {
+                        zoneEl.append(this.element('h3', 'text-lg font-semibold border-b border-gray-200 pb-2 mb-4 text-gray-800', zone.name));
+                        const grid = this.element('div', 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4');
+                        zoneDevices.forEach(device => {
                                 const isLogicUnit = device.driverId.includes('logic-unit');
                                 const buttonText = isLogicUnit ? 'Edit Formula' : 'Edit Expression';
                                 const buttonClass = isLogicUnit ? 'edit-formula-button' : 'edit-expression-button';
-                                return `
-                                <div class="bg-white border border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <span class="font-medium text-gray-900">${device.name}</span>
-                                        <div class="flex gap-2">
-                                            <button data-device-id="${device.id}" class="${buttonClass} bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded-md transition-colors">${buttonText}</button>
-                                            <button data-device-id="${device.id}" class="open-settings-button bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 text-xs py-1 px-2 rounded-md transition-colors">${this.t('editDevices.settings')}</button>
-                                        </div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 font-mono">${device.driverId}</div>
-                                </div>`;
-                            }).join('')}</div>`;
+                                const card = this.element('div', 'bg-white border border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow');
+                                const header = this.element('div', 'flex justify-between items-start mb-2');
+                                header.append(this.element('span', 'font-medium text-gray-900', device.name));
+                                const actions = this.element('div', 'flex gap-2');
+                                const edit = this.element('button', `${buttonClass} bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded-md transition-colors`, buttonText);
+                                edit.dataset.deviceId = device.id;
+                                edit.addEventListener('click', () => isLogicUnit ? this.editDeviceFormula(device.id) : this.editDeviceExpression(device.id));
+                                const settings = this.element('button', 'open-settings-button bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 text-xs py-1 px-2 rounded-md transition-colors', this.t('editDevices.settings'));
+                                settings.dataset.deviceId = device.id;
+                                settings.addEventListener('click', () => this.openSettingsModal(device.id));
+                                actions.append(edit, settings);
+                                header.append(actions);
+                                card.append(header, this.element('div', 'text-xs text-gray-500 font-mono', device.driverId));
+                                grid.append(card);
+                        });
+                        zoneEl.append(grid);
                         container.appendChild(zoneEl);
                     });
-                    
-                    container.querySelectorAll('.open-settings-button').forEach(button => button.addEventListener('click', (e) => this.openSettingsModal(e.target.dataset.deviceId)));
-                    container.querySelectorAll('.edit-expression-button').forEach(button => button.addEventListener('click', (e) => this.editDeviceExpression(e.target.dataset.deviceId)));
-                    container.querySelectorAll('.edit-formula-button').forEach(button => button.addEventListener('click', (e) => this.editDeviceFormula(e.target.dataset.deviceId)));
                 }
 
                 renderLogicDeviceCapabilityList() {
                     const container = document.getElementById('logic-device-capability-list');
                     if (!container) return;
-                    container.innerHTML = '';
+                    container.replaceChildren();
                     const allDevicesList = Object.values(this.allDevices);
                     const devicesByZone = this.groupDevicesByZone(allDevicesList);
                     const sortedZones = this.sortZones(Object.keys(devicesByZone));
@@ -826,10 +840,8 @@ a or (b and c)"></textarea>
                         
                         const zoneHeader = document.createElement('div');
                         zoneHeader.className = 'bg-gray-100 p-3 cursor-pointer hover:bg-gray-200 flex justify-between items-center text-gray-900';
-                        zoneHeader.innerHTML = `
-                            <h3 class="font-semibold">${zone.name}</h3>
-                            <svg class="zone-chevron w-4 h-4 transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                        `;
+                        const zoneChevron = this.element('span', 'zone-chevron w-4 h-4 transition-transform text-gray-500', '›');
+                        zoneHeader.append(this.element('h3', 'font-semibold', zone.name), zoneChevron);
                         
                         const zoneContent = document.createElement('div');
                         zoneContent.className = 'hidden bg-white p-3 space-y-2';
@@ -842,10 +854,8 @@ a or (b and c)"></textarea>
                             
                             const deviceHeader = document.createElement('div');
                             deviceHeader.className = 'bg-gray-50 p-2 cursor-pointer hover:bg-gray-100 flex justify-between items-center';
-                            deviceHeader.innerHTML = `
-                                <div class="font-medium text-sm text-gray-800">${device.name}</div>
-                                <svg class="device-chevron w-3 h-3 transition-transform text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                            `;
+                            const deviceChevron = this.element('span', 'device-chevron w-3 h-3 transition-transform text-gray-400', '›');
+                            deviceHeader.append(this.element('div', 'font-medium text-sm text-gray-800', device.name), deviceChevron);
                             
                             const capsEl = document.createElement('div');
                             capsEl.className = 'hidden bg-white space-y-1 p-2 border-t border-gray-100';
@@ -857,12 +867,16 @@ a or (b and c)"></textarea>
                                 
                                 const label = document.createElement('label');
                                 label.className = 'flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded text-gray-700';
-                                label.innerHTML = `
-                                    <input type="checkbox" ${isSelected ? 'checked' : ''} data-device-id="${device.id}" data-capability-id="${cap.id}" data-device-name="${device.name}" data-capability-title="${cap.title}" class="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                                    <span>${cap.title}</span>
-                                `;
-                                
-                                const checkbox = label.querySelector('input');
+                                const checkbox = this.element('input', 'form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500');
+                                checkbox.type = 'checkbox';
+                                checkbox.checked = isSelected;
+                                Object.assign(checkbox.dataset, {
+                                    deviceId: device.id,
+                                    capabilityId: cap.id,
+                                    deviceName: device.name,
+                                    capabilityTitle: cap.title
+                                });
+                                label.append(checkbox, this.element('span', '', cap.title));
                                 checkbox.addEventListener('change', (e) => this.handleLogicDeviceCapabilityChange(e.target));
                                 capsEl.appendChild(label);
                             });
@@ -870,7 +884,7 @@ a or (b and c)"></textarea>
                             deviceHeader.addEventListener('click', () => {
                                 const isHidden = capsEl.classList.contains('hidden');
                                 capsEl.classList.toggle('hidden');
-                                deviceHeader.querySelector('.device-chevron').style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+                                deviceChevron.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
                             });
                             
                             deviceWrapper.appendChild(deviceHeader);
@@ -881,7 +895,7 @@ a or (b and c)"></textarea>
                         zoneHeader.addEventListener('click', () => {
                             const isHidden = zoneContent.classList.contains('hidden');
                             zoneContent.classList.toggle('hidden');
-                            zoneHeader.querySelector('.zone-chevron').style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+                            zoneChevron.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
                         });
                         
                         zoneWrapper.appendChild(zoneHeader);
@@ -922,23 +936,30 @@ a or (b and c)"></textarea>
                     if (!list || !count) return;
                     count.textContent = this.logicDeviceCapabilities.length;
                     
-                    list.innerHTML = this.logicDeviceCapabilities.length === 0 
-                        ? '<li class="text-gray-500 text-sm italic">No capabilities selected</li>'
-                        : this.logicDeviceCapabilities.map((cap, idx) => `
-                            <li class="bg-gray-100 p-2 rounded text-sm border border-gray-200">
-                                <div class="flex items-center gap-2">
-                                    <div class="flex flex-col gap-1">
-                                        <button onclick="window.app.moveLogicDeviceCapability(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} class="text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs leading-none" title="Move up">▲</button>
-                                        <button onclick="window.app.moveLogicDeviceCapability(${idx}, 1)" ${idx === this.logicDeviceCapabilities.length - 1 ? 'disabled' : ''} class="text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs leading-none" title="Move down">▼</button>
-                                    </div>
-                                    <div class="flex-grow min-w-0">
-                                        <span class="font-mono font-bold text-blue-600">${String.fromCharCode(65 + idx)}:</span>
-                                        <span class="text-xs block truncate text-gray-800">${cap.deviceName} - ${cap.capabilityTitle}</span>
-                                    </div>
-                                    <button onclick="window.app.removeLogicDeviceCapability(${idx})" class="text-red-500 hover:text-red-700 font-bold text-lg flex-shrink-0">×</button>
-                                </div>
-                            </li>
-                        `).join('');
+                    list.replaceChildren();
+                    if (this.logicDeviceCapabilities.length === 0) {
+                        list.append(this.element('li', 'text-gray-500 text-sm italic', 'No capabilities selected'));
+                    } else {
+                        this.logicDeviceCapabilities.forEach((cap, idx) => {
+                            const item = this.element('li', 'bg-gray-100 p-2 rounded text-sm border border-gray-200');
+                            const row = this.element('div', 'flex items-center gap-2');
+                            const moves = this.element('div', 'flex flex-col gap-1');
+                            const up = this.element('button', 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs leading-none', '▲');
+                            up.title = 'Move up'; up.disabled = idx === 0;
+                            up.addEventListener('click', () => this.moveLogicDeviceCapability(idx, -1));
+                            const down = this.element('button', 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs leading-none', '▼');
+                            down.title = 'Move down'; down.disabled = idx === this.logicDeviceCapabilities.length - 1;
+                            down.addEventListener('click', () => this.moveLogicDeviceCapability(idx, 1));
+                            moves.append(up, down);
+                            const details = this.element('div', 'flex-grow min-w-0');
+                            details.append(this.element('span', 'font-mono font-bold text-blue-600', `${String.fromCharCode(65 + idx)}:`), this.element('span', 'text-xs block truncate text-gray-800', `${cap.deviceName} - ${cap.capabilityTitle}`));
+                            const remove = this.element('button', 'text-red-500 hover:text-red-700 font-bold text-lg flex-shrink-0', '×');
+                            remove.addEventListener('click', () => this.removeLogicDeviceCapability(idx));
+                            row.append(moves, details, remove);
+                            item.append(row);
+                            list.append(item);
+                        });
+                    }
                     
                     const formulaInput = document.getElementById('logic-device-formula');
                     const currentFormula = formulaInput ? formulaInput.value : '';
@@ -973,8 +994,8 @@ a or (b and c)"></textarea>
                 removeLogicDeviceCapability(idx) {
                     const removed = this.logicDeviceCapabilities[idx];
                     this.logicDeviceCapabilities.splice(idx, 1);
-                    const checkbox = document.querySelector(
-                        `input[data-device-id="${removed.deviceId}"][data-capability-id="${removed.capabilityId}"]`
+                    const checkbox = Array.from(document.querySelectorAll('input[data-device-id][data-capability-id]')).find(input =>
+                        input.dataset.deviceId === removed.deviceId && input.dataset.capabilityId === removed.capabilityId
                     );
                     if (checkbox) checkbox.checked = false;
                     this.updateLogicDeviceSelectedList();
@@ -1044,19 +1065,23 @@ a or (b and c)"></textarea>
                 showOutputModal(title, output, instructions) {
                     const modal = document.createElement('div');
                     modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50';
-                    modal.innerHTML = `
-                        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-                            <h3 class="text-lg font-bold mb-4">${title}</h3>
-                            <p class="text-sm text-gray-400 mb-4">${instructions}</p>
-                            ${output.input_links ? `
-                                <div class="mb-4"><h4 class="font-semibold mb-2">Input Links (JSON):</h4><textarea readonly class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg font-mono text-sm" rows="8">${JSON.stringify(output.input_links, null, 2)}</textarea></div>
-                            ` : ''}
-                            <div class="mb-6"><h4 class="font-semibold mb-2">Formulas (JSON):</h4><textarea readonly class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg font-mono text-sm" rows="12">${JSON.stringify(output.formulas, null, 2)}</textarea></div>
-                            <div class="flex justify-end gap-4">
-                                <button onclick="this.closest('.fixed').remove()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Close</button>
-                                <button onclick="navigator.clipboard.writeText('${JSON.stringify(output, null, 2).replace(/'/g, "\'")}'); alert('Copied to clipboard!')" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">Copy All JSON</button>
-                            </div>
-                        </div>`;
+                    const panel = this.element('div', 'bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto');
+                    panel.append(this.element('h3', 'text-lg font-bold mb-4', title), this.element('p', 'text-sm text-gray-400 mb-4', instructions));
+                    const appendJson = (heading, value, rows, marginClass) => {
+                        const section = this.element('div', marginClass);
+                        const textarea = this.element('textarea', 'w-full p-3 bg-gray-700 border border-gray-600 rounded-lg font-mono text-sm');
+                        textarea.readOnly = true; textarea.rows = rows; textarea.value = JSON.stringify(value, null, 2);
+                        section.append(this.element('h4', 'font-semibold mb-2', heading), textarea);
+                        panel.append(section);
+                    };
+                    if (output.input_links) appendJson('Input Links (JSON):', output.input_links, 8, 'mb-4');
+                    appendJson('Formulas (JSON):', output.formulas, 12, 'mb-6');
+                    const actions = this.element('div', 'flex justify-end gap-4');
+                    const close = this.element('button', 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg', 'Close');
+                    close.addEventListener('click', () => modal.remove());
+                    const copy = this.element('button', 'bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg', 'Copy All JSON');
+                    copy.addEventListener('click', async () => { await navigator.clipboard.writeText(JSON.stringify(output, null, 2)); alert('Copied to clipboard!'); });
+                    actions.append(close, copy); panel.append(actions); modal.append(panel);
                     document.body.appendChild(modal);
                 }
 
@@ -1141,20 +1166,38 @@ a or (b and c)"></textarea>
 
                 renderSettingField(setting) {
                     const { id, title, value, type, hint, min, max, units } = setting;
-                    const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : value;
-                    const isObject = typeof value === 'object';
-                    let fieldHtml = `<div class="mb-4"><label for="setting-${id}" class="block text-sm font-medium text-gray-700 mb-1">${title || id}</label>`;
-                    if (hint) fieldHtml += `<p class="text-xs text-gray-500 mb-2">${hint}</p>`;
+                    const isObject = value !== null && typeof value === 'object';
+                    const displayValue = isObject ? JSON.stringify(value, null, 2) : (value ?? '');
+                    const field = this.element('div', 'mb-4');
+                    const fieldId = `setting-${id}`;
+                    const label = this.element('label', 'block text-sm font-medium text-gray-700 mb-1', title || id);
+                    label.htmlFor = fieldId;
+                    field.append(label);
+                    if (hint) field.append(this.element('p', 'text-xs text-gray-500 mb-2', hint));
+                    let input;
                     if (type === 'textarea' || isObject) {
                         const rows = isObject ? Math.min(10, displayValue.split('\n').length + 1) : 4;
-                        fieldHtml += `<textarea id="setting-${id}" data-setting-id="${id}" data-is-object="${isObject}" class="block w-full p-2 bg-white border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-sm text-gray-900" rows="${rows}">${displayValue}</textarea>`;
+                        input = this.element('textarea', 'block w-full p-2 bg-white border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-sm text-gray-900');
+                        input.rows = rows;
+                        input.value = displayValue;
                     } else if (type === 'number') {
-                        fieldHtml += `<div class="flex gap-2 items-center"><input type="number" id="setting-${id}" data-setting-id="${id}" ${min !== undefined ? `min="${min}"` : ''} ${max !== undefined ? `max="${max}"` : ''} class="flex-grow p-2 bg-white border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900" value="${value}">${units ? `<span class="text-gray-500 text-sm">${units.en || units}</span>` : ''}</div>`;
+                        const row = this.element('div', 'flex gap-2 items-center');
+                        input = this.element('input', 'flex-grow p-2 bg-white border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900');
+                        input.type = 'number'; input.value = value;
+                        if (min !== undefined) input.min = min;
+                        if (max !== undefined) input.max = max;
+                        row.append(input);
+                        if (units) row.append(this.element('span', 'text-gray-500 text-sm', units.en || units));
+                        field.append(row);
                     } else {
-                        fieldHtml += `<input type="text" id="setting-${id}" data-setting-id="${id}" class="block w-full p-2 bg-white border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900" value="${displayValue}">`;
+                        input = this.element('input', 'block w-full p-2 bg-white border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900');
+                        input.type = 'text'; input.value = displayValue;
                     }
-                    fieldHtml += `</div>`;
-                    return fieldHtml;
+                    input.id = fieldId;
+                    input.dataset.settingId = id;
+                    input.dataset.isObject = String(isObject);
+                    if (type !== 'number') field.append(input);
+                    return field;
                 }
 
                 closeSettingsModal() { document.getElementById('settings-modal').style.display = 'none'; }
@@ -1195,7 +1238,7 @@ a or (b and c)"></textarea>
                     const content = document.getElementById('settings-modal-content');
                     const saveBtn = document.getElementById('settings-modal-save');
                     title.textContent = `${this.t('settings.titleFor')} ${device.name}`;
-                    content.innerHTML = `<p>${this.t('settings.loading')}</p>`;
+                    content.replaceChildren(this.element('p', '', this.t('settings.loading')));
                     saveBtn.dataset.deviceId = deviceId;
                     modal.style.display = 'flex';
                     this.showLoader('Loading settings...');
@@ -1215,26 +1258,28 @@ a or (b and c)"></textarea>
                             return schema;
                         };
                         const settingsWithValues = mergeValues(settingsSchema, device.settings);
-                        let settingsHtml = '';
+                        const settingsContent = document.createDocumentFragment();
                         if (Array.isArray(settingsWithValues)) {
                             settingsWithValues.forEach(group => {
                                 if (group.type === 'group' && group.children) {
-                                    settingsHtml += `<div class="mb-4"><h4 class="text-md font-semibold text-gray-200 mb-3">${group.title || 'Settings'}</h4>`;
-                                    group.children.forEach(setting => { settingsHtml += this.renderSettingField(setting); });
-                                    settingsHtml += `</div>`;
+                                    const groupElement = this.element('div', 'mb-4');
+                                    groupElement.append(this.element('h4', 'text-md font-semibold text-gray-200 mb-3', group.title || 'Settings'));
+                                    group.children.forEach(setting => { groupElement.append(this.renderSettingField(setting)); });
+                                    settingsContent.append(groupElement);
                                 } else {
-                                    settingsHtml += this.renderSettingField(group);
+                                    settingsContent.append(this.renderSettingField(group));
                                 }
                             });
                         } else {
                             for (const key in settingsWithValues) {
                                 const value = settingsWithValues[key];
-                                settingsHtml += this.renderSettingField({ id: key, title: key, value: value });
+                                settingsContent.append(this.renderSettingField({ id: key, title: key, value: value }));
                             }
                         }
-                        content.innerHTML = settingsHtml || `<p>${this.t('settings.noSettings')}</p>`;
+                        if (settingsContent.childNodes.length > 0) content.replaceChildren(settingsContent);
+                        else content.replaceChildren(this.element('p', '', this.t('settings.noSettings')));
                     } catch(error) { 
-                        content.innerHTML = `<p class="text-red-400">${this.t('settings.error')} ${error.message}</p>`; 
+                        content.replaceChildren(this.element('p', 'text-red-400', `${this.t('settings.error')} ${error.message}`));
                     } finally { 
                         this.hideLoader(); 
                     }
@@ -1243,19 +1288,30 @@ a or (b and c)"></textarea>
                 renderSelectedCapabilities() {
                     const list = document.getElementById('selected-capabilities-list');
                     if (!list) return;
-                    list.innerHTML = '';
-                    if (this.selectedCapabilities.length === 0) list.innerHTML = `<li class="text-gray-500 text-center italic">${this.t('step1.noneSelected')}</li>`;
+                    list.replaceChildren();
+                    if (this.selectedCapabilities.length === 0) list.append(this.element('li', 'text-gray-500 text-center italic', this.t('step1.noneSelected')));
                     this.selectedCapabilities.forEach((item, index) => {
-                        const li = document.createElement('li');
-                        li.className = 'bg-gray-700 p-2 rounded-md flex justify-between items-center text-sm';
-                        li.innerHTML = `<span class="truncate"><span class="font-bold">${String.fromCharCode(65 + index)}:</span> ${item.deviceName} - ${item.capabilityTitle}</span><button data-index="${index}" class="remove-capability-btn text-red-400 hover:text-red-300 p-1 font-bold text-lg">&times;</button>`;
+                        const li = this.element('li', 'bg-gray-700 p-2 rounded-md flex justify-between items-center text-sm');
+                        const text = this.element('span', 'truncate');
+                        text.append(this.element('span', 'font-bold', `${String.fromCharCode(65 + index)}:`), document.createTextNode(` ${item.deviceName} - ${item.capabilityTitle}`));
+                        const remove = this.element('button', 'remove-capability-btn text-red-400 hover:text-red-300 p-1 font-bold text-lg', '×');
+                        remove.dataset.index = index;
+                        li.append(text, remove);
                         list.appendChild(li);
                     });
                     list.querySelectorAll('.remove-capability-btn').forEach(btn => btn.addEventListener('click', e => this.removeCapability(parseInt(e.currentTarget.dataset.index))));
                 }
 
                 renderLoginScreen() {
-                     document.getElementById('login-screen').innerHTML = `<h2 class="text-xl font-bold mb-4">${this.t('login.welcome')}</h2><p class="mb-6 text-gray-300">${this.t('login.message')}</p><button id="login-button" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">${this.t('login.button')}</button>`;
+                    const loginScreen = document.getElementById('login-screen');
+                    const login = this.element('button', 'bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors', this.t('login.button'));
+                    login.id = 'login-button';
+                    login.addEventListener('click', () => this.login());
+                    loginScreen.replaceChildren(
+                        this.element('h2', 'text-xl font-bold mb-4', this.t('login.welcome')),
+                        this.element('p', 'mb-6 text-gray-300', this.t('login.message')),
+                        login
+                    );
                 }
 
                 showScreen(screenId) {
@@ -1278,7 +1334,7 @@ a or (b and c)"></textarea>
                 
                 showError(message) {
                     const loginScreen = document.getElementById('login-screen');
-                    loginScreen.innerHTML = `<p class="text-red-400 p-4 bg-red-900/50 rounded-lg">${message}</p>`;
+                    loginScreen.replaceChildren(this.element('p', 'text-red-400 p-4 bg-red-900/50 rounded-lg', message));
                     this.showScreen('login-screen');
                 }
 
@@ -1325,18 +1381,31 @@ a or (b and c)"></textarea>
                     const container = document.getElementById('logic-unit-formulas-container');
                     if (!infoBox || !container) return;
                     const inputs = Array.from({length: this.logicUnitPorts}, (_, i) => String.fromCharCode(65 + i));
-                    infoBox.innerHTML = `<h3 class="font-semibold mb-2">Available Inputs:</h3><p class="text-blue-800">${inputs.join(', ')}</p>`;
-                    container.innerHTML = this.logicUnitFormulas.map((formula, idx) => `
-                        <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="font-semibold text-gray-900">Formula ${idx + 1}</h3>
-                                ${this.logicUnitFormulas.length > 1 ? `<button onclick="window.app.removeLogicUnitFormula(${idx})" class="text-red-600 hover:text-red-500 text-sm">Remove</button>` : ''}
-                            </div>
-                            <div class="mb-3"><label class="block text-sm mb-1 text-gray-700">Name</label><input type="text" value="${formula.name}" onchange="window.app.updateLogicUnitFormulaName(${idx}, this.value)" class="w-full p-2 bg-white border border-gray-300 rounded text-gray-900 focus:border-blue-500 focus:outline-none"></div>
-                            <div class="mb-3"><label class="block text-sm mb-1 text-gray-700">Expression</label><p class="text-xs text-gray-500 mb-1">Operators: AND, OR, NOT, XOR</p><textarea oninput="window.app.updateLogicUnitFormulaExpression(${idx}, this.value)" class="w-full h-24 p-2 bg-white border border-gray-300 rounded font-mono text-gray-900 focus:border-blue-500 focus:outline-none">${formula.expression}</textarea></div>
-                            <div id="truth-table-${idx}" class="mt-3"></div>
-                        </div>
-                    `).join('');
+                    infoBox.replaceChildren(this.element('h3', 'font-semibold mb-2', 'Available Inputs:'), this.element('p', 'text-blue-800', inputs.join(', ')));
+                    container.replaceChildren();
+                    this.logicUnitFormulas.forEach((formula, idx) => {
+                        const card = this.element('div', 'bg-gray-50 border border-gray-200 p-4 rounded-lg');
+                        const header = this.element('div', 'flex justify-between items-center mb-3');
+                        header.append(this.element('h3', 'font-semibold text-gray-900', `Formula ${idx + 1}`));
+                        if (this.logicUnitFormulas.length > 1) {
+                            const remove = this.element('button', 'text-red-600 hover:text-red-500 text-sm', 'Remove');
+                            remove.addEventListener('click', () => this.removeLogicUnitFormula(idx));
+                            header.append(remove);
+                        }
+                        const nameSection = this.element('div', 'mb-3');
+                        const nameInput = this.element('input', 'w-full p-2 bg-white border border-gray-300 rounded text-gray-900 focus:border-blue-500 focus:outline-none');
+                        nameInput.type = 'text'; nameInput.value = formula.name;
+                        nameInput.addEventListener('change', () => this.updateLogicUnitFormulaName(idx, nameInput.value));
+                        nameSection.append(this.element('label', 'block text-sm mb-1 text-gray-700', 'Name'), nameInput);
+                        const expressionSection = this.element('div', 'mb-3');
+                        const expressionInput = this.element('textarea', 'w-full h-24 p-2 bg-white border border-gray-300 rounded font-mono text-gray-900 focus:border-blue-500 focus:outline-none');
+                        expressionInput.value = formula.expression;
+                        expressionInput.addEventListener('input', () => this.updateLogicUnitFormulaExpression(idx, expressionInput.value));
+                        expressionSection.append(this.element('label', 'block text-sm mb-1 text-gray-700', 'Expression'), this.element('p', 'text-xs text-gray-500 mb-1', 'Operators: AND, OR, NOT, XOR'), expressionInput);
+                        card.append(header, nameSection, expressionSection, this.element('div', 'mt-3'));
+                        card.lastChild.id = `truth-table-${idx}`;
+                        container.append(card);
+                    });
                     this.logicUnitFormulas.forEach((formula, idx) => { if (formula.expression) this.renderTruthTable(formula.expression, this.logicUnitPorts, `truth-table-${idx}`); });
                 }
 
@@ -1360,12 +1429,22 @@ a or (b and c)"></textarea>
                     if (devices.length === 0) { alert(`No ${type} devices found`); return; }
                     const modal = document.createElement('div');
                     modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50';
-                    modal.innerHTML = `
-                        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <h3 class="text-lg font-bold mb-4">Select Device to Edit</h3>
-                            <div class="space-y-2">${devices.map(d => `<button onclick="window.app.${type === 'logic-unit' ? 'editLogicUnit' : 'editLogicDevice'}('${d.id}'); this.closest('.fixed').remove()" class="w-full text-left p-3 bg-gray-700 hover:bg-gray-600 rounded transition-colors"><div class="font-semibold">${d.name}</div><div class="text-xs text-gray-400">${this.allZones[d.zone]?.name || 'Unknown zone'}</div></button>`).join('')}</div>
-                            <button onclick="this.closest('.fixed').remove()" class="mt-4 w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-                        </div>`;
+                    const panel = this.element('div', 'bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto');
+                    const deviceList = this.element('div', 'space-y-2');
+                    devices.forEach(device => {
+                        const select = this.element('button', 'w-full text-left p-3 bg-gray-700 hover:bg-gray-600 rounded transition-colors');
+                        select.append(this.element('div', 'font-semibold', device.name), this.element('div', 'text-xs text-gray-400', this.allZones[device.zone]?.name || 'Unknown zone'));
+                        select.addEventListener('click', () => {
+                            if (type === 'logic-unit') this.editLogicUnit(device.id);
+                            else this.editLogicDevice(device.id);
+                            modal.remove();
+                        });
+                        deviceList.append(select);
+                    });
+                    const cancel = this.element('button', 'mt-4 w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg', 'Cancel');
+                    cancel.addEventListener('click', () => modal.remove());
+                    panel.append(this.element('h3', 'text-lg font-bold mb-4', 'Select Device to Edit'), deviceList, cancel);
+                    modal.append(panel);
                     document.body.appendChild(modal);
                 }
 
@@ -1434,42 +1513,33 @@ a or (b and c)"></textarea>
                     if (!list) return;
 
                     count.innerText = this.snapshotData.length;
+                    list.replaceChildren();
                     if (this.snapshotData.length > 0) {
                         copyBtn.classList.remove('hidden');
                     } else {
                         copyBtn.classList.add('hidden');
-                        list.innerHTML = `<div class="text-gray-500 text-center py-10 italic">No data captured. Click "Capture Current State".</div>`;
+                        list.append(this.element('div', 'text-gray-500 text-center py-10 italic', 'No data captured. Click "Capture Current State".'));
                         return;
                     }
-
-                    let html = '';
                     let currentZone = '';
 
                     this.snapshotData.forEach((item, index) => {
                         if (item.zoneName !== currentZone) {
                             currentZone = item.zoneName;
-                            html += `<div class="bg-gray-100 text-gray-700 px-3 py-2 font-bold text-sm border-t border-gray-200 mt-2 first:mt-0 sticky top-0 shadow-sm">${currentZone}</div>`;
+                            list.append(this.element('div', 'bg-gray-100 text-gray-700 px-3 py-2 font-bold text-sm border-t border-gray-200 mt-2 first:mt-0 sticky top-0 shadow-sm', currentZone));
                         }
-
-                        html += `
-                            <div class="flex items-center justify-between p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                <div class="flex flex-col overflow-hidden">
-                                    <div class="font-medium truncate text-gray-900">${item.deviceName}</div>
-                                    <div class="text-xs text-gray-500 flex gap-2">
-                                        <span class="bg-blue-50 px-1.5 rounded text-blue-700 border border-blue-100">${item.capabilityTitle}</span>
-                                        <span class="text-green-600 font-mono font-bold">${String(item.value)}</span>
-                                    </div>
-                                </div>
-                                <button onclick="app.removeSnapshotItem(${index})" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors" title="Remove from snapshot">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
-                                    </svg>
-                                </button>
-                            </div>
-                        `;
+                        const row = this.element('div', 'flex items-center justify-between p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors');
+                        const details = this.element('div', 'flex flex-col overflow-hidden');
+                        details.append(this.element('div', 'font-medium truncate text-gray-900', item.deviceName));
+                        const metadata = this.element('div', 'text-xs text-gray-500 flex gap-2');
+                        metadata.append(this.element('span', 'bg-blue-50 px-1.5 rounded text-blue-700 border border-blue-100', item.capabilityTitle), this.element('span', 'text-green-600 font-mono font-bold', item.value));
+                        details.append(metadata);
+                        const remove = this.element('button', 'text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors', '×');
+                        remove.title = 'Remove from snapshot';
+                        remove.addEventListener('click', () => this.removeSnapshotItem(index));
+                        row.append(details, remove);
+                        list.append(row);
                     });
-
-                    list.innerHTML = html;
                 }
 
                 removeSnapshotItem(index) {

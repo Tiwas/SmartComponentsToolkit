@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:smoke": "tsx test/smoke.ts",
     "test:floorplan": "tsx test/floorplan-sanitizer.ts",
-    "test:legacy-auth-storage": "tsx test/legacy-auth-storage.ts"
+    "test:legacy-auth-storage": "tsx test/legacy-auth-storage.ts",
+    "test:boolean-editor-xss": "tsx test/boolean-editor-xss.ts"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",

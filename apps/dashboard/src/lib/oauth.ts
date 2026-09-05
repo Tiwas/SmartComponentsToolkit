@@ -26,6 +26,10 @@ export async function performLoopbackOAuth(
   credentials: Omit<AuthCredentials, "redirectUrl">,
   options: LoopbackOAuthOptions = {},
 ): Promise<string> {
+  if (options.signal?.aborted) {
+    throw new DOMException("OAuth sign-in cancelled", "AbortError");
+  }
+
   const creds: AuthCredentials = { ...credentials, redirectUrl: REDIRECT_URL };
   const state = createOAuthState();
   const url = buildAuthorizeUrl(creds, state);
@@ -38,7 +42,6 @@ export async function performLoopbackOAuth(
     timeoutMs,
   });
   const cancel = () => void invoke("cancel_oauth_listener").catch(() => {});
-  if (options.signal?.aborted) cancel();
   options.signal?.addEventListener("abort", cancel, { once: true });
 
   try {

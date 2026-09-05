@@ -1,0 +1,60 @@
+name: Bug report
+description: Report a reproducible problem in Smart (Components) Toolkit.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve the project. Please search existing issues before submitting a new report.
+  - type: checkboxes
+    id: searched
+    attributes:
+      label: Existing reports
+      options:
+        - label: I have searched the existing issues for duplicates.
+          required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: Smart (Components) Toolkit version
+      description: Find this in Homey under Apps.
+      placeholder: "For example, 1.10.26"
+    validations:
+      required: true
+  - type: input
+    id: homey
+    attributes:
+      label: Homey model and firmware version
+      placeholder: "For example, Homey Pro (Early 2023), 12.7.1"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest sequence that consistently shows the problem.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include any visible error message.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs, Flow cards, or screenshots
+      description: Remove tokens, passwords, device IDs, and other private information before posting.

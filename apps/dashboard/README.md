@@ -55,7 +55,7 @@ Either way, everything you need to build and run the widget lives under `apps/da
 
 | Tool | Why | Install |
 |---|---|---|
-| **Node.js 18+** | builds the frontend | https://nodejs.org/ |
+| **Node.js 20.19+ or 22.12+** | builds the frontend | https://nodejs.org/ |
 | **Rust toolchain** | builds the native shell | https://rustup.rs/ |
 | **MSVC Build Tools** (Windows) | Tauri needs the MSVC linker | "Desktop development with C++" in the Visual Studio Build Tools installer (rustup will offer this) |
 | **WebView2** (Windows) | renders the UI | pre-installed on Windows 11 |

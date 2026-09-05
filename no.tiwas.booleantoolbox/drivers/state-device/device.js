@@ -64,8 +64,25 @@ class StateDevice extends Homey.Device {
 
   async _executeApply(options = {}) {
     this.debug('Applying state configuration...', options);
+    const jsonStr = this.getSetting('json_data');
+    const logErrors = this.getSetting('log_errors');
+
+    if (!jsonStr) {
+      this.error('No configuration data found.');
+      return this._finishApply(['No configuration data found'], logErrors);
+    }
+
+    let configObj;
+    try {
+        configObj = JSON.parse(jsonStr);
+    } catch (e) {
+        this.error('Invalid JSON configuration:', e);
+        return this._finishApply(['Invalid JSON configuration'], logErrors);
+    }
+
+    const ignoreErrors = configObj.config?.ignore_errors !== false;
     const preApplyErrors = [];
-    
+
     // 1. Handle Reset All
     if (options.reset_all) {
         this.debug('Resetting all other state devices...');
@@ -77,43 +94,35 @@ class StateDevice extends Homey.Device {
                 // Turn off without triggering logic? Or just set value.
                 // Using setCapabilityValue triggers listeners usually.
                 // We just want to visually turn them off.
-                await device.setCapabilityValue('onoff', false).catch((error) => {
-                    preApplyErrors.push(`Failed to reset ${device.getName?.() || device.getData().id}: ${error.message || error}`);
-                });
+                try {
+                  await device.setCapabilityValue('onoff', false);
+                } catch (error) {
+                  const message = `Failed to reset ${device.getName?.() || device.getData().id}: ${error.message || error}`;
+                  preApplyErrors.push(message);
+                  if (!ignoreErrors) return this._finishApply(preApplyErrors, logErrors);
+                }
             }
         } catch (e) {
             this.error('Error resetting other devices:', e);
             preApplyErrors.push(`Failed to reset other state devices: ${e.message || e}`);
+            if (!ignoreErrors) return this._finishApply(preApplyErrors, logErrors);
         }
     }
 
     // 2. Set Self to ON
-    await this.setCapabilityValue('onoff', true).catch((error) => {
+    try {
+      await this.setCapabilityValue('onoff', true);
+    } catch (error) {
       this.error(error);
       preApplyErrors.push(`Failed to activate this state device: ${error.message || error}`);
-    });
-    
-    const jsonStr = this.getSetting('json_data');
-    const logErrors = this.getSetting('log_errors');
+      if (!ignoreErrors) return this._finishApply(preApplyErrors, logErrors);
+    }
+
     const errors = [...preApplyErrors];
-
-    if (!jsonStr) {
-      this.error('No configuration data found.');
-      return this._finishApply([...errors, 'No configuration data found'], logErrors);
-    }
-
-    let configObj;
-    try {
-        configObj = JSON.parse(jsonStr);
-    } catch (e) {
-        this.error('Invalid JSON configuration:', e);
-        return this._finishApply([...errors, 'Invalid JSON configuration'], logErrors);
-    }
 
     // 3. Build Execution Queue (Handle Hierarchical vs Flat)
     const queue = [];
     const globalDelay = configObj.config?.default_delay || 200;
-    const ignoreErrors = configObj.config?.ignore_errors !== false;
 
     // Logic to parse zones/items
     if (configObj.zones) {

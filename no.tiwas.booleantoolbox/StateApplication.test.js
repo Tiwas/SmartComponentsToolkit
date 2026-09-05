@@ -107,6 +107,27 @@ describe('StateDevice application result', () => {
     expect(flow.cards.get('state_applied_successfully_sd').trigger).toHaveBeenCalledTimes(1);
     expect(flow.cards.get('state_error_occurred_sd')).toBeUndefined();
   });
+
+  test('aborts reset-all before activating or applying state when errors are not ignored', async () => {
+    const api = { devices: { getDevice: jest.fn() } };
+    const { device, flow } = createStateDevice(JSON.stringify({
+      config: { ignore_errors: false },
+      items: [{ id: 'light', name: 'Light', capabilities: { onoff: true } }],
+    }), api);
+    const otherState = {
+      getData: () => ({ id: 'other-state' }),
+      getName: () => 'Other state',
+      setCapabilityValue: jest.fn().mockRejectedValue(new Error('reset failed')),
+    };
+    device.driver = { getDevices: () => [otherState, device] };
+
+    await expect(device._executeApply({ reset_all: true })).resolves.toBe(false);
+
+    expect(device.setCapabilityValue).not.toHaveBeenCalled();
+    expect(api.devices.getDevice).not.toHaveBeenCalled();
+    expect(flow.cards.get('state_applied_successfully_sd')).toBeUndefined();
+    expect(flow.cards.get('state_error_occurred_sd').trigger).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('StateCaptureDevice application result', () => {
@@ -180,6 +201,17 @@ describe('StateCaptureDevice application result', () => {
 
     expect(device.stateManager.peekState).toHaveBeenCalledTimes(2);
     expect(device.stateManager.popState).toHaveBeenCalledTimes(2);
+  });
+
+  test('removes a successfully applied stack entry before announcing success', async () => {
+    const { device } = createCaptureDevice({}, { id: 'first' });
+    device._executeApply = jest.fn().mockResolvedValue({ success: true, errors: [] });
+    device._finishFlowApply = jest.fn(() => {
+      expect(device.stateManager.popState).toHaveBeenCalledTimes(1);
+      return true;
+    });
+
+    await expect(device.onFlowPopState({})).resolves.toBe(true);
   });
 
   test('queues stack pushes behind pop-and-apply', async () => {

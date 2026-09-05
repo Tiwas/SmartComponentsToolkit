@@ -426,9 +426,8 @@ class StateCaptureDevice extends Homey.Device {
                 // Use _executeApply with full state object
                 const result = await this._executeApply(state);
 
-                const applied = await this._finishFlowApply(result, '');
-                if (applied) this.stateManager.popState(this.getDeviceId(), template);
-                return applied;
+                if (result.success) this.stateManager.popState(this.getDeviceId(), template);
+                return this._finishFlowApply(result, '');
             } catch (e) {
                 this.error('Pop/Apply failed:', e);
 

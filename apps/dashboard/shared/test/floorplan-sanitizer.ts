@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { Window } from "happy-dom";
+import { JSDOM } from "jsdom";
 import { normalizeFloorplan, validateSvg } from "../src/floorplan.js";
 
-const window = new Window();
+const window = new JSDOM().window;
 Object.assign(globalThis, {
   DOMParser: window.DOMParser,
   XMLSerializer: window.XMLSerializer,
@@ -30,7 +30,7 @@ const hostile = sanitized(`
     <foreignObject><img src="x" onerror="alert(1)"/></foreignObject>
     <image href="https://attacker.example/pixel.svg"/>
     <use href="javascript:alert(1)"/>
-    <rect style="fill: url(data:image/svg+xml,evil)" fill="url(https://attacker.example/paint)"/>
+    <rect style="fill: url(data:image/svg+xml,evil)" fill="url(https://attacker.example/paint)" stroke="u\\rl(https://attacker.example/escaped)"/>
   </svg>
 `);
 assert.doesNotMatch(hostile, /<script\b|<foreignobject\b|onload=|onerror=/i);
@@ -41,6 +41,12 @@ assert.doesNotMatch(stored.svg, /<script\b/i, "stored SVG is sanitized before re
 
 assert.equal(validateSvg("<svg><rect></svg>").ok, false, "malformed XML is rejected");
 assert.equal(validateSvg("<html></html>").ok, false, "non-SVG roots are rejected");
+assert.equal(validateSvg("<!DOCTYPE svg [<!ENTITY x 'large'>]><svg>&x;</svg>").ok, false, "document types are rejected");
+assert.doesNotMatch(
+  sanitized(`<svg><rect fill="${"url(".repeat(40_000)}"/></svg>`),
+  /fill=/,
+  "unterminated URL functions are removed without regex backtracking",
+);
 assert.equal(validateSvg(`<svg>${"<g/>".repeat(10_001)}</svg>`).ok, false, "element limit is enforced");
 
 console.log("OK — floorplan SVG sanitizer assertions passed");

@@ -41,11 +41,22 @@ const UNSAFE_SVG_ELEMENTS = new Set([
 ]);
 
 function hasOnlyLocalUrlReferences(value: string): boolean {
-  const matches = value.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi);
-  for (const match of matches) {
-    if (!(match[2] ?? "").trim().startsWith("#")) return false;
+  const normalized = value.toLowerCase();
+  let cursor = 0;
+  while (true) {
+    const start = normalized.indexOf("url(", cursor);
+    if (start === -1) return true;
+
+    const end = value.indexOf(")", start + 4);
+    if (end === -1) return false;
+    let reference = value.slice(start + 4, end).trim();
+    const quote = reference[0];
+    if ((quote === "'" || quote === '"') && reference.endsWith(quote)) {
+      reference = reference.slice(1, -1).trim();
+    }
+    if (!reference.startsWith("#")) return false;
+    cursor = end + 1;
   }
-  return true;
 }
 
 function isSafeSvgReference(value: string): boolean {
@@ -112,6 +123,9 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
   if (svgDocument.querySelector("parsererror")) {
     return { ok: false, error: "SVG is not valid XML" };
   }
+  if (svgDocument.doctype) {
+    return { ok: false, error: "SVG document types are not allowed" };
+  }
   if (svgDocument.documentElement?.localName.toLowerCase() !== "svg") {
     return { ok: false, error: "document root must be <svg>" };
   }
@@ -140,6 +154,7 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
       if (
         name.startsWith("on") ||
         name === "style" ||
+        value.includes("\\") ||
         (isUrlAttribute && !isSafeSvgReference(value)) ||
         !hasOnlyLocalUrlReferences(value)
       ) {
@@ -148,7 +163,11 @@ export function validateSvg(input: string): { ok: true; svg: string } | { ok: fa
     }
   }
 
-  return { ok: true, svg: new XMLSerializer().serializeToString(svgDocument.documentElement) };
+  const svg = new XMLSerializer().serializeToString(svgDocument.documentElement);
+  if (svg.length > MAX_SVG_SIZE) {
+    return { ok: false, error: "SVG exceeds the 1 MB size limit after parsing" };
+  }
+  return { ok: true, svg };
 }
 
 /**

@@ -11,7 +11,7 @@
     "test:floorplan": "tsx test/floorplan-sanitizer.ts"
   },
   "devDependencies": {
-    "happy-dom": "^20.14.0",
+    "jsdom": "^26.1.0",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0"
   }

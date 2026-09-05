@@ -4,6 +4,12 @@ const FormulaEvaluator = require("../../lib/FormulaEvaluator");
 const Homey = require("homey");
 const Logger = require("../../lib/Logger");
 
+const INPUT_HEALTH_CHECK_INTERVAL = 5 * 60 * 1000;
+let lastDeviceManagerRefreshAt = 0;
+let deviceManagerRefreshInFlight = false;
+const logicDeviceHealthCheckDevices = new Set();
+let inputHealthCheckTimer = null;
+
 /**
  * LogicDeviceDevice - Dynamic Logic Device with linked inputs
  *
@@ -105,7 +111,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
     this.availableInputs = this.getAvailableInputIds();
     this.deviceListeners = new Map();
-    this.pollingIntervals = new Map();
+    this.inputHealthCheckInFlight = false;
 
     // Register on/off capability listener to enable/disable device
     this.registerCapabilityListener("onoff", async (value) => {
@@ -163,6 +169,10 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     const currentSettings = this.getSettings();
     this.lastKnownFormulas = currentSettings.formulas;
     this.lastKnownInputLinks = currentSettings.input_links;
+
+    // Capability instances can disappear when a source driver restarts. Keep
+    // their cached input values correct and recreate any destroyed listeners.
+    this.startInputHealthChecks();
 
     // Poll settings every 5 seconds to detect changes (since onSettings doesn't fire for textarea)
     this.settingsPoller = setInterval(async () => {
@@ -360,7 +370,6 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
   }
 
   async setupDeviceLinks() {
-    // Clean up old listeners first
     for (const [key, entry] of this.deviceListeners.entries()) {
       try {
         if (typeof entry?.unregister === "function") {
@@ -505,7 +514,71 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     await this.evaluateAllFormulasInitial();
   }
 
-  async setupDeviceListener(link) {
+  startInputHealthChecks() {
+    logicDeviceHealthCheckDevices.add(this);
+    if (inputHealthCheckTimer) return;
+
+    inputHealthCheckTimer = setInterval(() => {
+      for (const device of logicDeviceHealthCheckDevices) {
+        device.refreshDeviceLinkHealth().catch((error) => {
+          if (!device._isDeleting) {
+            device.logger.error("listener.health_check_failed", {
+              message: error.message,
+            });
+          }
+        });
+      }
+    }, INPUT_HEALTH_CHECK_INTERVAL);
+  }
+
+  stopInputHealthChecks() {
+    logicDeviceHealthCheckDevices.delete(this);
+    if (logicDeviceHealthCheckDevices.size === 0 && inputHealthCheckTimer) {
+      clearInterval(inputHealthCheckTimer);
+      inputHealthCheckTimer = null;
+    }
+  }
+
+  async refreshDeviceLinkHealth() {
+    if (this._isDeleting || this.inputHealthCheckInFlight) return;
+    if (!Array.isArray(this.inputLinks) || this.inputLinks.length === 0) return;
+
+    this.inputHealthCheckInFlight = true;
+    try {
+      const now = Date.now();
+      if (
+        now - lastDeviceManagerRefreshAt >= INPUT_HEALTH_CHECK_INTERVAL &&
+        !deviceManagerRefreshInFlight
+      ) {
+        deviceManagerRefreshInFlight = true;
+        try {
+          const api = await this.getHomeyApi();
+          if (api?.devices?.scheduleRefresh) {
+            api.devices.scheduleRefresh();
+            lastDeviceManagerRefreshAt = now;
+          } else {
+            this.logger.warn("listener.health_check_unavailable");
+          }
+        } finally {
+          deviceManagerRefreshInFlight = false;
+        }
+      }
+
+      // Replace each subscription after the manager refresh is scheduled.
+      // setupDeviceListener keeps the old instance until its replacement is
+      // created, so a transient registration failure cannot drop live input.
+      for (const link of this.inputLinks) {
+        if (this._isDeleting) return;
+        await this.setupDeviceListener(link, { replaceExisting: true });
+      }
+    } finally {
+      this.inputHealthCheckInFlight = false;
+    }
+  }
+
+  async setupDeviceListener(link, { replaceExisting = false } = {}) {
+    if (this._isDeleting) return;
+
     const { input, deviceId, capability, deviceName } = link;
     const inputId = String(input || "").toLowerCase();
 
@@ -533,6 +606,8 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       const targetDevice = await api.devices.getDevice({
         id: deviceId,
       });
+
+      if (this._isDeleting) return;
 
       if (!targetDevice) {
         this.logger.error("listener.device_not_found", {
@@ -600,7 +675,36 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         listenerFn,
       );
 
+      if (this._isDeleting) {
+        capabilityInstance.destroy?.();
+        return;
+      }
+
       const listenerKey = `${inputId}-${deviceId}-${capability}`;
+      const previousListener = this.deviceListeners.get(listenerKey);
+
+      if (replaceExisting && previousListener) {
+        try {
+          await previousListener.unregister();
+        } catch (error) {
+          try {
+            capabilityInstance.destroy();
+          } catch (_) {}
+          this.logger.error("listener.error_replacing", {
+            input: inputId.toUpperCase(),
+            message: error.message,
+          });
+          return;
+        }
+
+        if (this._isDeleting) {
+          try {
+            capabilityInstance.destroy();
+          } catch (_) {}
+          return;
+        }
+      }
+
       this.deviceListeners.set(listenerKey, {
         unregister: () => capabilityInstance.destroy(),
       });
@@ -1930,6 +2034,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
   async onDeleted() {
     this._isDeleting = true;
+    this.stopInputHealthChecks();
 
     this.logger.device("device.deleted_cleanup");
 
@@ -1958,15 +2063,6 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     if (this.settingsPoller) {
       clearInterval(this.settingsPoller);
       this.settingsPoller = null;
-    }
-
-    if (
-      this.pollingIntervals &&
-      typeof this.pollingIntervals.clear === "function"
-    ) {
-      try {
-        this.pollingIntervals.clear();
-      } catch (_) {}
     }
 
     this.logger.info("device.cleanup_complete");

@@ -83,7 +83,9 @@ describe('LogicDeviceDevice linked inputs', () => {
           capabilities: ['alarm_generic'],
           makeCapabilityInstance: jest.fn((capability, listener) => {
             registeredListener = listener;
-            return { destroy };
+            return {
+              destroy,
+            };
           }),
         })),
       },
@@ -103,6 +105,139 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(device.homey.app.ensureHomeyApi).toHaveBeenCalledTimes(1);
     expect(device.deviceListeners.has('a-logic-group-id-alarm_generic')).toBe(true);
     expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', true);
+  });
+
+  test('shares linked-input health refreshes across Logic Devices', async () => {
+    const scheduleRefresh = jest.fn();
+    const api = { devices: { scheduleRefresh } };
+    const first = createLogicDeviceHarness(api);
+    const second = createLogicDeviceHarness(api);
+    first._isDeleting = false;
+    second._isDeleting = false;
+    first.inputLinks = [{ input: 'A' }];
+    second.inputLinks = [{ input: 'A' }];
+    first.setupDeviceListener = jest.fn(async () => {});
+    second.setupDeviceListener = jest.fn(async () => {});
+
+    await first.refreshDeviceLinkHealth();
+    await second.refreshDeviceLinkHealth();
+
+    expect(scheduleRefresh).toHaveBeenCalledTimes(1);
+    expect(first.setupDeviceListener).toHaveBeenCalledWith(
+      first.inputLinks[0],
+      { replaceExisting: true },
+    );
+    expect(second.setupDeviceListener).toHaveBeenCalledWith(
+      second.inputLinks[0],
+      { replaceExisting: true },
+    );
+  });
+
+  test('does not register a listener when deletion begins during source lookup', async () => {
+    const device = createLogicDeviceHarness();
+    const makeCapabilityInstance = jest.fn();
+    device._isDeleting = false;
+    device.deviceListeners = new Map();
+    device.homey.app.ensureHomeyApi = jest.fn(async () => ({
+      devices: {
+        getDevice: jest.fn(async () => {
+          device._isDeleting = true;
+          return {
+            name: 'Source',
+            capabilities: ['alarm_generic'],
+            makeCapabilityInstance,
+          };
+        }),
+      },
+    }));
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    });
+
+    expect(makeCapabilityInstance).not.toHaveBeenCalled();
+    expect(device.deviceListeners.size).toBe(0);
+  });
+
+  test('keeps a working listener when its health-check replacement cannot be created', async () => {
+    const previousListener = { unregister: jest.fn(async () => {}) };
+    const device = createLogicDeviceHarness({
+      devices: { getDevice: jest.fn(async () => { throw new Error('offline'); }) },
+    });
+    device._isDeleting = false;
+    device.deviceListeners = new Map([
+      ['a-source-id-alarm_generic', previousListener],
+    ]);
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(device.deviceListeners.get('a-source-id-alarm_generic')).toBe(previousListener);
+    expect(previousListener.unregister).not.toHaveBeenCalled();
+  });
+
+  test('keeps the previous listener tracked when replacement cleanup fails', async () => {
+    const previousListener = { unregister: jest.fn(async () => {
+      throw new Error('destroy failed');
+    }) };
+    const destroyReplacement = jest.fn();
+    const device = createLogicDeviceHarness({
+      devices: {
+        getDevice: jest.fn(async () => ({
+          name: 'Source',
+          capabilities: ['alarm_generic'],
+          makeCapabilityInstance: jest.fn(() => ({ destroy: destroyReplacement })),
+        })),
+      },
+    });
+    device._isDeleting = false;
+    device.deviceListeners = new Map([
+      ['a-source-id-alarm_generic', previousListener],
+    ]);
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(device.deviceListeners.get('a-source-id-alarm_generic')).toBe(previousListener);
+    expect(destroyReplacement).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not retain a replacement when deletion starts during listener cleanup', async () => {
+    const destroyReplacement = jest.fn();
+    const device = createLogicDeviceHarness({
+      devices: {
+        getDevice: jest.fn(async () => ({
+          name: 'Source',
+          capabilities: ['alarm_generic'],
+          makeCapabilityInstance: jest.fn(() => ({ destroy: destroyReplacement })),
+        })),
+      },
+    });
+    const previousListener = { unregister: jest.fn(async () => {
+      device._isDeleting = true;
+      device.deviceListeners.clear();
+    }) };
+    device._isDeleting = false;
+    device.deviceListeners = new Map([
+      ['a-source-id-alarm_generic', previousListener],
+    ]);
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(device.deviceListeners.size).toBe(0);
+    expect(destroyReplacement).toHaveBeenCalledTimes(1);
   });
 });
 

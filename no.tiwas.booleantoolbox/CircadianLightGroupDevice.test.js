@@ -45,8 +45,9 @@ describe('CircadianLightGroupDevice capability selection', () => {
       level: 'ERROR',
       category: 'CircadianLightGroup',
       message: 'Circadian member update failed.',
-      stack: expect.stringContaining('Error: member failed'),
+      stack: expect.stringContaining('at '),
     }));
+    expect(recordDiagnosticEvent.mock.calls[0][0].stack).not.toContain('member failed');
   });
 
   test('does not switch to color mode when red target cannot write hue and saturation', () => {

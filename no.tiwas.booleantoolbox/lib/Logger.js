@@ -257,13 +257,19 @@ class Logger {
     const app = this.homey && this.homey.app;
     if (!app || typeof app.recordDiagnosticEvent !== "function") return;
 
+    const stack = error instanceof Error && typeof error.stack === "string"
+      ? error.stack.split(/\r?\n/).slice(1).join("\n")
+      : "";
+
     try {
       app.recordDiagnosticEvent({
         timestamp: new Date().toISOString(),
         level,
         category: this.category,
-        message,
-        stack: error instanceof Error ? error.stack : "",
+        // Formatted log messages can contain user-defined device, room, waiter,
+        // or formula labels. Keep the persisted diagnostic event label-free.
+        message: level === "WARN" ? "Warning recorded." : "Error recorded.",
+        stack,
       });
     } catch (recordingError) {
       console.error("Logger diagnostic capture failed:", recordingError);

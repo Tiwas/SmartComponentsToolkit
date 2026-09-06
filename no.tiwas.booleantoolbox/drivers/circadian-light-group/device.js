@@ -108,13 +108,17 @@ class CircadianLightGroupDevice extends Homey.Device {
     const recorder = this.homey?.app?.recordDiagnosticEvent;
     if (typeof recorder !== 'function') return;
 
+    const stack = error instanceof Error && typeof error.stack === 'string'
+      ? error.stack.split(/\r?\n/).slice(1).join('\n')
+      : '';
+
     try {
       recorder.call(this.homey.app, {
         timestamp: new Date().toISOString(),
         level,
         category: 'CircadianLightGroup',
         message,
-        stack: error instanceof Error ? error.stack : '',
+        stack,
       });
     } catch (recordingError) {
       this.debug(`Diagnostic capture failed: ${recordingError.message}`);

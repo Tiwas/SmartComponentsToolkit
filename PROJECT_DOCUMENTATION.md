@@ -35,7 +35,7 @@
 ### 5. Diagnostics and GitHub issue reporting
 *   **Settings UI:** `no.tiwas.booleantoolbox/settings/index.html` generates an on-demand report, shows it for review, supports copying, and opens a new repository issue prefilled.
 *   **API:** the private `POST /diagnostics` app endpoint in `api.js` delegates report creation to `app.js`; no GitHub credentials are stored in the app.
-*   **Report data:** `lib/DiagnosticsReport.js` formats/redacts version, session uptime, persisted warning/error stacks, anonymous driver and Circadian Light Group load, and available app/Homey CPU, memory, and storage metrics.
+*   **Report data:** `lib/DiagnosticsReport.js` formats/redacts version, session uptime, label-free warning/error events with stack frames, anonymous driver and Circadian Light Group load, and available app/Homey CPU, memory, and storage metrics.
 
 ## Project Structure
 *   `no.tiwas.booleantoolbox/`: Main Homey app source.

@@ -25,17 +25,21 @@ describe("Logger diagnostics capture", () => {
         expect(recordDiagnosticEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
             level: "WARN",
             category: "Test",
-            message: "warning message",
+            message: "Warning recorded.",
         }));
         expect(recordDiagnosticEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
             level: "ERROR",
-            message: "error message",
-            stack: expect.stringContaining("Error: failure"),
+            message: "Error recorded.",
+            stack: expect.stringContaining("at "),
         }));
         expect(recordDiagnosticEvent).toHaveBeenNthCalledWith(3, expect.objectContaining({
             level: "ERROR",
-            message: "failure",
-            stack: expect.stringContaining("Error: failure"),
+            message: "Error recorded.",
+            stack: expect.stringContaining("at "),
         }));
+        expect(recordDiagnosticEvent.mock.calls[1][0].stack).not.toContain("failure");
+        expect(recordDiagnosticEvent.mock.calls[2][0].stack).not.toContain("failure");
+        expect(JSON.stringify(recordDiagnosticEvent.mock.calls)).not.toContain("warning message");
+        expect(JSON.stringify(recordDiagnosticEvent.mock.calls)).not.toContain("error message");
     });
 });

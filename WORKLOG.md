@@ -10,16 +10,17 @@
 ### Implemented
 - Added a private App Settings diagnostics endpoint and UI for generating, previewing, copying, and opening a prefilled GitHub issue without embedding GitHub credentials.
 - Added bounded persistence of recent warnings/errors with stack traces and redaction of common device IDs, email/IP values, credentials, and long token-like values.
+- Reduced persisted logger events to label-free messages and stack frames so user-defined device, room, waiter, and formula labels are not copied into public issue drafts.
 - Added anonymous per-driver device counts, configuration-alarm counts, Circadian Light Group member/watcher/update-interval details, process and Homey-reported memory, system load averages, app CPU metric, and Homey storage totals when exposed by the platform.
 - Aligned the runtime startup banner and npm package metadata with Homey app version 1.10.28.
 - Updated README, Store README, changelog, project documentation, and Homey Community post source.
 
 ### Verification
 - JavaScript syntax and changed locale/manifest JSON parsing passed.
-- `npm test -- --runInBand`: 18 suites and 206 tests passed.
+- `npm test -- --runInBand`: 19 suites and 209 tests passed.
 - `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.51 MB) and all 17 manifest assets were verified.
 - `homey app run --remote`: v1.10.28 initialized successfully with the correct version banner and remained running without an app restart during the smoke-test window.
-- GitHub review, Homey upload/install, and final release result are recorded below when completed.
+- GitHub review found six issues across two passes; all findings were addressed with regression coverage before merge. Homey upload/install and the final release result are recorded below when completed.
 
 ## 2026-09-05 — Test release v1.10.27
 

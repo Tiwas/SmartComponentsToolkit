@@ -118,4 +118,32 @@ describe("BooleanToolboxApp diagnostics", () => {
         expect(settings.set).toHaveBeenCalledWith("diagnostic_events", app.diagnosticEvents);
         jest.useRealTimers();
     });
+
+    test("treats a null Circadian configuration as a collection note", () => {
+        const app = new BooleanToolboxApp();
+        app.homey = {
+            drivers: {
+                getDrivers: jest.fn(() => ({
+                    "circadian-light-group": {
+                        id: "circadian-light-group",
+                        getDevices: jest.fn(() => [{
+                            hasCapability: jest.fn(() => false),
+                            getCapabilityValue: jest.fn(() => false),
+                            getSetting: jest.fn(() => "null"),
+                            memberOnoffWatchers: new Map(),
+                        }]),
+                    },
+                })),
+            },
+        };
+
+        const result = app.collectDeviceDiagnostics();
+
+        expect(result.clgGroups).toEqual([expect.objectContaining({
+            totalMembers: 0,
+            enabledMembers: 0,
+            updateIntervalSeconds: 120,
+        })]);
+        expect(result.collectionErrors).toContain("A Circadian Light Group has a non-object configuration.");
+    });
 });

@@ -358,12 +358,19 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                 let config = {};
                 try {
-                    config = JSON.parse(device.getSetting("config_json") || "{}");
+                    const parsedConfig = JSON.parse(device.getSetting("config_json") || "{}");
+                    if (!parsedConfig || typeof parsedConfig !== "object" || Array.isArray(parsedConfig)) {
+                        collectionErrors.push("A Circadian Light Group has a non-object configuration.");
+                    } else {
+                        config = parsedConfig;
+                    }
                 } catch (error) {
                     collectionErrors.push("A Circadian Light Group has invalid configuration JSON.");
                 }
                 const members = Array.isArray(config.devices) ? config.devices : [];
-                const profile = config.profile || {};
+                const profile = config.profile && typeof config.profile === "object" && !Array.isArray(config.profile)
+                    ? config.profile
+                    : {};
                 let paused = false;
                 try {
                     paused = device.getCapabilityValue("clg_paused") === true;

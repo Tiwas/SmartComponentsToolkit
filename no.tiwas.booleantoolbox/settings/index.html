@@ -485,8 +485,9 @@
         openGitHubIssueButton.addEventListener('click', async function() {
           openGitHubIssueButton.disabled = true;
           try {
-            const payload = await generateDiagnostics();
-            Homey.openURL(payload.issueUrl);
+            if (diagnosticsPayload && diagnosticsPayload.issueUrl) {
+              Homey.openURL(diagnosticsPayload.issueUrl);
+            }
           } catch (err) {
             Homey.alert(err.message || String(err));
           } finally {

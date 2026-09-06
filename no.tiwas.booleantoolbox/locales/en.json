@@ -688,6 +688,20 @@
       "help": "Enables detailed logging for troubleshooting. Not recommended for daily use as it generates a lot of logs.",
       "legend": "Debug"
     },
+    "diagnostics": {
+      "copied": "Diagnostic report copied.",
+      "copy": "Copy report",
+      "failed": "Could not generate the diagnostic report.",
+      "generate": "Generate report",
+      "generated": "Report generated locally. Review it before opening GitHub.",
+      "help": "Generate a local report with app version, uptime, CPU, memory, storage, anonymous device counts, Circadian Light Group load, and recent warnings or errors. Common identifiers and secrets are redacted, but review the report before submitting it.",
+      "legend": "Diagnostics and support",
+      "not_generated": "No report generated. Nothing is uploaded automatically.",
+      "open_github": "Open prefilled GitHub issue",
+      "report_label": "Report preview",
+      "summary_label": "Short problem summary",
+      "summary_placeholder": "For example: Circadian group resets every 30 seconds"
+    },
     "device_registry": {
       "current": "Current",
       "deleted": "Deleted",

@@ -7,10 +7,10 @@
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
 [![Stable](https://img.shields.io/badge/stable-1.10.9-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
-[![Test](https://img.shields.io/badge/test-1.10.27-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
+[![Test](https://img.shields.io/badge/test-1.10.28-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.27 test** — prevents stale Logic Device formula results during bursts of updates and reduces routine Logic Unit logging.
+> **v1.10.28 test** — adds privacy-conscious diagnostic reports that can be reviewed and submitted through a prefilled GitHub issue.
 
 ---
 
@@ -138,7 +138,7 @@ THEN: Pop state (restore previous)
 
 ---
 
-### Circadian Light Group *(stable v1.10.16 / test v1.10.27)*
+### Circadian Light Group *(stable v1.10.16 / test v1.10.28)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 
@@ -159,6 +159,12 @@ Virtual light device that adjusts brightness and color temperature for a group o
 **Install via test channel:** [homey.app/a/no.tiwas.booleantoolbox/test/](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 
 [📚 Read Circadian Light Group guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html)
+
+---
+
+## 🩺 Diagnostics and support
+
+App Settings can generate a local diagnostic report and open a new GitHub issue with the report prefilled. The report includes app uptime, recent warnings/errors and stack traces, anonymous device counts, Circadian Light Group scheduler/member load, and available CPU, memory, and storage data. Common identifiers and secrets are redacted, nothing is uploaded automatically, and the report remains editable before submission.
 
 ---
 

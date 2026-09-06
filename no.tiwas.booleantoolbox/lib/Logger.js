@@ -252,6 +252,30 @@ class Logger {
     return `${symbol} [${this.category}]`;
   }
 
+  _recordDiagnosticEvent(level, message, error) {
+    if (level !== "WARN" && level !== "ERROR") return;
+    const app = this.homey && this.homey.app;
+    if (!app || typeof app.recordDiagnosticEvent !== "function") return;
+
+    const stack = error instanceof Error && typeof error.stack === "string"
+      ? error.stack.split(/\r?\n/).slice(1).join("\n")
+      : "";
+
+    try {
+      app.recordDiagnosticEvent({
+        timestamp: new Date().toISOString(),
+        level,
+        category: this.category,
+        // Formatted log messages can contain user-defined device, room, waiter,
+        // or formula labels. Keep the persisted diagnostic event label-free.
+        message: level === "WARN" ? "Warning recorded." : "Error recorded.",
+        stack,
+      });
+    } catch (recordingError) {
+      console.error("Logger diagnostic capture failed:", recordingError);
+    }
+  }
+
   /**
    * Formats a message with optional localization and variable substitution.
    *
@@ -364,6 +388,7 @@ class Logger {
     const levelString = `[${level.padEnd(5)}]`;
     const prefix = this._getPrefix(symbol);
     const formattedMessage = this._formatMessage(keyOrMessage, data);
+    this._recordDiagnosticEvent(level, formattedMessage);
 
     try {
       this.homey.app.log(levelString, prefix, formattedMessage);
@@ -380,7 +405,7 @@ class Logger {
    * (logging stack traces). Uses Homey's app.error() for output.
    *
    * @private
-   * @param {string} keyOrMessage - Error message or locale key
+   * @param {string|Error} keyOrMessage - Error message, locale key, or Error object
    * @param {Error|Object} [error] - Error object (logs stack) or data object
    *
    * Called by:
@@ -402,23 +427,28 @@ class Logger {
 
     const prefix = this._getPrefix(Logger.SYMBOLS.ERROR);
 
+    const errorObject = keyOrMessage instanceof Error
+      ? keyOrMessage
+      : error instanceof Error ? error : null;
+    const message = keyOrMessage instanceof Error ? keyOrMessage.message : keyOrMessage;
     // Data-objektet kan være gjemt i 'error' hvis det ikke er en ekte Error
-    let data = error instanceof Error ? null : error;
-    const formattedMessage = this._formatMessage(keyOrMessage, data);
+    const data = errorObject ? null : error;
+    const formattedMessage = this._formatMessage(message, data);
+    this._recordDiagnosticEvent("ERROR", formattedMessage, errorObject);
 
     try {
       // --- FIKS: Flyttet levelString FØRST ---
       this.homey.app.error(levelString, prefix, formattedMessage);
-      if (error instanceof Error) {
-        this.homey.app.error(error); // Logg stack trace hvis det er en Error
+      if (errorObject) {
+        this.homey.app.error(errorObject); // Logg stack trace hvis det er en Error
       } else if (data) {
         // Hvis 'error' bare var data, er den allerede i formattedMessage
       }
     } catch (err) {
       console.error("Logger internal error (error):", err);
       console.error(levelString, prefix, formattedMessage);
-      if (error) {
-        console.error(error);
+      if (errorObject || error) {
+        console.error(errorObject || error);
       }
     }
   }

@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.27 test - Logic Device reliability]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.28 test - GitHub diagnostics]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.27
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.28
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -17,10 +17,20 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 
 ## What's new
 
+### v1.10.28 (test channel)
+
+- **Diagnostic report from App Settings:** generate a readable report containing the installed version, current-session uptime, recent warnings/errors and stack traces.
+- **Resource and setup load:** includes available app/Homey CPU, memory and storage data, anonymous app-device counts, and Circadian Light Group member, watcher and scheduler details.
+- **Prefilled GitHub issue:** review the report, then open a new issue with the version and report already filled in. Nothing is uploaded automatically.
+- **Privacy-conscious:** device names and IDs are omitted from structured data, and common identifiers and secrets are redacted from captured log lines. Always review before submitting.
+
 ### v1.10.27 (test channel)
+
+This test release is a general reliability improvement based on a thorough code review.
 
 - **Reliable Logic Device updates:** formula evaluations are serialized and stale results are discarded, so bursts of linked-device updates cannot leave a Logic Device on an old result.
 - **Quieter diagnostics:** normal Logic Unit updates no longer flood the app log.
+- **Lean release package:** development-only material is excluded and manifest assets are verified before release.
 
 ### v1.10.25 (test channel)
 

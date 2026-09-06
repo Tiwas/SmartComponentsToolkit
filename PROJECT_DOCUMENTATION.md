@@ -32,11 +32,17 @@
 *   **Flow Triggers:** `composite_value_changed` fires for subsequent numeric, boolean, or text output changes. `composite_value_changed_larger_than` filters numeric changes using a per-Flow fixed or percentage threshold.
 *   **Tests:** `CompositeAggregator.test.js` verifies calculation semantics and `CompositeDevice.test.js` verifies pairing, realtime updates, change triggers, threshold filters, partial failures, and cleanup.
 
+### 5. Diagnostics and GitHub issue reporting
+*   **Settings UI:** `no.tiwas.booleantoolbox/settings/index.html` generates an on-demand report, shows it for review, supports copying, and opens a new repository issue prefilled.
+*   **API:** the private `POST /diagnostics` app endpoint in `api.js` delegates report creation to `app.js`; no GitHub credentials are stored in the app.
+*   **Report data:** `lib/DiagnosticsReport.js` formats/redacts version, session uptime, label-free warning/error events with stack frames, anonymous driver and Circadian Light Group load, and available app/Homey CPU, memory, and storage metrics.
+
 ## Project Structure
 *   `no.tiwas.booleantoolbox/`: Main Homey app source.
-    *   `app.js`: Application entry point.
+    *   `app.js`: Application entry point and diagnostics collector.
+    *   `api.js`: Private settings endpoint for generating diagnostic reports.
     *   `drivers/`: Device drivers (`composite-device`, `logic-device`, `logic-unit`, state and Circadian Light Group drivers).
-    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `FormulaEvaluator.js`, `Logger.js`).
+    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `DiagnosticsReport.js`, `FormulaEvaluator.js`, `Logger.js`).
     *   `locales/`: Translation files.
 *   `docs/`: Documentation for the GitHub Pages site.
 *   Jest test files live beside the app source, including `CompositeAggregator.test.js`, `CompositeDevice.test.js`, `FormulaEvaluator.test.js`, and `LogicUnit.test.js`.

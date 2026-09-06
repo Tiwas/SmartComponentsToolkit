@@ -57,6 +57,13 @@
       .sct-muted {
         opacity: 0.7;
       }
+
+      .sct-diagnostic-report {
+        min-height: 280px;
+        font-family: monospace;
+        font-size: 12px;
+        white-space: pre;
+      }
     </style>
   </head>
   <body>
@@ -134,6 +141,44 @@
       </div>
     </fieldset>
 
+    <fieldset class="homey-form-fieldset">
+      <legend class="homey-form-legend" data-i18n="settings.diagnostics.legend">Diagnostics and support</legend>
+
+      <div class="homey-form-group">
+        <label class="homey-form-label" for="diagnostics_summary" data-i18n="settings.diagnostics.summary_label">
+          Short problem summary
+        </label>
+        <div class="homey-form-input-group">
+          <input class="homey-form-input" type="text" maxlength="100" id="diagnostics_summary" data-i18n-placeholder="settings.diagnostics.summary_placeholder" placeholder="For example: Circadian group resets every 30 seconds" />
+        </div>
+      </div>
+
+      <div class="homey-form-group">
+        <p class="homey-form-help" data-i18n="settings.diagnostics.help">
+          Generate a local report with app version, uptime, CPU, memory, storage, anonymous device counts, Circadian Light Group load, and recent warnings or errors. Common identifiers and secrets are redacted, but review the report before submitting it.
+        </p>
+        <div class="sct-actions">
+          <button class="homey-button-secondary sct-button" id="generate_diagnostics_button" type="button" data-i18n="settings.diagnostics.generate">
+            Generate report
+          </button>
+          <button class="homey-button-secondary sct-button" id="copy_diagnostics_button" type="button" disabled data-i18n="settings.diagnostics.copy">
+            Copy report
+          </button>
+          <button class="homey-button-primary sct-button" id="open_github_issue_button" type="button" disabled data-i18n="settings.diagnostics.open_github">
+            Open prefilled GitHub issue
+          </button>
+        </div>
+        <p class="homey-form-help sct-status" id="diagnostics_status" data-i18n="settings.diagnostics.not_generated">
+          No report generated. Nothing is uploaded automatically.
+        </p>
+      </div>
+
+      <div class="homey-form-group">
+        <label class="homey-form-label" for="diagnostics_report" data-i18n="settings.diagnostics.report_label">Report preview</label>
+        <textarea class="homey-form-textarea sct-diagnostic-report" id="diagnostics_report" rows="14" readonly></textarea>
+      </div>
+    </fieldset>
+
     <button class="homey-button-primary-full" id="save_button" data-i18n="settings.save">Save</button>
 
     <script type="text/javascript">
@@ -152,8 +197,15 @@
         const resultsEl = document.getElementById('device_registry_results');
         const refreshButton = document.getElementById('refresh_registry_button');
         const purgeButton = document.getElementById('purge_registry_button');
+        const diagnosticsSummaryInput = document.getElementById('diagnostics_summary');
+        const diagnosticsReportInput = document.getElementById('diagnostics_report');
+        const diagnosticsStatusEl = document.getElementById('diagnostics_status');
+        const generateDiagnosticsButton = document.getElementById('generate_diagnostics_button');
+        const copyDiagnosticsButton = document.getElementById('copy_diagnostics_button');
+        const openGitHubIssueButton = document.getElementById('open_github_issue_button');
 
         let registry = null;
+        let diagnosticsPayload = null;
 
         Homey.ready();
 
@@ -182,6 +234,43 @@
               resolve();
             });
           });
+        }
+
+        function callApi(method, path, body) {
+          return new Promise((resolve, reject) => {
+            Homey.api(method, path, body, (err, result) => {
+              if (err) return reject(err);
+              resolve(result);
+            });
+          });
+        }
+
+        async function generateDiagnostics() {
+          diagnosticsPayload = await callApi('POST', '/diagnostics', {
+            summary: diagnosticsSummaryInput.value,
+          });
+          diagnosticsReportInput.value = diagnosticsPayload.report || '';
+          copyDiagnosticsButton.disabled = !diagnosticsReportInput.value;
+          openGitHubIssueButton.disabled = !diagnosticsPayload.issueUrl;
+          diagnosticsStatusEl.textContent = text(
+            'settings.diagnostics.generated',
+            'Report generated locally. Review it before opening GitHub.'
+          );
+          return diagnosticsPayload;
+        }
+
+        async function copyDiagnosticsReport() {
+          const report = diagnosticsReportInput.value;
+          if (!report) return;
+
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(report);
+          } else {
+            diagnosticsReportInput.focus();
+            diagnosticsReportInput.select();
+            document.execCommand('copy');
+          }
+          Homey.alert(text('settings.diagnostics.copied', 'Diagnostic report copied.'), 'info');
         }
 
         function escapeHtml(value) {
@@ -364,6 +453,45 @@
             Homey.alert(err.message || String(err));
           } finally {
             purgeButton.disabled = false;
+          }
+        });
+
+        generateDiagnosticsButton.addEventListener('click', async function() {
+          generateDiagnosticsButton.disabled = true;
+          try {
+            await generateDiagnostics();
+          } catch (err) {
+            diagnosticsStatusEl.textContent = text(
+              'settings.diagnostics.failed',
+              'Could not generate the diagnostic report.'
+            );
+            Homey.alert(err.message || String(err));
+          } finally {
+            generateDiagnosticsButton.disabled = false;
+          }
+        });
+
+        copyDiagnosticsButton.addEventListener('click', async function() {
+          copyDiagnosticsButton.disabled = true;
+          try {
+            await copyDiagnosticsReport();
+          } catch (err) {
+            Homey.alert(err.message || String(err));
+          } finally {
+            copyDiagnosticsButton.disabled = !diagnosticsReportInput.value;
+          }
+        });
+
+        openGitHubIssueButton.addEventListener('click', async function() {
+          openGitHubIssueButton.disabled = true;
+          try {
+            if (diagnosticsPayload && diagnosticsPayload.issueUrl) {
+              Homey.openURL(diagnosticsPayload.issueUrl);
+            }
+          } catch (err) {
+            Homey.alert(err.message || String(err));
+          } finally {
+            openGitHubIssueButton.disabled = !(diagnosticsPayload && diagnosticsPayload.issueUrl);
           }
         });
 

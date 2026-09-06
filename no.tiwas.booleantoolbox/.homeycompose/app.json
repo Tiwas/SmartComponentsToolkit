@@ -1,0 +1,83 @@
+{
+  "id": "no.tiwas.booleantoolbox",
+  "support": "https://community.homey.app/t/app-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906",
+  "version": "1.10.28",
+  "compatibility": ">=5.0.0",
+  "sdk": 3,
+  "permissions": [
+    "homey:manager:api",
+    "homey:manager:geolocation"
+  ],
+  "name": {
+    "en": "Smart (Components) Toolkit",
+    "no": "Smart (Components) Toolkit",
+    "de": "Smart (Components) Toolkit",
+    "nl": "Smart (Components) Toolkit",
+    "fr": "Smart (Components) Toolkit",
+    "da": "Smart (Components) Toolkit",
+    "fi": "Smart (Components) Toolkit",
+    "sv": "Smart (Components) Toolkit",
+    "pl": "Smart (Components) Toolkit",
+    "it": "Smart (Components) Toolkit",
+    "es": "Smart (Components) Toolkit"
+  },
+  "description": {
+    "en": "Create advanced, state-aware logic units with multiple formulas.",
+    "no": "Lag avanserte, tilstandsbevisste logiske enheter med flere formler.",
+    "de": "Erstellen Sie erweiterte, zustandsbewusste Logikeinheiten mit mehreren Formeln.",
+    "nl": "Maak geavanceerde, toestandsbewuste logische eenheden met meerdere formules.",
+    "fr": "Créez des unités logiques avancées et conscientes de l'état avec plusieurs formules.",
+    "da": "Opret avancerede, tilstandsbevidste logiske enheder med flere formler.",
+    "fi": "Luo edistyneitä, tilatietoisia logiikkayksiköitä useilla kaavoilla.",
+    "sv": "Skapa avancerade, tillståndsmedvetna logikenheter med flera formler.",
+    "pl": "Twórz zaawansowane, świadome stanu jednostki logiczne z wieloma formułami.",
+    "it": "Crea unità logiche avanzate e consapevoli dello stato con formule multiple.",
+    "es": "Crea unidades lógicas avanzadas y conscientes del estado con múltiples fórmulas."
+  },
+  "category": "tools",
+  "brandColor": "#FF0000",
+  "author": {
+    "name": "Lars Kvanum"
+  },
+  "contributing": {
+    "donate": {
+      "paypal": {
+        "username": "tiwasno"
+      }
+    }
+  },
+  "bugs": {
+    "url": "https://github.com/Tiwas/SmartComponentsToolkit/issues"
+  },
+  "source": "https://github.com/Tiwas/SmartComponentsToolkit",
+  "homepage": "https://tiwas.github.io/SmartComponentsToolkit/",
+  "images": {
+    "xlarge": "/assets/images/xlarge.jpg",
+    "large": "/assets/images/large.jpg",
+    "small": "/assets/images/small.jpg"
+  },
+  "api": {
+    "getDiagnostics": {
+      "method": "POST",
+      "path": "/diagnostics"
+    }
+  },
+  "flow": {
+    "conditions": [
+      {
+        "id": "has_error"
+      },
+      {
+        "id": "math_compare"
+      }
+    ],
+    "actions": [
+      {
+        "id": "calculate_gradient"
+      },
+      {
+        "id": "evaluate_expression"
+      }
+    ]
+  }
+}

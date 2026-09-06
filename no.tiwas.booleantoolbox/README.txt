@@ -42,6 +42,14 @@ State Device
 Legacy Logic Unit X (2-10 inputs)
   Existing fixed-input Logic Unit devices remain supported but are deprecated. Use Logic Unit (Dynamic) or Logic Device for new setups.
 
+== DIAGNOSTICS AND SUPPORT ==
+
+Generate a privacy-conscious diagnostic report from App Settings and open the GitHub bug form with the report prefilled.
+  - Includes app version, uptime, recent warnings/errors, and stack traces
+  - Shows anonymous app-device and Circadian Light Group load counts
+  - Includes available app/Homey CPU, memory, and storage information
+  - Redacts common identifiers and secrets; nothing is uploaded automatically
+
 == STANDALONE FLOW CARDS ==
 
 Conditional Gates

@@ -1,9 +1,16 @@
 "use strict";
 
 const Homey = require("homey");
+const os = require("node:os");
 const Logger = require("./lib/Logger");
 const WaiterManager = require("./lib/WaiterManager");
 const CapturedStateManager = require("./lib/CapturedStateManager");
+const {
+    buildDiagnosticsReport,
+    buildGitHubIssueUrl,
+    redactDiagnosticText,
+    sanitizeEvent,
+} = require("./lib/DiagnosticsReport");
 const {
     compareNumbers,
     evaluateNumericComparison,
@@ -18,6 +25,16 @@ const DEVICE_REGISTRY_DEFAULT_RETENTION_MONTHS = 12;
 const DEVICE_REGISTRY_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const HOMEY_API_MANAGER_MAX_LISTENERS = 50;
 const API_DEVICES_CACHE_TTL_MS = 1000;
+const DIAGNOSTIC_EVENTS_KEY = "diagnostic_events";
+const DIAGNOSTIC_EVENTS_LIMIT = 40;
+const DIAGNOSTIC_PERSIST_DELAY_MS = 2000;
+
+function isFiniteDiagnosticMetric(value) {
+    return value !== null
+        && value !== undefined
+        && value !== ""
+        && Number.isFinite(Number(value));
+}
 
 /**
  * Helper function for evaluate_expression action card.
@@ -147,9 +164,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
      *   - BooleanToolboxApp.registerAllFlowCards()
      */
     async onInit() {
+        this.startedAt = new Date();
+        this.diagnosticEvents = this.loadDiagnosticEvents();
+        this.diagnosticPersistTimer = null;
         this.logger = new Logger(this, "App");
         try {
-            const version = require("./package.json").version;
+            const version = this.getAppVersion();
             this.logger.banner(`BOOLEAN TOOLBOX v${version}`);
         } catch (e) {
             this.logger.error(
@@ -237,7 +257,245 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         if (this.waiterManager) {
             this.waiterManager.destroy();
         }
+        await this.persistDiagnosticEvents();
         this.logger.info("App uninitialized.", {});
+    }
+
+    getAppVersion() {
+        return this.homey?.manifest?.version
+            || Homey.manifest?.version
+            || require("./package.json").version
+            || "unknown";
+    }
+
+    loadDiagnosticEvents() {
+        let storedEvents;
+        try {
+            storedEvents = this.homey.settings.get(DIAGNOSTIC_EVENTS_KEY);
+        } catch (error) {
+            return [];
+        }
+        if (!Array.isArray(storedEvents)) return [];
+
+        return storedEvents
+            .map(sanitizeEvent)
+            .filter(Boolean)
+            .slice(-DIAGNOSTIC_EVENTS_LIMIT);
+    }
+
+    recordDiagnosticEvent(event) {
+        const sanitized = sanitizeEvent({
+            ...event,
+            timestamp: event?.timestamp || new Date().toISOString(),
+        });
+        if (!sanitized) return;
+
+        this.diagnosticEvents = Array.isArray(this.diagnosticEvents)
+            ? this.diagnosticEvents
+            : [];
+        this.diagnosticEvents.push(sanitized);
+        this.diagnosticEvents = this.diagnosticEvents.slice(-DIAGNOSTIC_EVENTS_LIMIT);
+
+        if (this.diagnosticPersistTimer) return;
+        this.diagnosticPersistTimer = setTimeout(() => {
+            this.diagnosticPersistTimer = null;
+            this.persistDiagnosticEvents().catch((error) => {
+                console.error("Failed to persist diagnostic events", error);
+            });
+        }, DIAGNOSTIC_PERSIST_DELAY_MS);
+    }
+
+    async persistDiagnosticEvents() {
+        if (this.diagnosticPersistTimer) {
+            clearTimeout(this.diagnosticPersistTimer);
+            this.diagnosticPersistTimer = null;
+        }
+        await this.homey.settings.set(
+            DIAGNOSTIC_EVENTS_KEY,
+            (this.diagnosticEvents || []).slice(-DIAGNOSTIC_EVENTS_LIMIT),
+        );
+    }
+
+    collectDeviceDiagnostics() {
+        const summary = {
+            total: 0,
+            configAlarms: 0,
+            drivers: [],
+        };
+        const clgGroups = [];
+        const collectionErrors = [];
+
+        let driverEntries = [];
+        try {
+            driverEntries = Object.entries(this.homey.drivers.getDrivers() || {});
+        } catch (error) {
+            collectionErrors.push(`Could not enumerate app drivers: ${error.message}`);
+        }
+
+        for (const [driverKey, driver] of driverEntries) {
+            const driverId = String(driver?.id || driverKey || "unknown");
+            let devices = [];
+            try {
+                const driverDevices = driver.getDevices();
+                devices = Array.isArray(driverDevices) ? driverDevices : [];
+            } catch (error) {
+                collectionErrors.push(`Could not inspect driver ${redactDiagnosticText(driverId)}: ${error.message}`);
+            }
+
+            summary.total += devices.length;
+            summary.drivers.push({ id: driverId, count: devices.length });
+
+            for (const device of devices) {
+                try {
+                    if (device.hasCapability?.("alarm_config") && device.getCapabilityValue("alarm_config") === true) {
+                        summary.configAlarms += 1;
+                    }
+                } catch (error) {
+                    collectionErrors.push(`Could not read a configuration alarm for driver ${redactDiagnosticText(driverId)}.`);
+                }
+
+                if (driverId !== "circadian-light-group") continue;
+
+                let config = {};
+                try {
+                    const parsedConfig = JSON.parse(device.getSetting("config_json") || "{}");
+                    if (!parsedConfig || typeof parsedConfig !== "object" || Array.isArray(parsedConfig)) {
+                        collectionErrors.push("A Circadian Light Group has a non-object configuration.");
+                    } else {
+                        config = parsedConfig;
+                    }
+                } catch (error) {
+                    collectionErrors.push("A Circadian Light Group has invalid configuration JSON.");
+                }
+                const members = Array.isArray(config.devices) ? config.devices : [];
+                const profile = config.profile && typeof config.profile === "object" && !Array.isArray(config.profile)
+                    ? config.profile
+                    : {};
+                let paused = false;
+                try {
+                    paused = device.getCapabilityValue("clg_paused") === true;
+                } catch (error) {}
+
+                clgGroups.push({
+                    totalMembers: members.length,
+                    enabledMembers: members.filter((member) => member.enabled !== false).length,
+                    updateIntervalSeconds: Math.max(30, Number(profile.updateIntervalSeconds) || 120),
+                    transitionSeconds: Math.max(0, Number(profile.transitionSeconds) || 0),
+                    watchers: Number(device.memberOnoffWatchers?.size) || 0,
+                    paused,
+                });
+            }
+        }
+
+        summary.drivers.sort((a, b) => a.id.localeCompare(b.id));
+        return { summary, clgGroups, collectionErrors };
+    }
+
+    async collectResourceDiagnostics() {
+        const systemResources = {
+            cpuCores: os.cpus().length || null,
+            loadAverage: os.loadavg(),
+            memoryTotal: os.totalmem(),
+            memoryFree: os.freemem(),
+            storageTotal: null,
+            storageFree: null,
+            appCpu: null,
+            appMemory: null,
+            appState: null,
+            crashedCount: null,
+            crashedMessage: null,
+        };
+
+        let api;
+        try {
+            api = await this.ensureHomeyApi();
+        } catch (error) {
+            return systemResources;
+        }
+
+        const calls = [
+            typeof api.system?.getInfo === "function" ? api.system.getInfo() : Promise.resolve(null),
+            typeof api.system?.getMemoryInfo === "function" ? api.system.getMemoryInfo() : Promise.resolve(null),
+            typeof api.system?.getStorageInfo === "function" ? api.system.getStorageInfo() : Promise.resolve(null),
+            typeof api.apps?.getApp === "function"
+                ? api.apps.getApp({ id: "no.tiwas.booleantoolbox" })
+                : Promise.resolve(null),
+        ];
+        const [infoResult, memoryResult, storageResult, appResult] = await Promise.allSettled(calls);
+
+        if (infoResult.status === "fulfilled" && infoResult.value) {
+            const info = infoResult.value;
+            if (Array.isArray(info.loadavg)) systemResources.loadAverage = info.loadavg;
+            if (isFiniteDiagnosticMetric(info.totalmem)) systemResources.memoryTotal = Number(info.totalmem);
+            if (isFiniteDiagnosticMetric(info.freemem)) systemResources.memoryFree = Number(info.freemem);
+        }
+
+        if (memoryResult.status === "fulfilled" && memoryResult.value) {
+            const memory = memoryResult.value;
+            if (isFiniteDiagnosticMetric(memory.total)) {
+                const used = Array.isArray(memory.types)
+                    ? memory.types.reduce((total, item) => total + (Number(item?.size) || 0), 0)
+                    : null;
+                systemResources.memoryTotal = Number(memory.total);
+                if (used !== null) systemResources.memoryFree = Math.max(0, Number(memory.total) - used);
+            }
+        }
+
+        if (storageResult.status === "fulfilled" && storageResult.value) {
+            const storage = storageResult.value.root || storageResult.value;
+            if (isFiniteDiagnosticMetric(storage.total)) systemResources.storageTotal = Number(storage.total);
+            if (isFiniteDiagnosticMetric(storage.free)) systemResources.storageFree = Number(storage.free);
+        }
+
+        if (appResult.status === "fulfilled" && appResult.value) {
+            const appInfo = appResult.value;
+            if (isFiniteDiagnosticMetric(appInfo.usage?.cpu)) {
+                systemResources.appCpu = Number(appInfo.usage.cpu);
+            }
+            if (isFiniteDiagnosticMetric(appInfo.usage?.mem)) {
+                systemResources.appMemory = Number(appInfo.usage.mem);
+            }
+            systemResources.appState = appInfo.state || null;
+            systemResources.crashedCount = isFiniteDiagnosticMetric(appInfo.crashedCount)
+                ? Number(appInfo.crashedCount)
+                : null;
+            systemResources.crashedMessage = appInfo.crashedMessage || null;
+        }
+
+        return systemResources;
+    }
+
+    async getDiagnosticsPayload(summary = "") {
+        const appVersion = this.getAppVersion();
+        const deviceDiagnostics = this.collectDeviceDiagnostics();
+        const systemResources = await this.collectResourceDiagnostics();
+        const registry = this.homey.settings.get(DEVICE_REGISTRY_KEY) || {};
+        const startedAt = this.startedAt instanceof Date
+            ? this.startedAt
+            : new Date(this.startedAt || Date.now());
+        const generatedAt = new Date();
+        const report = buildDiagnosticsReport({
+            appVersion,
+            generatedAt: generatedAt.toISOString(),
+            startedAt: startedAt.toISOString(),
+            uptimeSeconds: Math.max(0, (generatedAt.getTime() - startedAt.getTime()) / 1000),
+            nodeVersion: process.version,
+            debugMode: this.homey.settings.get("debug_mode") === true,
+            memory: process.memoryUsage(),
+            systemResources,
+            deviceSummary: deviceDiagnostics.summary,
+            clgGroups: deviceDiagnostics.clgGroups,
+            collectionErrors: deviceDiagnostics.collectionErrors,
+            registry,
+            events: this.diagnosticEvents,
+        });
+
+        return {
+            appVersion,
+            generatedAt: generatedAt.toISOString(),
+            report,
+            issueUrl: buildGitHubIssueUrl({ appVersion, report, summary }),
+        };
     }
 
     async createHomeyApi() {

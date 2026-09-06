@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-09-06 — GitHub diagnostic reports and test release v1.10.28
+
+### Requested
+- Add a way for users to submit a diagnostic report directly to GitHub Issues.
+- Include available device/app CPU, memory, storage and Circadian Light Group load information.
+- Prepare a reviewed PR, merge it when green, upload a Homey test build, install it on the configured Homey, and update the Community post source.
+
+### Implemented
+- Added a private App Settings diagnostics endpoint and UI for generating, previewing, copying, and opening a prefilled GitHub bug report without embedding GitHub credentials.
+- Added bounded persistence of recent warnings/errors with stack traces and redaction of common device IDs, email/IP values, credentials, and long token-like values.
+- Added anonymous per-driver device counts, configuration-alarm counts, Circadian Light Group member/watcher/update-interval details, process and Homey-reported memory, system load averages, app CPU metric, and Homey storage totals when exposed by the platform.
+- Aligned the runtime startup banner and npm package metadata with Homey app version 1.10.28.
+- Updated README, Store README, changelog, project documentation, and Homey Community post source.
+
+### Verification
+- JavaScript syntax and changed locale/manifest JSON parsing passed.
+- `npm test -- --runInBand`: 18 suites and 206 tests passed.
+- `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.51 MB) and all 17 manifest assets were verified.
+- `homey app run --remote`: v1.10.28 initialized successfully with the correct version banner and remained running without an app restart during the smoke-test window.
+- GitHub review, Homey upload/install, and final release result are recorded below when completed.
+
 ## 2026-09-05 — Test release v1.10.27
 
 ### Requested
@@ -161,3 +182,27 @@
 - Uploaded Homey Build 52 and published v1.10.23 to the test channel.
 - Installed the app successfully on `Lars's New Homey` with `homey app install`.
 - Updated and verified the existing Homey Community topic with the v1.10.23 title and release notes.
+
+## 2026-09-06 — 30-second restart/reset diagnosis
+
+### Requested
+- Investigate a user report that the app resets itself every 30 seconds by running the app remotely over time.
+- Determine what diagnostics the user can submit and whether the app should expose stack traces or additional logs.
+
+### Findings
+- Ran `homey app run --remote` for approximately 5 minutes and 16 seconds. The app completed one initialization and remained running through more than ten reported 30-second windows without a restart, repeated `onInit`, unhandled rejection, fatal error, or memory/heap error.
+- The only runtime errors were handled Homey API failures for unavailable Z-Wave devices (`TRANSMIT_COMPLETE_NO_ACK` and `This device is currently unavailable`) during Circadian Light Group updates. The retry path completed without terminating the app.
+- Found a stronger explanation if "reset" means that light values are restored: Circadian Light Group reapplies its target on a configurable scheduler whose hard minimum is exactly 30 seconds. The local configuration uses 120 seconds, and the remote log showed normal `apply[timer]` cycles at that interval without app reinitialization.
+- Reviewed five earlier long-running remote logs. Each contained exactly one startup banner and one completed initialization, with no app uninitialization or fatal/unhandled/heap markers. The longest session logged activity continuously for almost three days.
+- Confirmed that the app already logs stack traces when a real `Error` object reaches `Logger.error`, but it has no user-downloadable persistent ring buffer or diagnostic snapshot. The startup banner currently reads the stale package version (1.10.25) while the generated/Compose manifest is 1.10.27, which can confuse incident reports.
+- Homey's built-in app management offers **Send diagnostics to developer**; a separate Homey system diagnostics report can also be created for Homey Support.
+
+### Recommendation
+- First ask the reporter whether the app itself shows a crash/restart or whether controlled device values revert, and whether a Circadian Light Group is configured with a 30-second update interval.
+- Ask the user to enable the app's Debug Mode, reproduce the issue, immediately send app diagnostics, and include the exact local time, app version, affected device/group, and what visibly resets.
+- Add a bounded in-memory diagnostic ring buffer and a redacted downloadable diagnostic snapshot with startup/session ID, manifest version, uptime, last scheduler operations, last errors with stacks, and lightweight memory counters. Do not rely on global `uncaughtException` handlers to keep a damaged process alive.
+
+### Verification
+- Current remote observation: one startup, normal 120-second scheduler cycles, no restart or fatal process signal.
+- Historical log scan: five sessions, one initialization per session, zero fatal/unhandled/heap markers.
+- No production code was changed during this diagnostic session.

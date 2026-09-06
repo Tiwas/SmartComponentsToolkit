@@ -689,6 +689,20 @@
       "help": "Aktiverer detaljert logging for feilsøking. Anbefales ikke for daglig bruk da det genererer mye logg.",
       "legend": "Feilsøking"
     },
+    "diagnostics": {
+      "copied": "Diagnoserapporten er kopiert.",
+      "copy": "Kopier rapport",
+      "failed": "Kunne ikke generere diagnoserapporten.",
+      "generate": "Generer rapport",
+      "generated": "Rapporten er generert lokalt. Kontroller den før du åpner GitHub.",
+      "help": "Generer en lokal rapport med appversjon, oppetid, CPU-, minne- og lagringsbelastning, anonymiserte enhetstall, belastning for Circadian Light Group og nylige advarsler eller feil. Vanlige identifikatorer og hemmeligheter maskeres, men kontroller rapporten før innsending.",
+      "legend": "Diagnostikk og brukerstøtte",
+      "not_generated": "Ingen rapport er generert. Ingenting lastes opp automatisk.",
+      "open_github": "Åpne ferdig utfylt GitHub-sak",
+      "report_label": "Forhåndsvisning av rapport",
+      "summary_label": "Kort beskrivelse av problemet",
+      "summary_placeholder": "For eksempel: Circadian-gruppen nullstilles hvert 30. sekund"
+    },
     "device_registry": {
       "current": "Nåværende",
       "deleted": "Slettet",

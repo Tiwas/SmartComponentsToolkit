@@ -1,5 +1,6 @@
 # Generated files
 app.json
+!no.tiwas.booleantoolbox/.homeycompose/app.json
 .homeybuild/
 no.tiwas.*/app.json
 

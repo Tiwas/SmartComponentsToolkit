@@ -104,6 +104,23 @@ class CircadianLightGroupDevice extends Homey.Device {
     await this.startScheduler(true);
   }
 
+  recordAppDiagnostic(level, message, error) {
+    const recorder = this.homey?.app?.recordDiagnosticEvent;
+    if (typeof recorder !== 'function') return;
+
+    try {
+      recorder.call(this.homey.app, {
+        timestamp: new Date().toISOString(),
+        level,
+        category: 'CircadianLightGroup',
+        message,
+        stack: error instanceof Error ? error.stack : '',
+      });
+    } catch (recordingError) {
+      this.debug(`Diagnostic capture failed: ${recordingError.message}`);
+    }
+  }
+
   async onPausedCapabilityChanged(value) {
     this.pauseDebug(`capability changed value=${value}`);
     this.clearPauseTimer();
@@ -525,6 +542,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     try {
       return JSON.parse(json);
     } catch (error) {
+      this.recordAppDiagnostic('ERROR', 'Invalid Circadian Light Group configuration JSON.', error);
       this.setCapabilityValue('alarm_config', true).catch(this.error);
       this.triggerError(`Invalid Circadian Light Group JSON: ${error.message}`).catch(this.error);
       return { profile: {}, outdoorLight: {}, devices: [] };
@@ -544,6 +562,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     this.timer = setInterval(() => {
       this.applyCurrentProfile({ reason: 'timer' }).catch(error => {
+        this.recordAppDiagnostic('ERROR', 'Scheduled Circadian Light Group update failed.', error);
         this.error('Circadian apply failed:', error);
       });
     }, intervalMs);
@@ -579,6 +598,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     try {
       outdoor = await this.outdoorProvider.getOutdoorLight(config.outdoorLight || {});
     } catch (error) {
+      this.recordAppDiagnostic('ERROR', 'Circadian outdoor-light lookup failed; using fallback.', error);
       this.error('Failed to resolve outdoor light, using astronomical fallback:', error);
       outdoor = await this.outdoorProvider.getAstronomical(config.outdoorLight || {}, new Date(), 'fallback-after-error');
     }
@@ -639,6 +659,14 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     if (superseded) return false;
 
+    failed.slice(0, 3).forEach((failure) => {
+      this.recordAppDiagnostic(
+        'ERROR',
+        `Circadian member update failed during ${reason}.`,
+        failure.error,
+      );
+    });
+
     const nonTransientFailures = failed.filter(res => !isTransientDeviceError(res.error));
     await this.setCapabilityValue('alarm_config', nonTransientFailures.length > 0).catch(this.error);
 
@@ -697,7 +725,10 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     Promise.resolve()
       .then(() => this.applyCurrentProfile({ reason: `deferred-${deferredReason}` }))
-      .catch(error => this.error('Deferred Circadian apply failed:', error));
+      .catch(error => {
+        this.recordAppDiagnostic('ERROR', 'Deferred Circadian Light Group update failed.', error);
+        this.error('Deferred Circadian apply failed:', error);
+      });
   }
 
   // Run an async task per device with staged backoff:
@@ -1056,6 +1087,10 @@ class CircadianLightGroupDevice extends Homey.Device {
       .map(res => res.item?.name || res.item?.id || '<unknown>')
       .join(', ');
     this.debug(`${label}: ${failed.length} member(s) not verified ${expectedDescription}: ${names}`);
+    this.recordAppDiagnostic(
+      'WARN',
+      `${failed.length} Circadian member(s) could not be verified ${expectedDescription}.`,
+    );
     await this.setCapabilityValue('alarm_config', true).catch(this.error);
     await this.triggerError(`${label}: ${failed.length} light(s) not verified ${expectedDescription}: ${names}`);
     return false;

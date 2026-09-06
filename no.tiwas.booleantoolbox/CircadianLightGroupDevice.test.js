@@ -33,6 +33,22 @@ function setable(value) {
 }
 
 describe('CircadianLightGroupDevice capability selection', () => {
+  test('captures an anonymous app diagnostic with an error stack', () => {
+    const device = createDeviceHarness();
+    const recordDiagnosticEvent = jest.fn();
+    device.homey = { app: { recordDiagnosticEvent } };
+    const error = new Error('member failed');
+
+    device.recordAppDiagnostic('ERROR', 'Circadian member update failed.', error);
+
+    expect(recordDiagnosticEvent).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'ERROR',
+      category: 'CircadianLightGroup',
+      message: 'Circadian member update failed.',
+      stack: expect.stringContaining('Error: member failed'),
+    }));
+  });
+
   test('does not switch to color mode when red target cannot write hue and saturation', () => {
     const device = createDeviceHarness();
     const writes = device.getCapabilitiesToSet(

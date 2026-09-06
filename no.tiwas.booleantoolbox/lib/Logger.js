@@ -252,6 +252,24 @@ class Logger {
     return `${symbol} [${this.category}]`;
   }
 
+  _recordDiagnosticEvent(level, message, error) {
+    if (level !== "WARN" && level !== "ERROR") return;
+    const app = this.homey && this.homey.app;
+    if (!app || typeof app.recordDiagnosticEvent !== "function") return;
+
+    try {
+      app.recordDiagnosticEvent({
+        timestamp: new Date().toISOString(),
+        level,
+        category: this.category,
+        message,
+        stack: error instanceof Error ? error.stack : "",
+      });
+    } catch (recordingError) {
+      console.error("Logger diagnostic capture failed:", recordingError);
+    }
+  }
+
   /**
    * Formats a message with optional localization and variable substitution.
    *
@@ -364,6 +382,7 @@ class Logger {
     const levelString = `[${level.padEnd(5)}]`;
     const prefix = this._getPrefix(symbol);
     const formattedMessage = this._formatMessage(keyOrMessage, data);
+    this._recordDiagnosticEvent(level, formattedMessage);
 
     try {
       this.homey.app.log(levelString, prefix, formattedMessage);
@@ -405,6 +424,7 @@ class Logger {
     // Data-objektet kan være gjemt i 'error' hvis det ikke er en ekte Error
     let data = error instanceof Error ? null : error;
     const formattedMessage = this._formatMessage(keyOrMessage, data);
+    this._recordDiagnosticEvent("ERROR", formattedMessage, error);
 
     try {
       // --- FIKS: Flyttet levelString FØRST ---

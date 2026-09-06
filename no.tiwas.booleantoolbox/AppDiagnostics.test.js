@@ -93,7 +93,8 @@ describe("BooleanToolboxApp diagnostics", () => {
         expect(payload.report).toContain("Homey-reported app memory: 48.0 MB");
         expect(payload.report).not.toContain("Private bedroom");
         expect(payload.report).not.toContain("secret-light-id");
-        expect(issueUrl.searchParams.get("logs")).toBe(payload.report);
+        expect(issueUrl.searchParams.get("body")).toContain(payload.report);
+        expect(issueUrl.searchParams.get("body")).toContain("## App version\n\n1.10.28");
         expect(issueUrl.searchParams.get("title")).toBe("[Bug]: Group resets");
     });
 

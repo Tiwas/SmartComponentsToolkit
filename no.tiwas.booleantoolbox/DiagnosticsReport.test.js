@@ -10,7 +10,8 @@ describe("DiagnosticsReport", () => {
     test("redacts common private identifiers and credentials", () => {
         const value = redactDiagnosticText(
             "device 123e4567-e89b-12d3-a456-426614174000 at 192.168.1.12 " +
-            "for owner@example.com token=super-secret Bearer abc.def.ghi",
+            "for owner@example.com token=super-secret Bearer abc.def.ghi " +
+            "{\"password\":\"hunter two\"}; secret=two word value; done",
         );
 
         expect(value).toContain("<redacted-id>");
@@ -20,6 +21,8 @@ describe("DiagnosticsReport", () => {
         expect(value).toContain("Bearer <redacted-token>");
         expect(value).not.toContain("123e4567-e89b-12d3-a456-426614174000");
         expect(value).not.toContain("super-secret");
+        expect(value).not.toContain("hunter two");
+        expect(value).not.toContain("two word value");
     });
 
     test("builds a bounded report with device and Circadian load details", () => {
@@ -63,7 +66,7 @@ describe("DiagnosticsReport", () => {
         expect(report.length).toBeLessThanOrEqual(1800);
     });
 
-    test("creates a prefilled GitHub issue form URL", () => {
+    test("creates a prefilled GitHub issue URL with standard query parameters", () => {
         const url = new URL(buildGitHubIssueUrl({
             appVersion: "1.10.28",
             report: "diagnostic body",
@@ -72,10 +75,31 @@ describe("DiagnosticsReport", () => {
 
         expect(url.origin).toBe("https://github.com");
         expect(url.pathname).toBe("/Tiwas/SmartComponentsToolkit/issues/new");
-        expect(url.searchParams.get("template")).toBe("01-bug-report.yml");
-        expect(url.searchParams.get("app-version")).toBe("1.10.28");
-        expect(url.searchParams.get("logs")).toBe("diagnostic body");
+        expect(url.searchParams.has("template")).toBe(false);
+        expect(url.searchParams.has("app-version")).toBe(false);
+        expect(url.searchParams.has("logs")).toBe(false);
         expect(url.searchParams.get("title")).toBe("[Bug]: Resets every 30 seconds ignored line break");
+        expect(url.searchParams.get("body")).toContain("## App version\n\n1.10.28");
+        expect(url.searchParams.get("body")).toContain("## Diagnostic report\n\ndiagnostic body");
+    });
+
+    test("keeps the newest diagnostic event when a long report must be shortened", () => {
+        const report = buildDiagnosticsReport({
+            appVersion: "1.10.28",
+            deviceSummary: {
+                drivers: Array.from({ length: 30 }, (_, index) => ({ id: `driver-${index}`, count: index })),
+            },
+            events: [
+                { timestamp: "2026-09-06T10:00:00.000Z", level: "ERROR", message: "OLDEST-EVENT", stack: Array(80).fill("at oldest-file.js:1:1").join("\n") },
+                { timestamp: "2026-09-06T10:01:00.000Z", level: "ERROR", message: "MIDDLE-EVENT", stack: Array(80).fill("at middle-file.js:1:1").join("\n") },
+                { timestamp: "2026-09-06T10:02:00.000Z", level: "ERROR", message: "NEWEST-EVENT", stack: Array(80).fill("at newest-file.js:1:1").join("\n") },
+            ],
+        }, { maxReportLength: 1800 });
+
+        expect(report).toContain("NEWEST-EVENT");
+        expect(report).not.toContain("OLDEST-EVENT");
+        expect(report).toContain("Privacy notice");
+        expect(report.length).toBeLessThanOrEqual(1800);
     });
 
     test("marks unavailable resource metrics instead of reporting zero", () => {

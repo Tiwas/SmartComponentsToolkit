@@ -164,7 +164,7 @@ Virtual light device that adjusts brightness and color temperature for a group o
 
 ## 🩺 Diagnostics and support
 
-App Settings can generate a local diagnostic report and open the GitHub bug form with the report prefilled. The report includes app uptime, recent warnings/errors and stack traces, anonymous device counts, Circadian Light Group scheduler/member load, and available CPU, memory, and storage data. Common identifiers and secrets are redacted, nothing is uploaded automatically, and the report remains editable before submission.
+App Settings can generate a local diagnostic report and open a new GitHub issue with the report prefilled. The report includes app uptime, recent warnings/errors and stack traces, anonymous device counts, Circadian Light Group scheduler/member load, and available CPU, memory, and storage data. Common identifiers and secrets are redacted, nothing is uploaded automatically, and the report remains editable before submission.
 
 ---
 

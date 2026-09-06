@@ -33,7 +33,7 @@
 *   **Tests:** `CompositeAggregator.test.js` verifies calculation semantics and `CompositeDevice.test.js` verifies pairing, realtime updates, change triggers, threshold filters, partial failures, and cleanup.
 
 ### 5. Diagnostics and GitHub issue reporting
-*   **Settings UI:** `no.tiwas.booleantoolbox/settings/index.html` generates an on-demand report, shows it for review, supports copying, and opens the repository bug form prefilled.
+*   **Settings UI:** `no.tiwas.booleantoolbox/settings/index.html` generates an on-demand report, shows it for review, supports copying, and opens a new repository issue prefilled.
 *   **API:** the private `POST /diagnostics` app endpoint in `api.js` delegates report creation to `app.js`; no GitHub credentials are stored in the app.
 *   **Report data:** `lib/DiagnosticsReport.js` formats/redacts version, session uptime, persisted warning/error stacks, anonymous driver and Circadian Light Group load, and available app/Homey CPU, memory, and storage metrics.
 

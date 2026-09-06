@@ -19,8 +19,9 @@ describe("Logger diagnostics capture", () => {
         logger.debug("debug message");
         logger.warn("warning message");
         logger.error("error message", error);
+        logger.error(error);
 
-        expect(recordDiagnosticEvent).toHaveBeenCalledTimes(2);
+        expect(recordDiagnosticEvent).toHaveBeenCalledTimes(3);
         expect(recordDiagnosticEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
             level: "WARN",
             category: "Test",
@@ -29,6 +30,11 @@ describe("Logger diagnostics capture", () => {
         expect(recordDiagnosticEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
             level: "ERROR",
             message: "error message",
+            stack: expect.stringContaining("Error: failure"),
+        }));
+        expect(recordDiagnosticEvent).toHaveBeenNthCalledWith(3, expect.objectContaining({
+            level: "ERROR",
+            message: "failure",
             stack: expect.stringContaining("Error: failure"),
         }));
     });

@@ -21,7 +21,7 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 
 - **Diagnostic report from App Settings:** generate a readable report containing the installed version, current-session uptime, recent warnings/errors and stack traces.
 - **Resource and setup load:** includes available app/Homey CPU, memory and storage data, anonymous app-device counts, and Circadian Light Group member, watcher and scheduler details.
-- **Prefilled GitHub issue:** review the report, then open the existing bug form with the version and report already filled in. Nothing is uploaded automatically.
+- **Prefilled GitHub issue:** review the report, then open a new issue with the version and report already filled in. Nothing is uploaded automatically.
 - **Privacy-conscious:** device names and IDs are omitted from structured data, and common identifiers and secrets are redacted from captured log lines. Always review before submitting.
 
 ### v1.10.27 (test channel)

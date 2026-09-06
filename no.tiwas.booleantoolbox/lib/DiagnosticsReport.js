@@ -17,8 +17,9 @@ function redactDiagnosticText(value) {
         .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "<redacted-email>")
         .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "<redacted-ip>")
         .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1<redacted-token>")
-        .replace(/\b(token|api[_-]?key|password|secret)\s*[:=]\s*([^\s,;]+)/gi, "$1=<redacted>")
-        .replace(/\b(?:[a-f0-9]{32,}|[A-Za-z0-9_-]{48,})\b/g, "<redacted-value>");
+        .replace(/(["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=]\s*)(["'])(.*?)\2/gi, "$1$2<redacted>$2")
+        .replace(/(["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=]\s*)([^,;\r\n}]+?)(?=\s+(?:Bearer\b|["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=])|[,;\r\n}]|$)/gi, "$1<redacted>")
+        .replace(/\b(?:[a-f0-9]{20,}|[A-Za-z0-9_-]{32,})\b/g, "<redacted-value>");
 }
 
 function formatBytes(value) {
@@ -66,6 +67,19 @@ function sanitizeEvent(event) {
     return { level, timestamp, category, message, stack };
 }
 
+function shortenText(value, maxLength, marker) {
+    const text = String(value || "");
+    if (text.length <= maxLength) return text;
+    if (maxLength <= marker.length) return marker.slice(0, maxLength);
+    return `${text.slice(0, maxLength - marker.length).trimEnd()}${marker}`;
+}
+
+function formatEvent(event) {
+    const lines = [`- ${event.timestamp} [${event.level}] [${event.category}] ${event.message || "(no message)"}`];
+    if (event.stack) lines.push("```text", event.stack, "```");
+    return lines.join("\n");
+}
+
 function buildDiagnosticsReport(data, options = {}) {
     const maxReportLength = Math.max(1200, Number(options.maxReportLength) || DEFAULT_MAX_REPORT_LENGTH);
     const maxEvents = Math.max(0, Number(options.maxEvents) || DEFAULT_MAX_EVENTS);
@@ -90,7 +104,7 @@ function buildDiagnosticsReport(data, options = {}) {
         ? resources.loadAverage.slice(0, 3).map((value) => Number(value).toFixed(2)).join(" / ")
         : "unavailable";
 
-    const lines = [
+    const setupLines = [
         "# Smart (Components) Toolkit diagnostic report",
         "",
         `- Generated: ${data.generatedAt || new Date().toISOString()}`,
@@ -119,59 +133,84 @@ function buildDiagnosticsReport(data, options = {}) {
     ];
 
     const drivers = Array.isArray(deviceSummary.drivers) ? deviceSummary.drivers : [];
-    for (const driver of drivers) {
-        lines.push(`- Driver ${redactDiagnosticText(driver.id).slice(0, 80)}: ${Number(driver.count) || 0}`);
+    for (const driver of drivers.slice(0, 20)) {
+        setupLines.push(`- Driver ${redactDiagnosticText(driver.id).slice(0, 80)}: ${Number(driver.count) || 0}`);
+    }
+    if (drivers.length > 20) {
+        setupLines.push(`- ${drivers.length - 20} additional driver entries omitted.`);
     }
 
-    lines.push("", "## Circadian Light Group load", "");
+    setupLines.push("", "## Circadian Light Group load", "");
     if (clgGroups.length === 0) {
-        lines.push("- No Circadian Light Group devices found.");
+        setupLines.push("- No Circadian Light Group devices found.");
     } else {
-        clgGroups.forEach((group, index) => {
-            lines.push(
+        clgGroups.slice(0, 8).forEach((group, index) => {
+            setupLines.push(
                 `- Group ${index + 1}: ${group.enabledMembers || 0}/${group.totalMembers || 0} members enabled; ` +
                 `update ${group.updateIntervalSeconds || 120}s; transition ${group.transitionSeconds || 0}s; ` +
                 `watchers ${group.watchers || 0}; paused ${group.paused === true ? "yes" : "no"}`,
             );
         });
-    }
-
-    lines.push("", "## Recent warnings and errors", "");
-    if (events.length === 0) {
-        lines.push("- No captured warnings or errors.");
-    } else {
-        for (const event of events) {
-            lines.push(`- ${event.timestamp} [${event.level}] [${event.category}] ${event.message || "(no message)"}`);
-            if (event.stack) {
-                lines.push("```text", event.stack, "```");
-            }
+        if (clgGroups.length > 8) {
+            setupLines.push(`- ${clgGroups.length - 8} additional groups omitted.`);
         }
     }
 
     if (resources.crashedMessage) {
-        lines.push("", "## Homey crash message", "", redactDiagnosticText(resources.crashedMessage).slice(0, 900));
+        setupLines.push("", "## Homey crash message", "", redactDiagnosticText(resources.crashedMessage).slice(0, 600));
     }
 
     const collectionErrors = Array.isArray(data.collectionErrors) ? data.collectionErrors : [];
     if (collectionErrors.length > 0) {
-        lines.push("", "## Collection notes", "");
-        collectionErrors.forEach((message) => {
-            lines.push(`- ${redactDiagnosticText(message).slice(0, 240)}`);
+        setupLines.push("", "## Collection notes", "");
+        collectionErrors.slice(0, 5).forEach((message) => {
+            setupLines.push(`- ${redactDiagnosticText(message).slice(0, 240)}`);
         });
+        if (collectionErrors.length > 5) setupLines.push(`- ${collectionErrors.length - 5} additional notes omitted.`);
     }
 
-    lines.push(
-        "",
+    const privacyText = [
         "## Privacy notice",
         "",
         "Device names and IDs are intentionally omitted from the structured data. Common identifiers and secrets are redacted from captured log lines, but please review this report before submitting it.",
+    ].join("\n");
+    const eventHeading = "## Recent warnings and errors";
+    let eventText = "- No captured warnings or errors.";
+
+    if (events.length > 0) {
+        const eventBudget = Math.max(320, Math.min(
+            Math.floor(maxReportLength * 0.45),
+            maxReportLength - privacyText.length - eventHeading.length - 450,
+        ));
+        const formattedEvents = events.map(formatEvent);
+        const selected = [shortenText(
+            formattedEvents.at(-1),
+            eventBudget,
+            "\n_Event details shortened; the newest message is preserved._",
+        )];
+
+        for (let index = formattedEvents.length - 2; index >= 0; index -= 1) {
+            const candidate = [formattedEvents[index], ...selected].join("\n");
+            if (candidate.length > eventBudget) break;
+            selected.unshift(formattedEvents[index]);
+        }
+
+        eventText = selected.join("\n");
+        const omittedCount = formattedEvents.length - selected.length;
+        const omissionNote = `_${omittedCount} older event(s) omitted to preserve the newest diagnostics._`;
+        if (omittedCount > 0 && `${omissionNote}\n${eventText}`.length <= eventBudget) {
+            eventText = `${omissionNote}\n${eventText}`;
+        }
+    }
+
+    const tailText = `${eventHeading}\n\n${eventText}\n\n${privacyText}`;
+    const setupBudget = Math.max(0, maxReportLength - tailText.length - 2);
+    const setupText = shortenText(
+        setupLines.join("\n"),
+        setupBudget,
+        "\n\n_Setup details shortened to preserve the newest diagnostics._",
     );
-
-    const report = lines.join("\n");
-    if (report.length <= maxReportLength) return report;
-
-    const suffix = "\n\n_Report shortened to fit safely in a GitHub issue URL._";
-    return `${report.slice(0, maxReportLength - suffix.length).trimEnd()}${suffix}`;
+    return `${setupText}\n\n${tailText}`.slice(0, maxReportLength);
 }
 
 function buildGitHubIssueUrl({ appVersion, report, summary }) {
@@ -179,11 +218,32 @@ function buildGitHubIssueUrl({ appVersion, report, summary }) {
         .replace(/[\r\n]+/g, " ")
         .trim()
         .slice(0, 100) || "Diagnostic report";
+    const body = [
+        "## Problem summary",
+        "",
+        issueSummary,
+        "",
+        "## Steps to reproduce",
+        "",
+        "<!-- Please describe what happens before the problem occurs. -->",
+        "",
+        "## Expected behavior",
+        "",
+        "<!-- What did you expect to happen? -->",
+        "",
+        "## Actual behavior",
+        "",
+        "<!-- What happened instead? Include the approximate local time. -->",
+        "",
+        `## App version\n\n${String(appVersion || "unknown")}`,
+        "",
+        "## Diagnostic report",
+        "",
+        String(report || "No diagnostic report was generated."),
+    ].join("\n");
     const params = new URLSearchParams({
-        template: "01-bug-report.yml",
         title: `[Bug]: ${issueSummary}`,
-        "app-version": String(appVersion || "unknown"),
-        logs: String(report || ""),
+        body,
     });
 
     return `${GITHUB_NEW_ISSUE_URL}?${params.toString()}`;

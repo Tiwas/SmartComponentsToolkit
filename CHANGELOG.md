@@ -9,7 +9,7 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 ## [1.10.28] - September 2026 (Test channel)
 
 ### Added
-- App Settings can now generate a privacy-conscious diagnostic report and open the existing GitHub bug form with the report prefilled.
+- App Settings can now generate a privacy-conscious diagnostic report and open a new GitHub issue with the report prefilled.
 - Reports include app version and uptime, recent persisted warnings/errors with stack traces, anonymous app-device counts, Circadian Light Group member/scheduler load, and available app/Homey CPU, memory, and storage data.
 
 ### Changed

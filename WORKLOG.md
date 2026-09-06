@@ -8,7 +8,7 @@
 - Prepare a reviewed PR, merge it when green, upload a Homey test build, install it on the configured Homey, and update the Community post source.
 
 ### Implemented
-- Added a private App Settings diagnostics endpoint and UI for generating, previewing, copying, and opening a prefilled GitHub bug report without embedding GitHub credentials.
+- Added a private App Settings diagnostics endpoint and UI for generating, previewing, copying, and opening a prefilled GitHub issue without embedding GitHub credentials.
 - Added bounded persistence of recent warnings/errors with stack traces and redaction of common device IDs, email/IP values, credentials, and long token-like values.
 - Added anonymous per-driver device counts, configuration-alarm counts, Circadian Light Group member/watcher/update-interval details, process and Homey-reported memory, system load averages, app CPU metric, and Homey storage totals when exposed by the platform.
 - Aligned the runtime startup banner and npm package metadata with Homey app version 1.10.28.

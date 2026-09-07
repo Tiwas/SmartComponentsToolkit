@@ -132,5 +132,11 @@
   "1.10.27": {
     "en": "Serialize Logic Device formula evaluations to prevent stale results and reduce routine Logic Unit logging.",
     "no": "Serialiserer Logic Device-formelutregninger for å hindre foreldede resultater og reduserer vanlig Logic Unit-logging."
+  },
+  "1.10.28": {
+    "en": "Added privacy-conscious diagnostics in App Settings with prefilled GitHub issues, recent anonymous warnings and stack frames, device and Circadian Light Group load, plus available CPU, memory, and storage metrics."
+  },
+  "1.10.29": {
+    "en": "Fixed diagnostic report generation on Homey systems where process memory or other resource metrics are unavailable."
   }
 }

@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.28 test - GitHub diagnostics]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.29 test - Diagnostics fix]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.28
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.29
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,11 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.29 (test channel)
+
+- **Diagnostic report generation fixed:** Homey models that cannot provide process-memory or other resource metrics can now generate a report successfully.
+- **Graceful resource fallback:** unavailable CPU, memory, or storage values are shown as `unavailable`; all other diagnostics remain in the report.
 
 ### v1.10.28 (test channel)
 

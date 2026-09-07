@@ -6,6 +6,11 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.29] - September 2026 (Test channel)
+
+### Fixed
+- Diagnostic reports no longer fail when Homey cannot expose process memory or another resource metric. Unavailable CPU, memory, and storage values are now reported as unavailable while the rest of the report is preserved.
+
 ## [1.10.28] - September 2026 (Test channel)
 
 ### Added

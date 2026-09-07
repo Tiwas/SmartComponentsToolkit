@@ -36,6 +36,19 @@ function isFiniteDiagnosticMetric(value) {
         && Number.isFinite(Number(value));
 }
 
+function getDiagnosticValue(getter, fallback = null) {
+    try {
+        return getter();
+    } catch (error) {
+        return fallback;
+    }
+}
+
+function getProcessMemoryDiagnostics() {
+    const memory = getDiagnosticValue(() => process.memoryUsage(), null);
+    return memory && typeof memory === "object" ? memory : {};
+}
+
 /**
  * Helper function for evaluate_expression action card.
  *
@@ -392,11 +405,13 @@ module.exports = class BooleanToolboxApp extends Homey.App {
     }
 
     async collectResourceDiagnostics() {
+        const cpuInfo = getDiagnosticValue(() => os.cpus(), []);
+        const loadAverage = getDiagnosticValue(() => os.loadavg(), []);
         const systemResources = {
-            cpuCores: os.cpus().length || null,
-            loadAverage: os.loadavg(),
-            memoryTotal: os.totalmem(),
-            memoryFree: os.freemem(),
+            cpuCores: Array.isArray(cpuInfo) ? cpuInfo.length || null : null,
+            loadAverage: Array.isArray(loadAverage) ? loadAverage : [],
+            memoryTotal: getDiagnosticValue(() => os.totalmem(), null),
+            memoryFree: getDiagnosticValue(() => os.freemem(), null),
             storageTotal: null,
             storageFree: null,
             appCpu: null,
@@ -414,12 +429,20 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         }
 
         const calls = [
-            typeof api.system?.getInfo === "function" ? api.system.getInfo() : Promise.resolve(null),
-            typeof api.system?.getMemoryInfo === "function" ? api.system.getMemoryInfo() : Promise.resolve(null),
-            typeof api.system?.getStorageInfo === "function" ? api.system.getStorageInfo() : Promise.resolve(null),
-            typeof api.apps?.getApp === "function"
-                ? api.apps.getApp({ id: "no.tiwas.booleantoolbox" })
-                : Promise.resolve(null),
+            Promise.resolve().then(() => (
+                typeof api.system?.getInfo === "function" ? api.system.getInfo() : null
+            )),
+            Promise.resolve().then(() => (
+                typeof api.system?.getMemoryInfo === "function" ? api.system.getMemoryInfo() : null
+            )),
+            Promise.resolve().then(() => (
+                typeof api.system?.getStorageInfo === "function" ? api.system.getStorageInfo() : null
+            )),
+            Promise.resolve().then(() => (
+                typeof api.apps?.getApp === "function"
+                    ? api.apps.getApp({ id: "no.tiwas.booleantoolbox" })
+                    : null
+            )),
         ];
         const [infoResult, memoryResult, storageResult, appResult] = await Promise.allSettled(calls);
 
@@ -481,7 +504,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             uptimeSeconds: Math.max(0, (generatedAt.getTime() - startedAt.getTime()) / 1000),
             nodeVersion: process.version,
             debugMode: this.homey.settings.get("debug_mode") === true,
-            memory: process.memoryUsage(),
+            memory: getProcessMemoryDiagnostics(),
             systemResources,
             deviceSummary: deviceDiagnostics.summary,
             clgGroups: deviceDiagnostics.clgGroups,

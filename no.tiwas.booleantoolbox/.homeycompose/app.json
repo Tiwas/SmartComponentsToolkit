@@ -1,7 +1,7 @@
 {
   "id": "no.tiwas.booleantoolbox",
   "support": "https://community.homey.app/t/app-boolean-toolbox-create-advanced-logic-with-simple-formulas/143906",
-  "version": "1.10.28",
+  "version": "1.10.29",
   "compatibility": ">=5.0.0",
   "sdk": 3,
   "permissions": [

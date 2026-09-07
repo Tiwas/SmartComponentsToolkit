@@ -1,5 +1,22 @@
 # Worklog
 
+## 2026-09-07 — Diagnostic resource fallback v1.10.29
+
+### Requested
+- Fix the App Settings diagnostic report after a user received `ENOENT: no such file or directory, uv_resident_set_memory`.
+- Publish the fix as a new Homey draft release.
+
+### Implemented
+- Made Node.js process-memory and operating-system resource probes best effort so unavailable platform metrics cannot abort report generation.
+- Wrapped Homey API resource calls so both synchronous exceptions and rejected promises degrade to unavailable values.
+- Ensured missing or incomplete load averages are rendered explicitly as unavailable.
+- Added regression coverage for the reported process-memory failure and unavailable Homey resource endpoints.
+- Prepared the v1.10.29 patch-release metadata and Community post source.
+
+### Verification
+- `npm test -- --runInBand`: 19 suites and 210 tests passed.
+- `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.51 MB) and all 17 manifest assets were verified.
+
 ## 2026-09-06 — GitHub diagnostic reports and test release v1.10.28
 
 ### Requested

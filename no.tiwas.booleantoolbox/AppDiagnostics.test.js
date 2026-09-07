@@ -1,8 +1,10 @@
 "use strict";
 
+const os = require("node:os");
+
 jest.mock("homey", () => ({
     App: class {},
-    manifest: { version: "1.10.28" },
+    manifest: { version: "1.10.29" },
 }), { virtual: true });
 
 jest.mock("./lib/Logger", () => class MockLogger {});
@@ -40,7 +42,7 @@ describe("BooleanToolboxApp diagnostics", () => {
             memberOnoffWatchers: new Map([["secret-light-id", {}]]),
         };
         app.homey = {
-            manifest: { version: "1.10.28" },
+            manifest: { version: "1.10.29" },
             settings,
             drivers: {
                 getDrivers: jest.fn(() => ({
@@ -84,7 +86,7 @@ describe("BooleanToolboxApp diagnostics", () => {
         const payload = await app.getDiagnosticsPayload("Group resets");
         const issueUrl = new URL(payload.issueUrl);
 
-        expect(payload.appVersion).toBe("1.10.28");
+        expect(payload.appVersion).toBe("1.10.29");
         expect(payload.report).toContain("App devices: 1");
         expect(payload.report).toContain("1/2 members enabled");
         expect(payload.report).toContain("update 30s");
@@ -94,7 +96,7 @@ describe("BooleanToolboxApp diagnostics", () => {
         expect(payload.report).not.toContain("Private bedroom");
         expect(payload.report).not.toContain("secret-light-id");
         expect(issueUrl.searchParams.get("body")).toContain(payload.report);
-        expect(issueUrl.searchParams.get("body")).toContain("## App version\n\n1.10.28");
+        expect(issueUrl.searchParams.get("body")).toContain("## App version\n\n1.10.29");
         expect(issueUrl.searchParams.get("title")).toBe("[Bug]: Group resets");
     });
 
@@ -145,5 +147,54 @@ describe("BooleanToolboxApp diagnostics", () => {
             updateIntervalSeconds: 120,
         })]);
         expect(result.collectionErrors).toContain("A Circadian Light Group has a non-object configuration.");
+    });
+
+    test("generates a report when process memory and Homey resource probes are unavailable", async () => {
+        const memoryError = Object.assign(
+            new Error("ENOENT: no such file or directory, uv_resident_set_memory"),
+            { code: "ENOENT" },
+        );
+        const memorySpy = jest.spyOn(process, "memoryUsage").mockImplementation(() => {
+            throw memoryError;
+        });
+        const loadAverageSpy = jest.spyOn(os, "loadavg").mockImplementation(() => {
+            throw new Error("load average unavailable");
+        });
+        const app = new BooleanToolboxApp();
+        app.homey = {
+            manifest: { version: "1.10.29" },
+            settings: createSettings({}),
+            drivers: { getDrivers: jest.fn(() => ({})) },
+        };
+        app.api = {
+            system: {
+                getInfo: jest.fn(() => { throw new Error("info unavailable"); }),
+                getMemoryInfo: jest.fn(() => { throw new Error("memory unavailable"); }),
+                getStorageInfo: jest.fn(() => { throw new Error("storage unavailable"); }),
+            },
+            apps: {
+                getApp: jest.fn(() => { throw new Error("app metrics unavailable"); }),
+            },
+        };
+        app.startedAt = new Date();
+        app.diagnosticEvents = [];
+
+        try {
+            const payload = await app.getDiagnosticsPayload("Resource probe failure");
+
+            expect(payload.report).toContain("App version: 1.10.29");
+            expect(payload.report).toContain(
+                "App process memory: RSS unavailable, heap used unavailable of unavailable",
+            );
+            expect(payload.report).toContain("Homey-reported app memory: unavailable");
+            expect(payload.report).toContain(
+                "Homey system load average (1 / 5 / 15 min): unavailable",
+            );
+            expect(payload.report).toContain("Homey storage: unavailable used of unavailable");
+            expect(new URL(payload.issueUrl).searchParams.get("body")).toContain(payload.report);
+        } finally {
+            memorySpy.mockRestore();
+            loadAverageSpy.mockRestore();
+        }
     });
 });

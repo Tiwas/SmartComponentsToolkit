@@ -1,5 +1,7 @@
 "use strict";
 
+const os = require("node:os");
+
 jest.mock("homey", () => ({
     App: class {},
     manifest: { version: "1.10.29" },
@@ -155,6 +157,9 @@ describe("BooleanToolboxApp diagnostics", () => {
         const memorySpy = jest.spyOn(process, "memoryUsage").mockImplementation(() => {
             throw memoryError;
         });
+        const loadAverageSpy = jest.spyOn(os, "loadavg").mockImplementation(() => {
+            throw new Error("load average unavailable");
+        });
         const app = new BooleanToolboxApp();
         app.homey = {
             manifest: { version: "1.10.29" },
@@ -182,10 +187,14 @@ describe("BooleanToolboxApp diagnostics", () => {
                 "App process memory: RSS unavailable, heap used unavailable of unavailable",
             );
             expect(payload.report).toContain("Homey-reported app memory: unavailable");
+            expect(payload.report).toContain(
+                "Homey system load average (1 / 5 / 15 min): unavailable",
+            );
             expect(payload.report).toContain("Homey storage: unavailable used of unavailable");
             expect(new URL(payload.issueUrl).searchParams.get("body")).toContain(payload.report);
         } finally {
             memorySpy.mockRestore();
+            loadAverageSpy.mockRestore();
         }
     });
 });

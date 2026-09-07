@@ -9,6 +9,7 @@
 ### Implemented
 - Made Node.js process-memory and operating-system resource probes best effort so unavailable platform metrics cannot abort report generation.
 - Wrapped Homey API resource calls so both synchronous exceptions and rejected promises degrade to unavailable values.
+- Ensured missing or incomplete load averages are rendered explicitly as unavailable.
 - Added regression coverage for the reported process-memory failure and unavailable Homey resource endpoints.
 - Prepared the v1.10.29 patch-release metadata and Community post source.
 

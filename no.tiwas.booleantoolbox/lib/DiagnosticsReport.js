@@ -100,8 +100,11 @@ function buildDiagnosticsReport(data, options = {}) {
         && isFiniteMetric(resources.storageFree)
         ? Math.max(0, Number(resources.storageTotal) - Number(resources.storageFree))
         : null;
-    const loadAverage = Array.isArray(resources.loadAverage)
-        ? resources.loadAverage.slice(0, 3).map((value) => Number(value).toFixed(2)).join(" / ")
+    const loadAverageValues = Array.isArray(resources.loadAverage)
+        ? resources.loadAverage.slice(0, 3)
+        : [];
+    const loadAverage = loadAverageValues.length === 3 && loadAverageValues.every(isFiniteMetric)
+        ? loadAverageValues.map((value) => Number(value).toFixed(2)).join(" / ")
         : "unavailable";
 
     const setupLines = [

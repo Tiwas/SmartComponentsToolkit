@@ -1233,16 +1233,24 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     this.logger.warn(`⚠️  Could not check current value, will wait for change: ${error.message}`);
                                 }
 
+                                // The configured timeout counts from the start of the run, like
+                                // Homey's limit and the guard, so the device lookup is deducted.
+                                const remainingTimeoutMs = this.getRemainingInCardTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
+                                if (remainingTimeoutMs === 0) {
+                                    this.logger.info(`⏰ Waiter ${waiterId}: timeout already elapsed during setup - NO path`);
+                                    settle(resolve, false);
+                                    return;
+                                }
+
                                 // Create waiter with flow context
                                 const flowContext = {
                                     flowId: state?.flowId || 'unknown',
                                     flowToken: state?.flowToken || null
                                 };
 
-                                const config = {
-                                    timeoutValue,
-                                    timeoutUnit
-                                };
+                                const config = remainingTimeoutMs === null
+                                    ? { timeoutValue, timeoutUnit }
+                                    : { timeoutValue: remainingTimeoutMs, timeoutUnit: 'ms' };
 
                                 // NEW: Device config for capability listening
                                 const deviceConfig = {
@@ -1373,8 +1381,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                     (async () => {
                         try {
+                            // The configured timeout counts from the start of the run, like
+                            // Homey's limit and the guard.
+                            const remainingTimeoutMs = this.getRemainingInCardTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
+                            if (remainingTimeoutMs === 0) {
+                                this.logger.debug(`🎯 conditional_gate_start: timeout already elapsed during setup, returning false`);
+                                settle(resolve, false);
+                                return;
+                            }
+
                             const uniqueWaiterId = `gate_${gateName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                            const config = { timeoutValue, timeoutUnit };
+                            const config = { timeoutValue: remainingTimeoutMs, timeoutUnit: 'ms' };
                             const virtualGateConfig = { gateName, targetState: 'GO' };
 
                             const actualId = await this.waiterManager.createWaiter(
@@ -1704,8 +1721,11 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 }
 
                 // Restart semantics: a pending background wait with the same ID is replaced without firing.
-                const existing = this.waiterManager.waiters.get(waiterId);
-                if (existing && existing.background) this.waiterManager.removeWaiterIfCurrent(waiterId, existing);
+                const replacePendingBackgroundWait = () => {
+                    const existing = this.waiterManager.waiters.get(waiterId);
+                    if (existing && existing.background) this.waiterManager.removeWaiterIfCurrent(waiterId, existing);
+                };
+                replacePendingBackgroundWait();
 
                 let currentValue;
                 try {
@@ -1713,6 +1733,9 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                     currentValue = apiDevice?.capabilitiesObj?.[capability]?.value;
 
                     if (this.waiterManager.valueMatches(currentValue, targetValue)) {
+                        // An overlapping run with the same ID may have started its background
+                        // wait while this lookup was pending; replace it so it cannot fire later.
+                        replacePendingBackgroundWait();
                         this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} - firing 'wait_until_finished' now`);
                         this.triggerCapabilityWaitFinished(waiterId, true, currentValue, 0);
                         return true;
@@ -1721,6 +1744,8 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                     this.logger.warn(`⚠️  Could not check current value, will wait for change: ${error.message}`);
                 }
 
+                // startBackgroundWaiter() replaces a background wait that an overlapping run
+                // with the same ID started while the lookup above was pending.
                 const waiterData = await this.waiterManager.startBackgroundWaiter(
                     waiterId,
                     { timeoutValue, timeoutUnit },
@@ -1733,6 +1758,9 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                 try {
                     const api = await this.ensureHomeyApi();
+                    // An overlapping run may have replaced this wait meanwhile; never
+                    // attach this run's listener to its successor.
+                    if (this.waiterManager.waiters.get(waiterData.id) !== waiterData) return true;
                     await this.waiterManager.registerCapabilityListener(waiterData.id, api);
                 } catch (error) {
                     this.waiterManager.removeWaiterIfCurrent(waiterData.id, waiterData);
@@ -2054,12 +2082,41 @@ module.exports = class BooleanToolboxApp extends Homey.App {
      * @returns {Function} Function that disarms the guard
      */
     armFlowCardWaitGuard(waiterId, waiterData, onExpire, runStartedAt = Date.now()) {
-        const elapsedMs = Math.max(0, Date.now() - runStartedAt);
+        const guardAt = runStartedAt + WaiterManager.FLOW_CARD_SAFE_WAIT_MS;
         const timer = setTimeout(() => {
-            if (this.waiterManager) this.waiterManager.removeWaiterIfCurrent(waiterId, waiterData);
+            if (this.waiterManager) {
+                // A configured timeout that is due at the guard deadline (both count from
+                // the start of the run; allow for timer jitter) wins: the run takes its
+                // normal NO path instead of the limit error.
+                const timeoutAt = waiterData.timeoutAt;
+                if (typeof timeoutAt === 'number' && timeoutAt <= guardAt + WaiterManager.FLOW_CARD_TIMEOUT_TIE_MS
+                    && this.waiterManager.expireWaiter(waiterData)) {
+                    return;
+                }
+                this.waiterManager.removeWaiterIfCurrent(waiterId, waiterData);
+            }
             onExpire();
-        }, Math.max(0, WaiterManager.FLOW_CARD_SAFE_WAIT_MS - elapsedMs));
+        }, Math.max(0, guardAt - Date.now()));
         return () => clearTimeout(timer);
+    }
+
+    /**
+     * Returns how much of an in-card wait's configured timeout is left when its
+     * waiter is created. The configured timeout counts from the start of the card
+     * run (like Homey's Flow card limit and the guard), so setup time such as a
+     * device lookup is deducted.
+     *
+     * @param {number} timeoutValue - Configured timeout value (0 = no timeout)
+     * @param {string} timeoutUnit - Configured unit (ms/s/m/h)
+     * @param {number} runStartedAt - When the card run began
+     * @returns {number|null} Remaining milliseconds (0 = already elapsed), or null for no timeout
+     */
+    getRemainingInCardTimeoutMs(timeoutValue, timeoutUnit, runStartedAt) {
+        if (!timeoutValue) return null;
+        const configuredMs = this.waiterManager.validateTimeout(
+            this.waiterManager.convertToMs(timeoutValue, timeoutUnit),
+        );
+        return Math.max(0, configuredMs - Math.max(0, Date.now() - runStartedAt));
     }
 
     /**

@@ -313,6 +313,49 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
     expect(manager.waiters.has('motion')).toBe(false);
   });
 
+  test('a second listener registration for the same waiter is dropped', async () => {
+    const instances = [];
+    const homey = { devices: { getDevice: jest.fn().mockResolvedValue({
+      makeCapabilityInstance: jest.fn(async () => {
+        const instance = { destroy: jest.fn() };
+        instances.push(instance);
+        return instance;
+      }),
+    }) } };
+    await manager.createWaiter('double', { timeoutValue: 0, timeoutUnit: 'ms' }, { flowId: 'unknown' },
+      { deviceId: 'device-1', capability: 'onoff', targetValue: 'true' });
+
+    await Promise.all([
+      manager.registerCapabilityListener('double', homey),
+      manager.registerCapabilityListener('double', homey),
+    ]);
+
+    expect(instances).toHaveLength(2);
+    expect(manager.waiters.get('double').capabilityListener.instance).toBe(instances[0]);
+    expect(instances[1].destroy).toHaveBeenCalledTimes(1);
+    manager.removeWaiter('double');
+    expect(instances[0].destroy).toHaveBeenCalledTimes(1);
+  });
+
+  test('expireWaiter completes an enabled waiter once and never touches a replaced one', async () => {
+    await manager.createWaiter('expire', { timeoutValue: 1, timeoutUnit: 'm' }, { flowId: 'unknown' });
+    const first = manager.waiters.get('expire');
+    first.resolver = jest.fn();
+    expect(first.timeoutAt).toBe(Date.now() + 60000);
+
+    await manager.createWaiter('expire', { timeoutValue: 1, timeoutUnit: 'm' }, { flowId: 'unknown' });
+    const second = manager.waiters.get('expire');
+    second.resolver = jest.fn();
+
+    expect(manager.expireWaiter(first)).toBe(false);
+    expect(manager.waiters.get('expire')).toBe(second);
+    expect(manager.expireWaiter(second)).toBe(true);
+    expect(second.resolver).toHaveBeenCalledWith(false);
+    expect(manager.waiters.has('expire')).toBe(false);
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(second.resolver).toHaveBeenCalledTimes(1);
+  });
+
   test('restarting a background waiter replaces it without calling its onFinish', async () => {
     const firstFinish = jest.fn();
     const secondFinish = jest.fn();

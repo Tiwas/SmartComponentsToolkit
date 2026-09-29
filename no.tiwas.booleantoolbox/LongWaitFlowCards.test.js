@@ -586,6 +586,101 @@ describe("Flow card wait limit (issue #46)", () => {
             await expect(listener({ waiter_id: " kettle_boil " }, { waiter_id: "kettle_boil" })).resolves.toBe(true);
             await expect(listener({ waiter_id: "kettle" }, { waiter_id: "kettle_boil" })).resolves.toBe(false);
         });
+
+        const deviceValue = (value) => ({ capabilitiesObj: { onoff: { value } } });
+
+        test("overlapping starts: a matching lookup in the second run replaces the first run's background wait", async () => {
+            let resolveSecondLookup;
+            ctx.app.getApiDevice = jest.fn()
+                .mockImplementationOnce(async () => deviceValue(false)) // run A lookup
+                .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondLookup = resolve; })) // run B lookup
+                .mockImplementation(async () => deviceValue(false)); // re-checks after listener setup
+
+            // Both runs pass the initial restart check before either lookup returns.
+            const runA = startCapabilityWait();
+            const runB = startCapabilityWait();
+
+            // Run A installs its background wait while run B's lookup is still pending.
+            await expect(runA).resolves.toBe(true);
+            expect(ctx.manager.waiters.get("kettle_boil").background).toBe(true);
+            expect(ctx.capabilityInstances).toHaveLength(1);
+
+            // Run B's lookup now sees the target value and completes immediately.
+            resolveSecondLookup(deviceValue(true));
+            await expect(runB).resolves.toBe(true);
+
+            expect(finished()).toHaveBeenCalledTimes(1);
+            expect(finished()).toHaveBeenCalledWith(
+                { matched: true, result: "MATCHED", value: "true", waited_seconds: 0 },
+                { waiter_id: "kettle_boil" },
+            );
+            expect(ctx.manager.waiters.has("kettle_boil")).toBe(false);
+            expect(ctx.capabilityInstances[0].destroy).toHaveBeenCalledTimes(1);
+
+            // Run A's wait can no longer fire MATCHED or TIMEOUT.
+            await ctx.capabilityInstances[0].listener(true);
+            await jest.advanceTimersByTimeAsync(10 * 60000);
+            expect(finished()).toHaveBeenCalledTimes(1);
+        });
+
+        test("overlapping starts: a non-matching lookup in the second run restarts the wait once", async () => {
+            let resolveSecondLookup;
+            ctx.app.getApiDevice = jest.fn()
+                .mockImplementationOnce(async () => deviceValue(false))
+                .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondLookup = resolve; }))
+                .mockImplementation(async () => deviceValue(false));
+
+            const runA = startCapabilityWait();
+            const runB = startCapabilityWait();
+            await expect(runA).resolves.toBe(true);
+            const firstWaiter = ctx.manager.waiters.get("kettle_boil");
+
+            await jest.advanceTimersByTimeAsync(60000);
+            resolveSecondLookup(deviceValue(false));
+            await expect(runB).resolves.toBe(true);
+            expect(ctx.manager.waiters.get("kettle_boil")).not.toBe(firstWaiter);
+            expect(ctx.capabilityInstances[0].destroy).toHaveBeenCalledTimes(1);
+
+            // Run A's timeout (5 min) passes silently; only run B's fires.
+            await jest.advanceTimersByTimeAsync(4 * 60000);
+            expect(finished()).not.toHaveBeenCalled();
+            await jest.advanceTimersByTimeAsync(60000);
+            expect(finished()).toHaveBeenCalledTimes(1);
+            expect(finished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: false, result: "TIMEOUT", waited_seconds: 300 }),
+                { waiter_id: "kettle_boil" },
+            );
+        });
+
+        test("overlapping starts: a replaced run never attaches its listener to the successor", async () => {
+            let resolveFirstApi;
+            const ensureHomeyApi = ctx.app.ensureHomeyApi.bind(ctx.app);
+            ctx.app.ensureHomeyApi = jest.fn()
+                .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstApi = resolve; }))
+                .mockImplementation(ensureHomeyApi);
+
+            // Run A has created its background wait and is waiting for the Homey API.
+            const runA = startCapabilityWait();
+            await flush();
+            const firstWaiter = ctx.manager.waiters.get("kettle_boil");
+            expect(firstWaiter.background).toBe(true);
+
+            // Run B restarts the wait and installs its listener first.
+            await expect(startCapabilityWait()).resolves.toBe(true);
+            const secondWaiter = ctx.manager.waiters.get("kettle_boil");
+            expect(secondWaiter).not.toBe(firstWaiter);
+
+            resolveFirstApi(ctx.app.api);
+            await expect(runA).resolves.toBe(true);
+
+            expect(ctx.capabilityInstances).toHaveLength(1);
+            expect(secondWaiter.capabilityListener.instance).toBe(ctx.capabilityInstances[0]);
+
+            await ctx.capabilityInstances[0].listener(true);
+            expect(finished()).toHaveBeenCalledTimes(1);
+            await jest.advanceTimersByTimeAsync(10 * 60000);
+            expect(finished()).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe("disabled waiters stay waiting (Codex review)", () => {
@@ -788,6 +883,106 @@ describe("Flow card wait limit (issue #46)", () => {
             expect(run.count).toBe(1);
             expect(run.error.message).toContain("Homey stops app Flow cards after 60 seconds");
             expect(ctx.manager.waiters.size).toBe(0);
+        });
+
+        function slowLookup(delayMs, value = false) {
+            ctx.app.getApiDevice = jest.fn(() => new Promise((resolve) => {
+                setTimeout(() => resolve({ capabilitiesObj: { onoff: { value } } }), delayMs);
+            }));
+        }
+
+        test("the configured timeout also counts from the run start: 2 s lookup + 54 s timeout is NO at 54 s", async () => {
+            slowLookup(2000);
+
+            const run = track(startCapabilityCondition({ timeout_value: 54, timeout_unit: "s" }));
+            await jest.advanceTimersByTimeAsync(54000 - 1);
+            expect(run.settled).toBe(false);
+
+            await jest.advanceTimersByTimeAsync(1);
+            expect(run.count).toBe(1);
+            expect(run.value).toBe(false);
+            expect(run.error).toBeUndefined();
+            expect(ctx.manager.waiters.size).toBe(0);
+
+            // The guard (55 s after the run began) never fires an error afterwards.
+            await jest.advanceTimersByTimeAsync(10000);
+            expect(run.count).toBe(1);
+            expect(run.error).toBeUndefined();
+            expect(jest.getTimerCount()).toBe(1);
+        });
+
+        test("a configured 55 s timeout wins over the guard at the same moment", async () => {
+            slowLookup(2000);
+
+            const run = track(startCapabilityCondition({ timeout_value: 55, timeout_unit: "s" }));
+            await jest.advanceTimersByTimeAsync(SAFE_WAIT_MS - 1);
+            expect(run.settled).toBe(false);
+
+            await jest.advanceTimersByTimeAsync(1);
+            expect(run.count).toBe(1);
+            expect(run.value).toBe(false);
+            expect(run.error).toBeUndefined();
+        });
+
+        test("a timeout that already elapsed during setup resolves NO right away", async () => {
+            slowLookup(3000);
+
+            const run = track(startCapabilityCondition({ timeout_value: 2, timeout_unit: "s" }));
+            await jest.advanceTimersByTimeAsync(3000);
+
+            expect(run.count).toBe(1);
+            expect(run.value).toBe(false);
+            expect(ctx.manager.waiters.size).toBe(0);
+            expect(ctx.capabilityInstances).toHaveLength(0);
+            expect(jest.getTimerCount()).toBe(1);
+        });
+
+        test("the guard lets a timeout that is due at its deadline win despite timer jitter", async () => {
+            // Simulates the waiter's own timer being scheduled a few ms after the guard.
+            await ctx.manager.createWaiter("jitter", { timeoutValue: SAFE_WAIT_MS + 10, timeoutUnit: "ms" }, { flowId: "flow-jitter" });
+            const waiter = ctx.manager.waiters.get("jitter");
+            waiter.resolver = jest.fn();
+            const onExpire = jest.fn();
+
+            ctx.app.armFlowCardWaitGuard("jitter", waiter, onExpire, Date.now());
+            await jest.advanceTimersByTimeAsync(SAFE_WAIT_MS);
+
+            expect(waiter.resolver).toHaveBeenCalledTimes(1);
+            expect(waiter.resolver).toHaveBeenCalledWith(false);
+            expect(onExpire).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.has("jitter")).toBe(false);
+        });
+
+        test("the guard still ends the run when the timeout is clearly later (e.g. extended by Modify)", async () => {
+            await ctx.manager.createWaiter("later", { timeoutValue: SAFE_WAIT_MS + 1000, timeoutUnit: "ms" }, { flowId: "flow-later" });
+            const waiter = ctx.manager.waiters.get("later");
+            waiter.resolver = jest.fn();
+            const onExpire = jest.fn();
+
+            ctx.app.armFlowCardWaitGuard("later", waiter, onExpire, Date.now());
+            await jest.advanceTimersByTimeAsync(SAFE_WAIT_MS);
+
+            expect(onExpire).toHaveBeenCalledTimes(1);
+            expect(waiter.resolver).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.has("later")).toBe(false);
+        });
+
+        test("Modify Conditional Gate still sets the timeout from now", async () => {
+            const run = track(startGateCondition({ timeout_value: 50, timeout_unit: "s" }));
+            await flush();
+            await jest.advanceTimersByTimeAsync(20000);
+
+            // 10 s from now (at 30 s), not 10 s from the run start (already past).
+            await modifyGate({ new_timeout_value: 10, new_timeout_unit: "s" });
+            await flush();
+            expect(run.settled).toBe(false);
+            await jest.advanceTimersByTimeAsync(10000 - 1);
+            expect(run.settled).toBe(false);
+
+            await jest.advanceTimersByTimeAsync(1);
+            expect(run.count).toBe(1);
+            expect(run.value).toBe(false);
+            expect(run.error).toBeUndefined();
         });
     });
 

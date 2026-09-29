@@ -16,9 +16,10 @@
 - Gate/waiter autocomplete discovery now includes the new card IDs and standard-flow triggers. The existing capability/device/waiter-ID and control-waiter autocomplete listeners are shared with the new cards.
 - Flow card hints (12 languages) mention the 60 s limit; new `errors.flow_card_wait_limit_*` locale strings (11 locales). New `conditional_gate_start` cards default to a 30 s timeout instead of 60 s.
 - Updated README, store README, Homey Community listing, project documentation, and the Conditional Gates, Waiter Gates, Flow Cards, State Capture Device and index pages, including the reporter's scenario as an Advanced Flow example and the in-memory/app-restart limitation. `docs/tools/*.html` contain no hard-coded card ID lists (Flow Doctor reads card definitions from the Homey API), so no tool changes were needed.
+- PR #47 review follow-up: overlapping `wait_until_start` runs with the same Waiter ID re-apply restart semantics after the device lookup (the immediate MATCHED path now replaces a background wait another run installed meanwhile, and a replaced run never attaches its listener to the successor). In-card configured timeouts now count from the start of the card run like the guard, so a timeout at or below 55 s always ends on the NO path (already elapsed during setup = NO right away); Modify Conditional Gate still sets timeouts from now.
 
 ### Verification
-- `npm test -- --runInBand`: 20 suites and 251 tests passed (new `LongWaitFlowCards.test.js` plus WaiterManager re-initialization, identity and background-waiter tests).
+- `npm test -- --runInBand`: 20 suites and 251 tests passed (new `LongWaitFlowCards.test.js` plus WaiterManager re-initialization, identity and background-waiter tests); after the PR #47 review fixes 20 suites and 272 tests passed.
 - `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.60 MB) and all 17 manifest assets were verified.
 
 ### Follow-ups

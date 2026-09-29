@@ -108,25 +108,38 @@ class WaiterManager {
 
     setupTimeout(waiterData) {
         if (waiterData.timeoutHandle) clearTimeout(waiterData.timeoutHandle);
+        waiterData.timeoutHandle = null;
+        // Absolute time the configured timeout is due (null = no timeout).
+        waiterData.timeoutAt = waiterData.timeoutMs > 0 ? Date.now() + waiterData.timeoutMs : null;
         if (waiterData.timeoutMs > 0) {
-            waiterData.timeoutHandle = setTimeout(() => {
-                // A replaced waiter must never resolve or remove its successor.
-                if (this.waiters.get(waiterData.id) !== waiterData) return;
-                if (!waiterData.enabled) {
-                    // Disabled waiters stay in the waiting state; enableWaiter()
-                    // completes the elapsed timeout when the waiter is re-enabled.
-                    waiterData.timedOutWhileDisabled = true;
-                    waiterData.timedOutAt = Date.now();
-                    this.logger.info(`⏸️  Waiter "${waiterData.id}" timed out while disabled - completing when re-enabled`);
-                    return;
-                }
-                this.logger.warn(`⏰ Waiter "${waiterData.id}" timed out`);
-                if (waiterData.resolver) {
-                    try { waiterData.resolver(false); } catch (e) { this.logger.error(e); }
-                }
-                this.removeWaiterIfCurrent(waiterData.id, waiterData);
-            }, waiterData.timeoutMs);
+            waiterData.timeoutHandle = setTimeout(() => this.expireWaiter(waiterData), waiterData.timeoutMs);
         }
+    }
+
+    /**
+     * Runs a waiter's timeout: resolves it as timed out (false) and removes it.
+     * Called by its own timer, and by the in-card Flow card guard when the
+     * configured timeout is due at the same moment as the guard.
+     *
+     * @returns {boolean} True when the waiter was completed as timed out
+     */
+    expireWaiter(waiterData) {
+        // A replaced waiter must never resolve or remove its successor.
+        if (this.waiters.get(waiterData.id) !== waiterData) return false;
+        if (!waiterData.enabled) {
+            // Disabled waiters stay in the waiting state; enableWaiter()
+            // completes the elapsed timeout when the waiter is re-enabled.
+            waiterData.timedOutWhileDisabled = true;
+            waiterData.timedOutAt = Date.now();
+            this.logger.info(`⏸️  Waiter "${waiterData.id}" timed out while disabled - completing when re-enabled`);
+            return false;
+        }
+        this.logger.warn(`⏰ Waiter "${waiterData.id}" timed out`);
+        if (waiterData.resolver) {
+            try { waiterData.resolver(false); } catch (e) { this.logger.error(e); }
+        }
+        this.removeWaiterIfCurrent(waiterData.id, waiterData);
+        return true;
     }
 
     enableWaiter(idPattern, enabled) {
@@ -294,7 +307,9 @@ class WaiterManager {
                 waiter.deviceConfig.capability,
                 listener,
             );
-            if (this.waiters.get(waiterId) !== waiter) {
+            // Drop the instance if the waiter was removed/replaced meanwhile, or if an
+            // overlapping registration for the same waiter object already won.
+            if (this.waiters.get(waiterId) !== waiter || waiter.capabilityListener) {
                 try { instance?.destroy(); } catch (e) {}
                 return;
             }
@@ -455,5 +470,8 @@ WaiterManager.instance = null;
 // Homey stops every app Flow card run listener after ~60 seconds. In-card
 // waits are ended just before that; longer waits use background waiters.
 WaiterManager.FLOW_CARD_SAFE_WAIT_MS = 55000;
+// Timer jitter allowed when an in-card wait's own timeout is due at the same
+// moment as the guard: the timeout (NO path) wins over the limit error.
+WaiterManager.FLOW_CARD_TIMEOUT_TIE_MS = 50;
 WaiterManager.BACKGROUND_FLOW_ID = 'background';
 module.exports = WaiterManager;

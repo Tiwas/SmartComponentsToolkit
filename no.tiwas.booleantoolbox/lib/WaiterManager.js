@@ -112,6 +112,14 @@ class WaiterManager {
             waiterData.timeoutHandle = setTimeout(() => {
                 // A replaced waiter must never resolve or remove its successor.
                 if (this.waiters.get(waiterData.id) !== waiterData) return;
+                if (!waiterData.enabled) {
+                    // Disabled waiters stay in the waiting state; enableWaiter()
+                    // completes the elapsed timeout when the waiter is re-enabled.
+                    waiterData.timedOutWhileDisabled = true;
+                    waiterData.timedOutAt = Date.now();
+                    this.logger.info(`⏸️  Waiter "${waiterData.id}" timed out while disabled - completing when re-enabled`);
+                    return;
+                }
                 this.logger.warn(`⏰ Waiter "${waiterData.id}" timed out`);
                 if (waiterData.resolver) {
                     try { waiterData.resolver(false); } catch (e) { this.logger.error(e); }
@@ -124,7 +132,68 @@ class WaiterManager {
     enableWaiter(idPattern, enabled) {
         const matches = this.getWaitersByPattern(idPattern);
         for (const { data } of matches) data.enabled = enabled;
+        if (enabled) {
+            for (const { id, data } of matches) this.completeReEnabledWaiter(id, data);
+        }
         return matches.length;
+    }
+
+    /**
+     * Completes a waiter that was re-enabled while its condition is already
+     * met: the capability's last known value matches, or the gate is in the
+     * target state. Otherwise a timeout that elapsed while it was disabled is
+     * completed now. A waiter with neither keeps waiting.
+     */
+    completeReEnabledWaiter(id, waiterData) {
+        if (this.waiters.get(id) !== waiterData) return false;
+
+        if (waiterData.deviceConfig && this.settleCapabilityWaiterIfMatches(waiterData, waiterData.lastValue)) {
+            return true;
+        }
+
+        const gateName = waiterData.virtualGateConfig?.gateName;
+        if (gateName && this.virtualGates.has(gateName)) {
+            const gateState = this.virtualGates.get(gateName).state;
+            const targetState = waiterData.virtualGateConfig.targetState || 'GO';
+            if (gateState === targetState) {
+                if (waiterData.resolver) {
+                    try {
+                        waiterData.resolver({ gate_state: gateState === 'GO', gate_state_text: gateState });
+                    } catch (e) { this.logger.error(e); }
+                }
+                this.removeWaiterIfCurrent(id, waiterData);
+                return true;
+            }
+        }
+
+        if (waiterData.timedOutWhileDisabled) {
+            this.logger.warn(`⏰ Waiter "${id}" timed out (timeout elapsed while disabled)`);
+            if (waiterData.resolver) {
+                try { waiterData.resolver(false); } catch (e) { this.logger.error(e); }
+            }
+            this.removeWaiterIfCurrent(id, waiterData);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Completes an enabled capability waiter when the given value matches its
+     * target. Used by the capability listener and by out-of-band reads (the
+     * re-check after the listener is installed, and re-enabling). Values seen
+     * while the waiter is disabled are only remembered; it keeps waiting.
+     *
+     * @returns {boolean} True when the waiter was completed
+     */
+    settleCapabilityWaiterIfMatches(waiterData, value) {
+        if (!waiterData?.deviceConfig || this.waiters.get(waiterData.id) !== waiterData) return false;
+        waiterData.lastValue = value;
+        if (!waiterData.enabled || !this.valueMatches(value, waiterData.deviceConfig.targetValue)) return false;
+        if (waiterData.resolver) {
+            try { waiterData.resolver(true); } catch (e) { this.logger.error(e); }
+        }
+        this.removeWaiterIfCurrent(waiterData.id, waiterData);
+        return true;
     }
 
     removeWaiter(idPattern) {
@@ -217,13 +286,9 @@ class WaiterManager {
         try {
             const device = await homey.devices.getDevice({ id: waiter.deviceConfig.deviceId });
             const listener = async (value) => {
-                // Ignore events for a waiter that was replaced or already finished.
-                if (this.waiters.get(waiterId) !== waiter) return;
-                waiter.lastValue = value;
-                if (this.valueMatches(value, waiter.deviceConfig.targetValue)) {
-                    if (waiter.resolver && waiter.enabled) waiter.resolver(true);
-                    this.removeWaiterIfCurrent(waiterId, waiter);
-                }
+                // Events for a waiter that was replaced or already finished are
+                // ignored; a disabled waiter only remembers the value and keeps waiting.
+                this.settleCapabilityWaiterIfMatches(waiter, value);
             };
             const instance = await device.makeCapabilityInstance(
                 waiter.deviceConfig.capability,
@@ -321,6 +386,9 @@ class WaiterManager {
             waiter.timeoutMs = updates.timeoutMs;
             if (waiter.timeoutMs === 0 && !wasIndefinite) waiter.indefiniteSince = Date.now();
             if (waiter.timeoutMs !== 0) waiter.indefiniteSince = null;
+            // A new timeout replaces one that elapsed while the waiter was disabled.
+            waiter.timedOutWhileDisabled = false;
+            waiter.timedOutAt = null;
             this.setupTimeout(waiter);
             this.logger.info(`⏱️ Updated timeout for waiter "${id}" to ${waiter.timeoutMs}ms`);
         }
@@ -357,10 +425,16 @@ class WaiterManager {
         let reaped = 0;
         for (const [id, waiter] of this.waiters.entries()) {
             const indefiniteSince = waiter.indefiniteSince ?? waiter.created;
-            if (waiter.timeoutMs !== 0 || now - indefiniteSince < this.MAX_ORPHAN_AGE_MS) continue;
+            const isOrphanIndefinite = waiter.timeoutMs === 0 && now - indefiniteSince >= this.MAX_ORPHAN_AGE_MS;
+            // A waiter whose timeout elapsed while disabled waits for re-enabling;
+            // reap it if nobody re-enables it within the orphan age.
+            const isOrphanDisabled = waiter.timedOutWhileDisabled === true
+                && now - (waiter.timedOutAt ?? now) >= this.MAX_ORPHAN_AGE_MS;
+            if (!isOrphanIndefinite && !isOrphanDisabled) continue;
 
-            this.logger.warn(`🧹 Reaping orphan waiter "${id}" after ${this.MAX_ORPHAN_AGE_MS}ms without a timeout`);
-            if (waiter.resolver) {
+            this.logger.warn(`🧹 Reaping orphan waiter "${id}" after ${this.MAX_ORPHAN_AGE_MS}ms without completing`);
+            // Disabled waiters never trigger, not even when they are reaped.
+            if (waiter.resolver && waiter.enabled) {
                 try { waiter.resolver(false); } catch (error) { this.logger.error(error); }
             }
             this.removeWaiterById(id);

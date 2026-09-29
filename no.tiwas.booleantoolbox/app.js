@@ -1170,6 +1170,8 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             waitUntilCard.registerArgumentAutocompleteListener('waiter_id', waiterIdAutocomplete);
 
             waitUntilCard.registerRunListener(async (args, state) => {
+                // Homey's ~60 s Flow card limit counts from here, including the device lookup below.
+                const runStartedAt = Date.now();
                 try {
                     // Extract waiter_id from autocomplete object or string
                     let waiterId = args.waiter_id?.id || args.waiter_id?.name || args.waiter_id;
@@ -1266,7 +1268,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     disarmGuard = this.armFlowCardWaitGuard(actualWaiterId, waiterData, () => {
                                         this.logger.warn(`⏱️  Waiter ${actualWaiterId} still pending after ${WaiterManager.FLOW_CARD_SAFE_WAIT_MS}ms - ending card before Homey's Flow card limit`);
                                         settle(reject, new Error(this.getFlowCardWaitLimitMessage('capability')));
-                                    });
+                                    }, runStartedAt);
                                 }
 
                                 // NEW: Register capability listener (pass Homey API, not SDK)
@@ -1274,6 +1276,10 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     actualWaiterId,
                                     this.api
                                 );
+
+                                // Close the gap between the value check above and the listener
+                                // installation: a change in between produced no event.
+                                if (waiterData && await this.recheckCapabilityWaiter(waiterData)) return;
 
                                 // Promise stays open until resolver is called by capability listener or timeout
                                 // DO NOT call resolve/reject here - let waiter handle it
@@ -1325,6 +1331,8 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             gateCard.registerArgumentAutocompleteListener('gate_name', gateAutocomplete);
 
             gateCard.registerRunListener(async (args, state) => {
+                // Homey's ~60 s Flow card limit counts from here.
+                const runStartedAt = Date.now();
                 this.logger.debug(`🎯 conditional_gate_start: raw args.gate_name = ${JSON.stringify(args.gate_name)}`);
                 this.logger.debug(`🎯 conditional_gate_start: raw args.default_state = ${JSON.stringify(args.default_state)}`);
 
@@ -1393,7 +1401,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                 disarmGuard = this.armFlowCardWaitGuard(actualId, waiterData, () => {
                                     this.logger.warn(`⏱️  conditional_gate_start: gate "${gateName}" still NO GO after ${WaiterManager.FLOW_CARD_SAFE_WAIT_MS}ms - ending card before Homey's Flow card limit`);
                                     settle(reject, new Error(this.getFlowCardWaitLimitMessage('gate')));
-                                });
+                                }, runStartedAt);
                             }
                         } catch (err) { settle(reject, err); }
                     })();
@@ -1731,6 +1739,10 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                     throw error;
                 }
 
+                // Close the gap between the value check above and the listener
+                // installation: a change in between produced no event.
+                if (await this.recheckCapabilityWaiter(waiterData)) return true;
+
                 this.logger.info(`🕓 Background waiter ${waiterData.id} listening for ${device.name}.${capability} = ${targetValue} (timeout: ${timeoutValue}${timeoutUnit})`);
                 return true;
             });
@@ -2037,14 +2049,42 @@ module.exports = class BooleanToolboxApp extends Homey.App {
      * @param {string} waiterId - ID of the waiter created by this card run
      * @param {Object} waiterData - The waiter object created by this card run
      * @param {Function} onExpire - Called when the guard fires (should reject the run)
+     * @param {number} [runStartedAt] - When the card run began; setup time before the
+     *   waiter existed counts against Homey's limit too
      * @returns {Function} Function that disarms the guard
      */
-    armFlowCardWaitGuard(waiterId, waiterData, onExpire) {
+    armFlowCardWaitGuard(waiterId, waiterData, onExpire, runStartedAt = Date.now()) {
+        const elapsedMs = Math.max(0, Date.now() - runStartedAt);
         const timer = setTimeout(() => {
             if (this.waiterManager) this.waiterManager.removeWaiterIfCurrent(waiterId, waiterData);
             onExpire();
-        }, WaiterManager.FLOW_CARD_SAFE_WAIT_MS);
+        }, Math.max(0, WaiterManager.FLOW_CARD_SAFE_WAIT_MS - elapsedMs));
         return () => clearTimeout(timer);
+    }
+
+    /**
+     * Re-reads a capability waiter's value after its listener is installed. A change
+     * between the initial value check and the listener installation produces no
+     * event, so without this the waiter would miss it and time out.
+     *
+     * @param {Object} waiterData - The capability waiter
+     * @returns {Promise<boolean>} True when the waiter was completed by this read
+     */
+    async recheckCapabilityWaiter(waiterData) {
+        const deviceConfig = waiterData?.deviceConfig;
+        if (!deviceConfig || this.waiterManager?.waiters.get(waiterData.id) !== waiterData) return false;
+        try {
+            const apiDevice = await this.getApiDevice(deviceConfig.deviceId, { maxAgeMs: 0 });
+            const value = apiDevice?.capabilitiesObj?.[deviceConfig.capability]?.value;
+            const completed = this.waiterManager.settleCapabilityWaiterIfMatches(waiterData, value);
+            if (completed) {
+                this.logger.info(`✅ Waiter ${waiterData.id} matched on re-check after listener setup (value: ${value})`);
+            }
+            return completed;
+        } catch (error) {
+            this.logger.warn(`⚠️  Could not re-check waiter ${waiterData.id} after listener setup: ${error.message}`);
+            return false;
+        }
     }
 
     /**

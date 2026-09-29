@@ -588,6 +588,209 @@ describe("Flow card wait limit (issue #46)", () => {
         });
     });
 
+    describe("disabled waiters stay waiting (Codex review)", () => {
+        const control = (waiterId, action) =>
+            ctx.action("control_waiter").runListener({ waiter_id: waiterId, action }, {});
+        const gateFinished = () => ctx.trigger("conditional_gate_wait_finished").trigger;
+        const capabilityFinished = () => ctx.trigger("wait_until_finished").trigger;
+
+        function startGateWait() {
+            return ctx.action("conditional_gate_start_wait").runListener({
+                gate_name: GATE,
+                default_state: "NO_GO",
+                timeout_value: 2,
+                timeout_unit: "m",
+            }, {});
+        }
+
+        function startCapabilityWait() {
+            return ctx.action("wait_until_start").runListener({
+                device: DEVICE,
+                capability: { id: "onoff", name: "onoff" },
+                target_value: "true",
+                timeout_value: 2,
+                timeout_unit: "m",
+                waiter_id: "kettle_boil",
+            }, {});
+        }
+
+        test("a disabled background gate wait does not fire TIMEOUT until it is re-enabled", async () => {
+            await startGateWait();
+            await control("gate_Razor_background", "disable");
+
+            await jest.advanceTimersByTimeAsync(3 * 60 * 1000);
+            expect(gateFinished()).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.has("gate_Razor_background")).toBe(true);
+
+            await control("gate_Razor_background", "enable");
+            expect(gateFinished()).toHaveBeenCalledTimes(1);
+            expect(gateFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ opened: false, result: "TIMEOUT" }),
+                { gate_name: "Razor" },
+            );
+            expect(ctx.manager.waiters.size).toBe(0);
+        });
+
+        test("a gate that opens while the wait is disabled completes as GO on re-enable", async () => {
+            await startGateWait();
+            await control("gate_Razor_background", "disable");
+
+            await ctx.action("conditional_gate_modify").runListener({
+                gate_name: GATE, new_state: "GO", new_timeout_value: -1, new_timeout_unit: "s",
+            }, {});
+            expect(gateFinished()).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.has("gate_Razor_background")).toBe(true);
+
+            await control("gate_Razor_background", "enable");
+            expect(gateFinished()).toHaveBeenCalledTimes(1);
+            expect(gateFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ opened: true, result: "GO" }),
+                { gate_name: "Razor" },
+            );
+        });
+
+        test("a matching value while disabled keeps the capability waiter so it can be re-enabled", async () => {
+            await startCapabilityWait();
+            await control("kettle_boil", "disable");
+
+            await ctx.capabilityInstances[0].listener(true);
+            expect(capabilityFinished()).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.has("kettle_boil")).toBe(true);
+            expect(ctx.capabilityInstances[0].destroy).not.toHaveBeenCalled();
+
+            await control("kettle_boil", "enable");
+            expect(capabilityFinished()).toHaveBeenCalledTimes(1);
+            expect(capabilityFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: true, result: "MATCHED", value: "true" }),
+                { waiter_id: "kettle_boil" },
+            );
+            expect(ctx.capabilityInstances[0].destroy).toHaveBeenCalledTimes(1);
+        });
+
+        test("re-enabling a capability waiter whose value went back keeps it waiting", async () => {
+            await startCapabilityWait();
+            await control("kettle_boil", "disable");
+
+            await ctx.capabilityInstances[0].listener(true);
+            await ctx.capabilityInstances[0].listener(false);
+            await control("kettle_boil", "enable");
+
+            expect(capabilityFinished()).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.has("kettle_boil")).toBe(true);
+
+            await ctx.capabilityInstances[0].listener(true);
+            expect(capabilityFinished()).toHaveBeenCalledTimes(1);
+        });
+
+        test("a new timeout from Modify Conditional Gate replaces one that elapsed while disabled", async () => {
+            await startGateWait();
+            await control("gate_Razor_background", "disable");
+            await jest.advanceTimersByTimeAsync(3 * 60 * 1000);
+
+            await ctx.action("conditional_gate_modify").runListener({
+                gate_name: GATE, new_state: "NO_CHANGE", new_timeout_value: 1, new_timeout_unit: "m",
+            }, {});
+            await control("gate_Razor_background", "enable");
+            expect(gateFinished()).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(60 * 1000);
+            expect(gateFinished()).toHaveBeenCalledTimes(1);
+            expect(gateFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ opened: false, result: "TIMEOUT" }),
+                { gate_name: "Razor" },
+            );
+        });
+
+        test("a disabled waiter whose timeout elapsed is reaped silently after the orphan age", async () => {
+            await startGateWait();
+            await control("gate_Razor_background", "disable");
+
+            await jest.advanceTimersByTimeAsync(ctx.manager.MAX_ORPHAN_AGE_MS + 3 * 60 * 1000);
+            expect(ctx.manager.waiters.size).toBe(0);
+            expect(gateFinished()).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("value re-check after the listener is installed (Codex review)", () => {
+        function changeValueDuringListenerSetup(value) {
+            const apiDevice = { makeCapabilityInstance: null };
+            apiDevice.makeCapabilityInstance = jest.fn(async (capability, listener) => {
+                // The device reaches the target between the first read and the
+                // subscription, so no change event is ever delivered.
+                ctx.capabilityValues.onoff = value;
+                const instance = { capability, listener, destroy: jest.fn() };
+                ctx.capabilityInstances.push(instance);
+                return instance;
+            });
+            ctx.app.api.devices.getDevice.mockResolvedValueOnce(apiDevice);
+        }
+
+        test("background capability wait fires MATCHED when the value changed during setup", async () => {
+            changeValueDuringListenerSetup(true);
+
+            await expect(ctx.action("wait_until_start").runListener({
+                device: DEVICE,
+                capability: { id: "onoff", name: "onoff" },
+                target_value: "true",
+                timeout_value: 5,
+                timeout_unit: "m",
+                waiter_id: "kettle_boil",
+            }, {})).resolves.toBe(true);
+
+            const finished = ctx.trigger("wait_until_finished").trigger;
+            expect(finished).toHaveBeenCalledTimes(1);
+            expect(finished).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: true, result: "MATCHED", value: "true" }),
+                { waiter_id: "kettle_boil" },
+            );
+            expect(ctx.manager.waiters.size).toBe(0);
+            expect(ctx.capabilityInstances[0].destroy).toHaveBeenCalledTimes(1);
+        });
+
+        test("in-card capability wait resolves YES when the value changed during setup", async () => {
+            changeValueDuringListenerSetup(true);
+
+            const run = track(startCapabilityCondition());
+            await flush();
+
+            expect(run.count).toBe(1);
+            expect(run.value).toBe(true);
+            expect(ctx.manager.waiters.size).toBe(0);
+            expect(jest.getTimerCount()).toBe(1);
+        });
+
+        test("no re-check completion when the value is still different", async () => {
+            const run = track(startCapabilityCondition({ timeout_value: 30, timeout_unit: "s" }));
+            await flush();
+
+            expect(run.settled).toBe(false);
+            expect(ctx.manager.waiters.has("Wait_OSB_Motion")).toBe(true);
+        });
+    });
+
+    describe("guard counts from the start of the card run (Codex review)", () => {
+        test("a slow device lookup is subtracted from the 55 s guard", async () => {
+            ctx.app.getApiDevice.mockImplementationOnce(() => new Promise((resolve) => {
+                setTimeout(() => resolve({ capabilitiesObj: { onoff: { value: false } } }), 10000);
+            }));
+
+            const run = track(startCapabilityCondition());
+            await jest.advanceTimersByTimeAsync(10000);
+            await flush();
+            expect(ctx.manager.waiters.has("Wait_OSB_Motion")).toBe(true);
+
+            // 10 s lookup + 44.999 s waiting: still inside the budget.
+            await jest.advanceTimersByTimeAsync(SAFE_WAIT_MS - 10000 - 1);
+            expect(run.settled).toBe(false);
+
+            // Exactly 55 s after the run began, not 55 s after the waiter was created.
+            await jest.advanceTimersByTimeAsync(1);
+            expect(run.count).toBe(1);
+            expect(run.error.message).toContain("Homey stops app Flow cards after 60 seconds");
+            expect(ctx.manager.waiters.size).toBe(0);
+        });
+    });
+
     describe("gate and waiter discovery", () => {
         beforeEach(() => {
             ctx.app.api.flow = {

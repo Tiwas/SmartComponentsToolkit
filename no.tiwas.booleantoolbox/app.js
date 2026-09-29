@@ -156,6 +156,20 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
         }
     };
 
+    // Per URI: settles once a released entry's in-flight subscription has
+    // been created and unsubscribed (or has failed). A new entry for the same
+    // URI subscribes only afterwards, because the server "unsubscribe" is
+    // URI-wide and would otherwise remove the newer subscription.
+    const pendingReleases = new Map();
+
+    const trackPendingRelease = (uri, pending) => {
+        const tracked = pending.then(() => {}, () => {});
+        pendingReleases.set(uri, tracked);
+        tracked.then(() => {
+            if (pendingReleases.get(uri) === tracked) pendingReleases.delete(uri);
+        });
+    };
+
     // An entry stays registered for as long as it has consumers, also when
     // its server subscription failed, so every unsubscribe handle keeps
     // releasing the entry it was created for.
@@ -166,7 +180,11 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
         clearRetry(entry);
         const subscription = entry.subscription;
         entry.subscription = null;
-        if (subscription) unsubscribeWire(subscription);
+        if (subscription) {
+            unsubscribeWire(subscription);
+        } else if (entry.connecting) {
+            trackPendingRelease(entry.uri, entry.ready.then(unsubscribeWire, () => {}));
+        }
     };
 
     // scheduleRetry and connectEntry call each other; both only run after
@@ -199,16 +217,21 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
         if (previous) unsubscribeWire(previous);
 
         entry.connecting = true;
-        const ready = subscribeUri(entry.uri, entry.wireHandlers);
+        const pendingRelease = pendingReleases.get(entry.uri);
+        const ready = pendingRelease
+            ? pendingRelease.then(() => {
+                if (entry.released) {
+                    throw new Error(`Subscription to ${entry.uri} was released before it was created.`);
+                }
+                return subscribeUri(entry.uri, entry.wireHandlers);
+            })
+            : subscribeUri(entry.uri, entry.wireHandlers);
         entry.ready = ready;
         ready.then((subscription) => {
             if (entry.ready !== ready) return;
             entry.connecting = false;
-            if (entry.released) {
-                // A newer entry for the URI owns the server subscription.
-                if (!entries.has(entry.uri)) unsubscribeWire(subscription);
-                return;
-            }
+            // A released entry's subscription is unsubscribed by release().
+            if (entry.released) return;
             const recovered = entry.hasConnected;
             entry.subscription = subscription;
             entry.hasConnected = true;

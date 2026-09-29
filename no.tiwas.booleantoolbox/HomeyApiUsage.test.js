@@ -25,6 +25,8 @@ Device.ID = "device";
 function createRealtimeApi() {
     const wire = [];
     const failures = { subscribe: 0 };
+    // Server-side room membership of this socket: "unsubscribe" is URI-wide.
+    const serverSubscriptions = new Set();
     const homeySocket = new Emitter();
     homeySocket.connected = true;
     homeySocket.emit = function emit(event, ...args) {
@@ -32,6 +34,8 @@ function createRealtimeApi() {
             const failed = event === "subscribe" && failures.subscribe > 0;
             if (failed) failures.subscribe -= 1;
             wire.push(`${failed ? "failed-" : ""}${event}:${args[0]}`);
+            if (event === "unsubscribe") serverSubscriptions.delete(args[0]);
+            if (event === "subscribe" && !failed) serverSubscriptions.add(args[0]);
             const acknowledge = args[1];
             if (typeof acknowledge === "function") {
                 setImmediate(() => acknowledge(failed ? new Error("subscribe failed") : null));
@@ -62,7 +66,10 @@ function createRealtimeApi() {
         },
     });
     const pushCapability = (id, value, transactionTime = Date.now()) => {
-        Emitter.prototype.emit.call(homeySocket, `homey:device:${id}`, "capability", {
+        const uri = `homey:device:${id}`;
+        // Homey only delivers events for URIs this socket is subscribed to.
+        if (!serverSubscriptions.has(uri)) return;
+        Emitter.prototype.emit.call(homeySocket, uri, "capability", {
             capabilityId: "alarm_motion",
             value,
             transactionId: `t-${transactionTime}-${Math.random()}`,
@@ -70,7 +77,7 @@ function createRealtimeApi() {
         });
     };
 
-    return { api, wire, failures, homeySocket, newDevice, pushCapability };
+    return { api, wire, failures, serverSubscriptions, homeySocket, newDevice, pushCapability };
 }
 
 async function settle() {
@@ -355,6 +362,121 @@ describe("shared Homey API realtime subscriptions", () => {
         expect(realtime.homeySocket.listeners(uri)).toHaveLength(1);
         expect(realtime.api.__socket.listeners("reconnect")).toHaveLength(1);
         watcherInstance.destroy();
+    });
+
+    function liveSubscriptionState(realtime, uri) {
+        return {
+            server: realtime.serverSubscriptions.has(uri),
+            uriListeners: realtime.homeySocket.listeners(uri).length,
+            disconnectListeners: realtime.api.__socket.listeners("disconnect").length,
+            reconnectListeners: realtime.api.__socket.listeners("reconnect").length,
+        };
+    }
+
+    test("a new subscription waits for a released pending subscription and replaces it", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const uri = "homey:device:sensor";
+        const first = await realtime.api.subscribe(uri, { onEvent: jest.fn() });
+
+        // The replacement subscription is still pending when its last
+        // consumer leaves, and a new consumer arrives right away.
+        const pendingResubscribe = realtime.api.__sctResubscribe(uri);
+        first.unsubscribe();
+        const stateAtConnect = [];
+        const events = jest.fn();
+        const second = realtime.api.subscribe(uri, {
+            onConnect: () => stateAtConnect.push(liveSubscriptionState(realtime, uri)),
+            onEvent: events,
+        });
+        await pendingResubscribe;
+        const handle = await second;
+        await settle();
+        realtime.pushCapability("sensor", true);
+
+        expect(realtime.wire).toEqual([
+            `subscribe:${uri}`,
+            `unsubscribe:${uri}`,
+            `subscribe:${uri}`,
+            `unsubscribe:${uri}`,
+            `subscribe:${uri}`,
+        ]);
+        expect(stateAtConnect).toEqual([{
+            server: true,
+            uriListeners: 1,
+            disconnectListeners: 1,
+            reconnectListeners: 1,
+        }]);
+        expect(liveSubscriptionState(realtime, uri)).toEqual(stateAtConnect[0]);
+        expect(events).toHaveBeenCalledTimes(1);
+
+        handle.unsubscribe();
+        expect(liveSubscriptionState(realtime, uri)).toEqual({
+            server: false,
+            uriListeners: 0,
+            disconnectListeners: 0,
+            reconnectListeners: 0,
+        });
+    });
+
+    test("repeated release and resubscribe cycles leave exactly one live subscription", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const uri = "homey:device:sensor";
+        const listeners = Array.from({ length: 6 }, () => jest.fn());
+        let current = await realtime.api.subscribe(uri, { onEvent: listeners[0] });
+
+        for (let cycle = 1; cycle < listeners.length; cycle += 1) {
+            realtime.api.__sctResubscribe(uri).catch(() => {});
+            current.unsubscribe();
+            current = await realtime.api.subscribe(uri, { onEvent: listeners[cycle] });
+        }
+        await settle();
+        realtime.pushCapability("sensor", true);
+
+        expect(liveSubscriptionState(realtime, uri)).toEqual({
+            server: true,
+            uriListeners: 1,
+            disconnectListeners: 1,
+            reconnectListeners: 1,
+        });
+        expect(realtime.api.__sctSharedSubscriptions.size).toBe(1);
+        listeners.slice(0, -1).forEach((listener) => expect(listener).not.toHaveBeenCalled());
+        expect(listeners.at(-1)).toHaveBeenCalledTimes(1);
+
+        current.unsubscribe();
+        expect(liveSubscriptionState(realtime, uri).uriListeners).toBe(0);
+    });
+
+    test("a rejected pending subscription does not block the next subscription", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const uri = "homey:device:sensor";
+        const first = await realtime.api.subscribe(uri, { onEvent: jest.fn() });
+
+        realtime.failures.subscribe = 1;
+        const pendingResubscribe = realtime.api.__sctResubscribe(uri);
+        first.unsubscribe();
+        const events = jest.fn();
+        const handle = await realtime.api.subscribe(uri, { onEvent: events });
+        await expect(pendingResubscribe).rejects.toThrow("subscribe failed");
+        await settle();
+        realtime.pushCapability("sensor", true);
+
+        expect(realtime.wire).toEqual([
+            `subscribe:${uri}`,
+            `unsubscribe:${uri}`,
+            `failed-subscribe:${uri}`,
+            `subscribe:${uri}`,
+        ]);
+        expect(liveSubscriptionState(realtime, uri)).toEqual({
+            server: true,
+            uriListeners: 1,
+            disconnectListeners: 1,
+            reconnectListeners: 1,
+        });
+        expect(events).toHaveBeenCalledTimes(1);
+        handle.unsubscribe();
     });
 
     test("leaves homey-api versions with their own subscription registry untouched", () => {

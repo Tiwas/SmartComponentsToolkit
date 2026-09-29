@@ -41,6 +41,7 @@
 - A live `homey app run --remote` on the configured Homey reported one pre-existing `unhandledRejection` and one `uncaughtException` handler, so the Homey SDK installs its own handlers.
 - `npm test -- --runInBand`: 21 suites and 246 tests passed.
 - Second review round: the health refresh now reads the linked value again after the replacement subscription is active and replays that value, because a change during the unsubscribe/subscribe window produces no event. A failed (re)subscription no longer drops its entry: consumers and their unsubscribe handles are kept, the entry is marked for resubscription and restored on the next subscribe for the URI, on the next health-refresh resubscribe, or by a bounded backoff retry (5 s doubling to 5 min); the socket-reconnect failure path behaves the same. `onUninit` now awaits the clean-shutdown marker write and logs a failure instead of throwing.
+- Third review round: shared subscriptions are serialized per URI. When the last consumer leaves while a subscription is still being created, that subscription is unsubscribed as soon as it exists, and a new subscription for the same URI is only created afterwards (also when the pending one fails), so repeated release/recreate cycles leave exactly one live subscription and no leftover URI or socket reconnect/disconnect listeners.
 
 ### Follow-ups
 - Consider upgrading homey-api to 3.20.x after live testing; the shared-subscription wrapper then becomes inactive automatically.

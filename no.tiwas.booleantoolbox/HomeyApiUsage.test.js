@@ -161,6 +161,41 @@ describe("shared Homey API realtime subscriptions", () => {
         expect(app.logger.error).toHaveBeenCalledWith("Realtime capability listener failed", failure);
     });
 
+    test("a consumer whose onConnect throws is removed instead of leaking", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const failure = new Error("connect handler failed");
+        const failingConsumerEvents = jest.fn();
+        const failingHandlers = () => ({
+            onConnect: () => {
+                throw failure;
+            },
+            onEvent: failingConsumerEvents,
+        });
+
+        await expect(realtime.api.subscribe("homey:device:alone", failingHandlers())).rejects.toBe(failure);
+        expect(realtime.api.__sctSharedSubscriptions.has("homey:device:alone")).toBe(false);
+        expect(realtime.wire).toEqual([
+            "subscribe:homey:device:alone",
+            "unsubscribe:homey:device:alone",
+        ]);
+
+        const healthyConsumerEvents = jest.fn();
+        const healthy = await realtime.api.subscribe("homey:device:shared", { onEvent: healthyConsumerEvents });
+        await expect(realtime.api.subscribe("homey:device:shared", failingHandlers())).rejects.toBe(failure);
+        realtime.pushCapability("shared", true);
+
+        expect(healthyConsumerEvents).toHaveBeenCalledTimes(1);
+        expect(failingConsumerEvents).not.toHaveBeenCalled();
+        expect(realtime.api.__sctSharedSubscriptions.get("homey:device:shared").consumers.size).toBe(1);
+        expect(realtime.wire.filter((entry) => entry.endsWith(":homey:device:shared"))).toEqual([
+            "subscribe:homey:device:shared",
+        ]);
+
+        healthy.unsubscribe();
+        expect(realtime.api.__sctSharedSubscriptions.has("homey:device:shared")).toBe(false);
+    });
+
     test("resubscribing replaces the server subscription and keeps every consumer", async () => {
         const realtime = createRealtimeApi();
         configure(realtime.api);

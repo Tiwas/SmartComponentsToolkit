@@ -34,6 +34,13 @@
 - `npm test -- --runInBand`: 21 suites and 243 tests passed.
 - `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.55 MB) and all 17 manifest assets were verified. The generated manifest no longer contains `formula_result_is_ld`.
 
+### Review follow-up (PR #48)
+- Restored the general redaction for long hyphenated values; only this app's exact driver ids (from the bundled `drivers/` directory, plus ids supplied by the app) stay readable, and only in the driver list and code-derived event fields (category, stack, source).
+- A shared-subscription consumer whose `onConnect` throws is now removed (and the server subscription released when it was the last consumer) before the error is rethrown.
+- The Logic Device health refresh re-checks for a newer realtime event after recreating the subscription, so an event received during the resubscribe is not overwritten by the older snapshot.
+- A live `homey app run --remote` on the configured Homey reported one pre-existing `unhandledRejection` and one `uncaughtException` handler, so the Homey SDK installs its own handlers.
+- `npm test -- --runInBand`: 21 suites and 246 tests passed.
+
 ### Follow-ups
 - Consider upgrading homey-api to 3.20.x after live testing; the shared-subscription wrapper then becomes inactive automatically.
 - Consider not awaiting the startup device registry refresh and reusing the listener fetch for initial Logic Device values to shorten startup.

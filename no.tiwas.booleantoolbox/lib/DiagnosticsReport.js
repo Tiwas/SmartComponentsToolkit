@@ -1,8 +1,14 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 const DEFAULT_MAX_REPORT_LENGTH = 3600;
 const DEFAULT_MAX_EVENTS = 12;
 const GITHUB_NEW_ISSUE_URL = "https://github.com/Tiwas/SmartComponentsToolkit/issues/new";
+const APP_DRIVERS_DIRECTORY = path.join(__dirname, "..", "drivers");
+
+let appDriverIds = null;
 
 function isFiniteMetric(value) {
     return value !== null
@@ -12,18 +18,35 @@ function isFiniteMetric(value) {
 }
 
 /**
- * Lower-case words joined by hyphens, such as the driver id
- * "circadian-light-group-collection", are code identifiers rather than
- * secrets. They are kept readable even when they reach the long-token length.
+ * Returns the ids of this app's drivers from the bundled drivers directory.
+ * Only these exact ids may stay readable in code-derived report fields.
  *
- * @param {string} value Candidate token
- * @returns {boolean} True when the token is a readable identifier
+ * @returns {string[]} Driver ids, or an empty list when unavailable
  */
-function isReadableIdentifier(value) {
-    return /^[a-z]+(?:-[a-z]+)+$/.test(value);
+function getAppDriverIds() {
+    if (appDriverIds) return appDriverIds;
+    try {
+        appDriverIds = fs.readdirSync(APP_DRIVERS_DIRECTORY, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory() && /^[A-Za-z0-9_-]{1,80}$/.test(entry.name))
+            .map((entry) => entry.name);
+    } catch (error) {
+        appDriverIds = [];
+    }
+    return appDriverIds;
 }
 
-function redactDiagnosticText(value) {
+/**
+ * Redacts identifiers and secrets from diagnostic text.
+ *
+ * @param {unknown} value Text to redact
+ * @param {Object} [options]
+ * @param {Iterable<string>} [options.readableIdentifiers] Exact code
+ *   identifiers (this app's driver ids) that stay readable. Only
+ *   code-derived fields pass them; free text is always fully redacted.
+ * @returns {string} Redacted text
+ */
+function redactDiagnosticText(value, options = {}) {
+    const readableIdentifiers = new Set(Array.from(options?.readableIdentifiers || [], String));
     return String(value ?? "")
         .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "<redacted-id>")
         .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "<redacted-email>")
@@ -33,8 +56,21 @@ function redactDiagnosticText(value) {
         .replace(/(["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=]\s*)([^,;\r\n}]+?)(?=\s+(?:Bearer\b|["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=])|[,;\r\n}]|$)/gi, "$1<redacted>")
         .replace(
             /\b(?:[a-f0-9]{20,}|[A-Za-z0-9_-]{32,})\b/g,
-            (match) => (isReadableIdentifier(match) ? match : "<redacted-value>"),
+            (match) => (readableIdentifiers.has(match) ? match : "<redacted-value>"),
         );
+}
+
+/**
+ * Returns this app's driver ids plus any explicitly supplied ones.
+ *
+ * @param {Iterable<string>} [knownDriverIds] Additional driver ids
+ * @returns {string[]} Driver ids that may stay readable
+ */
+function getReadableDriverIds(knownDriverIds = []) {
+    return [
+        ...getAppDriverIds(),
+        ...Array.from(knownDriverIds || [], String),
+    ];
 }
 
 /**
@@ -47,7 +83,7 @@ function redactDiagnosticText(value) {
  */
 function formatDriverId(driverId, knownDriverIds = []) {
     const id = String(driverId ?? "");
-    const known = new Set(Array.from(knownDriverIds || [], String));
+    const known = new Set(getReadableDriverIds(knownDriverIds));
     if (known.has(id) && /^[A-Za-z0-9_-]{1,80}$/.test(id)) return id;
     return redactDiagnosticText(id).slice(0, 80);
 }
@@ -82,17 +118,31 @@ function formatPercent(used, total) {
     return `${((usedValue / totalValue) * 100).toFixed(1)}%`;
 }
 
-function sanitizeEvent(event) {
+/**
+ * Normalizes and redacts one diagnostic event. The category, stack, and
+ * source fields are produced by code (logger categories and file paths), so
+ * this app's exact driver ids stay readable there; the message is always
+ * fully redacted.
+ *
+ * @param {Object} event Diagnostic event
+ * @param {Object} [options]
+ * @param {Iterable<string>} [options.knownDriverIds] Additional driver ids
+ * @returns {Object|null} Sanitized event, or null when empty
+ */
+function sanitizeEvent(event, options = {}) {
     if (!event || typeof event !== "object") return null;
 
+    const codeFieldOptions = {
+        readableIdentifiers: getReadableDriverIds(options?.knownDriverIds),
+    };
     const level = String(event.level || "INFO").toUpperCase();
     const timestamp = Number.isNaN(new Date(event.timestamp).getTime())
         ? "unknown time"
         : new Date(event.timestamp).toISOString();
-    const category = redactDiagnosticText(event.category || "App").slice(0, 80);
+    const category = redactDiagnosticText(event.category || "App", codeFieldOptions).slice(0, 80);
     const message = redactDiagnosticText(event.message || "").replace(/\s+/g, " ").trim().slice(0, 320);
-    const stack = redactDiagnosticText(event.stack || "").trim().slice(0, 900);
-    const source = redactDiagnosticText(event.source || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    const stack = redactDiagnosticText(event.stack || "", codeFieldOptions).trim().slice(0, 900);
+    const source = redactDiagnosticText(event.source || "", codeFieldOptions).replace(/\s+/g, " ").trim().slice(0, 160);
 
     if (!message && !stack) return null;
     return source
@@ -198,7 +248,7 @@ function buildDiagnosticsReport(data, options = {}) {
     const registry = data.registry || {};
     const clgGroups = Array.isArray(data.clgGroups) ? data.clgGroups : [];
     const events = (Array.isArray(data.events) ? data.events : [])
-        .map(sanitizeEvent)
+        .map((event) => sanitizeEvent(event, { knownDriverIds: data.knownDriverIds }))
         .filter(Boolean)
         .slice(-maxEvents);
     const memory = data.memory || {};

@@ -766,16 +766,17 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     if (this._isDeleting) return false;
     const currentValue = targetDevice?.capabilitiesObj?.[capability]?.value;
     if (currentValue === null || currentValue === undefined) return false;
-    if ((this.linkedInputEventAt?.get(inputId) || 0) >= snapshotRequestedAt) {
-      return false;
-    }
 
     const boolValue = this.convertToBoolean(currentValue, capability);
-    const missed = (this.formulas || []).some((formula) => (
+    const snapshotIsStale = () => (
+      this._isDeleting
+      || (this.linkedInputEventAt?.get(inputId) || 0) >= snapshotRequestedAt
+    );
+    const snapshotDiffers = () => (this.formulas || []).some((formula) => (
       !(formula.firstImpression && formula.lockedInputs?.[inputId])
       && formula.inputStates?.[inputId] !== boolValue
     ));
-    if (!missed) return false;
+    if (snapshotIsStale() || !snapshotDiffers()) return false;
 
     this.logger.warn("listener.missed_update_recovered", {
       input: inputId.toUpperCase(),
@@ -792,6 +793,10 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         message: error.message,
       });
     }
+
+    // A realtime event can arrive while the subscription is being replaced.
+    // It is newer than the snapshot, so the snapshot must not overwrite it.
+    if (snapshotIsStale() || !snapshotDiffers()) return false;
 
     await listenerFn(currentValue);
     return true;

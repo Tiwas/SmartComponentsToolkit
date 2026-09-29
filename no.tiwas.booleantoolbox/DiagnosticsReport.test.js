@@ -148,6 +148,40 @@ describe("DiagnosticsReport", () => {
         expect(redactDiagnosticText("key AbCdEfGhIjKlMnOpQrStUvWxYz012345")).toBe("key <redacted-value>");
     });
 
+    test("keeps long hyphenated user labels redacted while app driver ids stay readable", () => {
+        const label = "private-master-bedroom-presence-sensor";
+        const report = buildDiagnosticsReport({
+            deviceSummary: {
+                drivers: [
+                    { id: "circadian-light-group-collection", count: 2 },
+                    { id: label, count: 1 },
+                ],
+            },
+            systemResources: { crashedMessage: `Crash in ${label}` },
+            collectionErrors: [`Could not inspect ${label}`],
+            events: [{
+                timestamp: "2026-09-29T10:00:00.000Z",
+                level: "ERROR",
+                category: "Device: circadian-light-group-collection",
+                message: `Failed for ${label}`,
+                stack: [
+                    "    at /app/drivers/circadian-light-group-collection/device.js:59:12",
+                    `    at /app/userdata/${label}/cache.js:1:1`,
+                ].join("\n"),
+                source: `drivers/${label}.js:3`,
+            }],
+        });
+
+        expect(redactDiagnosticText(label)).toBe("<redacted-value>");
+        expect(redactDiagnosticText("circadian-light-group-collection")).toBe("<redacted-value>");
+        expect(formatDriverId(label)).toBe("<redacted-value>");
+        expect(report).not.toContain(label);
+        expect(report).toContain("- Driver circadian-light-group-collection: 2");
+        expect(report).toContain("- Driver <redacted-value>: 1");
+        expect(report).toContain("[Device: circadian-light-group-collection]");
+        expect(report).toContain("/app/drivers/circadian-light-group-collection/device.js:59:12");
+    });
+
     test("renders the caller location of label-free warnings", () => {
         const event = sanitizeEvent({
             timestamp: "2026-09-29T10:00:00.000Z",

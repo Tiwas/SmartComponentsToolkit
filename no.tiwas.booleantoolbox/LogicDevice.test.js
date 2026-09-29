@@ -352,6 +352,27 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(device.setInputForFormula).not.toHaveBeenCalled();
   });
 
+  test('health check does not replay the snapshot over an event received while resubscribing', async () => {
+    const harness = createReconcileHarness({ sourceValue: true, inputState: false });
+    const { device, resubscribe } = harness;
+    resubscribe.mockImplementation(async () => {
+      // The source changes again while the subscription is being replaced.
+      await harness.getListener()(false);
+      return true;
+    });
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(resubscribe).toHaveBeenCalledWith('homey:device:source-id');
+    expect(device.setInputForFormula).toHaveBeenCalledTimes(1);
+    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', false);
+    expect(device.setInputForFormula).not.toHaveBeenCalledWith('formula_1', 'a', true);
+  });
+
   test('health check skips inputs locked by first-impression formulas', async () => {
     const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
     device.formulas[0].firstImpression = true;

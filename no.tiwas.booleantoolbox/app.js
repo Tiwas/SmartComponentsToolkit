@@ -220,26 +220,37 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
         }
 
         const consumer = { handlers, active: true };
-        entry.consumers.add(consumer);
+        const subscribedEntry = entry;
+        const removeConsumer = () => {
+            if (!consumer.active) return;
+            consumer.active = false;
+            subscribedEntry.consumers.delete(consumer);
+            if (subscribedEntry.consumers.size === 0) release(subscribedEntry);
+        };
+
+        subscribedEntry.consumers.add(consumer);
         try {
-            await entry.ready;
+            await subscribedEntry.ready;
         } catch (error) {
-            entry.consumers.delete(consumer);
+            // The failed entry was already removed from the registry.
+            consumer.active = false;
+            subscribedEntry.consumers.delete(consumer);
             throw error;
         }
 
         if (consumer.active && typeof handlers.onConnect === "function") {
-            handlers.onConnect();
+            try {
+                handlers.onConnect();
+            } catch (error) {
+                // No unsubscribe handle is returned, so the consumer must not
+                // stay registered and keep receiving events.
+                removeConsumer();
+                throw error;
+            }
         }
 
-        const subscribedEntry = entry;
         return {
-            unsubscribe: () => {
-                if (!consumer.active) return;
-                consumer.active = false;
-                subscribedEntry.consumers.delete(consumer);
-                if (subscribedEntry.consumers.size === 0) release(subscribedEntry);
-            },
+            unsubscribe: removeConsumer,
         };
     };
 
@@ -716,7 +727,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         if (!Array.isArray(storedEvents)) return [];
 
         return storedEvents
-            .map(sanitizeEvent)
+            .map((event) => sanitizeEvent(event))
             .filter(Boolean)
             .slice(-DIAGNOSTIC_EVENTS_LIMIT);
     }

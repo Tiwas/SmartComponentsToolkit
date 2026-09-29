@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-09-29 — Remove the dormant homey-api subscription wrapper
+
+### Requested
+- Remove the shared-subscription wrapper from #44 now that v1.10.31 with homey-api 3.20.0 is installed and verified on the configured Homey.
+
+### Implemented
+- Removed `shareHomeyApiSubscriptions` and its call in `configureHomeyApi` (app.js). homey-api 3.20's `SubscriptionRegistry` shares one server subscription per URI and restores it after reconnects; the wrapper had already been inactive on 3.20.
+- The Logic Device health refresh (`reconcileLinkedInput`) no longer has a resubscribe/re-read branch; it replays a missed value from the snapshot it already read, and still never overwrites a newer realtime event or a first-impression-locked input.
+- Removed the wrapper tests that ran against an in-test model of homey-api 3.17 and the resubscribe-specific Logic Device tests. Kept the tests against the installed library: homey-api is 3.20 or newer, `configureHomeyApi` leaves the registry's `subscribe` untouched, and destroying one Device object keeps another consumer of the same device subscribed.
+- Checked that 3.20 dispatches realtime events to consumers without per-consumer error isolation: every app capability listener is async or wraps its async work with `.catch`, so a failing handler cannot throw synchronously into the socket event.
+- `homey-api` stays pinned to exactly 3.20.0; a downgrade below 3.20 would bring back the #44 subscription problems, and the version test guards against it.
+
+### Verification
+- `npm test -- --runInBand`: 22 suites and 323 tests passed.
+- `npm run test:package`: publish-level validation passed.
+
 ## 2026-09-29 — Test release v1.10.31
 
 ### Requested

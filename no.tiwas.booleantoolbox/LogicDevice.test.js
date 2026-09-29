@@ -282,12 +282,7 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(destroyReplacement).toHaveBeenCalledTimes(1);
   });
 
-  function createReconcileHarness({
-    sourceValue,
-    inputState,
-    freshValue = sourceValue,
-    resubscribe = jest.fn(async () => true),
-  }) {
+  function createReconcileHarness({ sourceValue, inputState }) {
     let registeredListener = null;
     const previousListener = { unregister: jest.fn(async () => {}) };
     const sourceDevice = (value) => ({
@@ -302,13 +297,8 @@ describe('LogicDeviceDevice linked inputs', () => {
       }),
     });
     const api = {
-      __sctResubscribe: resubscribe,
       devices: {
-        // The health check reads the snapshot first; the reconciliation
-        // re-reads the value after resubscribing.
-        getDevice: jest.fn()
-          .mockImplementationOnce(async () => sourceDevice(sourceValue))
-          .mockImplementation(async () => sourceDevice(freshValue)),
+        getDevice: jest.fn(async () => sourceDevice(sourceValue)),
       },
     };
     const device = createLogicDeviceHarness(api);
@@ -316,31 +306,13 @@ describe('LogicDeviceDevice linked inputs', () => {
     device.formulas[0].inputStates.a = inputState;
     device.deviceListeners = new Map([['a-source-id-alarm_generic', previousListener]]);
     device.setInputForFormula = jest.fn(async () => true);
-    return { device, api, resubscribe, getListener: () => registeredListener };
+    return { device, api, getListener: () => registeredListener };
   }
 
-  test('health check replays a missed linked value and recreates the realtime subscription', async () => {
-    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
-
-    await device.setupDeviceListener({
-      input: 'A',
-      deviceId: 'source-id',
-      capability: 'alarm_generic',
-    }, { replaceExisting: true });
-
-    expect(resubscribe).toHaveBeenCalledWith('homey:device:source-id');
-    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', true);
-    expect(device.logger.warn).toHaveBeenCalledWith('listener.missed_update_recovered', {
-      input: 'A',
-      capability: 'alarm_generic',
-    });
-  });
-
-  test('health check replays a missed value when homey-api provides no resubscribe hook', async () => {
-    // homey-api 3.20+ shares subscriptions itself, so the app wrapper and its
-    // __sctResubscribe hook are not installed.
+  test('health check replays a missed linked value from the snapshot it already read', async () => {
+    // homey-api 3.20+ keeps the realtime subscription alive itself, so the
+    // health check only replays the value and never re-reads or resubscribes.
     const { device, api } = createReconcileHarness({ sourceValue: true, inputState: false });
-    delete api.__sctResubscribe;
 
     await device.setupDeviceListener({
       input: 'A',
@@ -351,25 +323,15 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(api.devices.getDevice).toHaveBeenCalledTimes(1);
     expect(device.setInputForFormula).toHaveBeenCalledTimes(1);
     expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', true);
+    expect(device.logger.warn).toHaveBeenCalledWith('listener.missed_update_recovered', {
+      input: 'A',
+      capability: 'alarm_generic',
+    });
     expect(device.logger.error).not.toHaveBeenCalled();
   });
 
-  test('health check without a resubscribe hook does not replay over a newer event', async () => {
-    const { device, api } = createReconcileHarness({ sourceValue: true, inputState: false });
-    delete api.__sctResubscribe;
-    device.linkedInputEventAt = new Map([['a', Date.now() + 60000]]);
-
-    await device.setupDeviceListener({
-      input: 'A',
-      deviceId: 'source-id',
-      capability: 'alarm_generic',
-    }, { replaceExisting: true });
-
-    expect(device.setInputForFormula).not.toHaveBeenCalled();
-  });
-
   test('health check leaves matching linked values untouched', async () => {
-    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: true });
+    const { device } = createReconcileHarness({ sourceValue: true, inputState: true });
 
     await device.setupDeviceListener({
       input: 'A',
@@ -377,12 +339,12 @@ describe('LogicDeviceDevice linked inputs', () => {
       capability: 'alarm_generic',
     }, { replaceExisting: true });
 
-    expect(resubscribe).not.toHaveBeenCalled();
     expect(device.setInputForFormula).not.toHaveBeenCalled();
+    expect(device.logger.warn).not.toHaveBeenCalledWith('listener.missed_update_recovered', expect.anything());
   });
 
   test('health check does not replay a snapshot older than a received event', async () => {
-    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
+    const { device } = createReconcileHarness({ sourceValue: true, inputState: false });
     device.linkedInputEventAt = new Map([['a', Date.now() + 60000]]);
 
     await device.setupDeviceListener({
@@ -391,67 +353,11 @@ describe('LogicDeviceDevice linked inputs', () => {
       capability: 'alarm_generic',
     }, { replaceExisting: true });
 
-    expect(resubscribe).not.toHaveBeenCalled();
     expect(device.setInputForFormula).not.toHaveBeenCalled();
-  });
-
-  test('health check replays the value read after resubscribing when it changed without an event', async () => {
-    const { device, api, resubscribe } = createReconcileHarness({
-      sourceValue: true,
-      inputState: 'undefined',
-      // The source changes to false while the server subscription is being
-      // replaced, so no realtime event is delivered for that change.
-      freshValue: false,
-    });
-
-    await device.setupDeviceListener({
-      input: 'A',
-      deviceId: 'source-id',
-      capability: 'alarm_generic',
-    }, { replaceExisting: true });
-
-    expect(resubscribe).toHaveBeenCalledWith('homey:device:source-id');
-    expect(api.devices.getDevice).toHaveBeenCalledTimes(2);
-    expect(api.devices.getDevice).toHaveBeenLastCalledWith({ id: 'source-id' });
-    expect(device.setInputForFormula).toHaveBeenCalledTimes(1);
-    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', false);
-  });
-
-  test('health check does not replay when the value read after resubscribing matches the input', async () => {
-    const { device } = createReconcileHarness({ sourceValue: true, inputState: false, freshValue: false });
-
-    await device.setupDeviceListener({
-      input: 'A',
-      deviceId: 'source-id',
-      capability: 'alarm_generic',
-    }, { replaceExisting: true });
-
-    expect(device.setInputForFormula).not.toHaveBeenCalled();
-  });
-
-  test('health check does not replay the snapshot over an event received while resubscribing', async () => {
-    const harness = createReconcileHarness({ sourceValue: true, inputState: false, freshValue: false });
-    const { device, resubscribe } = harness;
-    resubscribe.mockImplementation(async () => {
-      // The source changes again while the subscription is being replaced.
-      await harness.getListener()(false);
-      return true;
-    });
-
-    await device.setupDeviceListener({
-      input: 'A',
-      deviceId: 'source-id',
-      capability: 'alarm_generic',
-    }, { replaceExisting: true });
-
-    expect(resubscribe).toHaveBeenCalledWith('homey:device:source-id');
-    expect(device.setInputForFormula).toHaveBeenCalledTimes(1);
-    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', false);
-    expect(device.setInputForFormula).not.toHaveBeenCalledWith('formula_1', 'a', true);
   });
 
   test('health check skips inputs locked by first-impression formulas', async () => {
-    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
+    const { device } = createReconcileHarness({ sourceValue: true, inputState: false });
     device.formulas[0].firstImpression = true;
     device.formulas[0].lockedInputs = { a: true };
 
@@ -461,7 +367,6 @@ describe('LogicDeviceDevice linked inputs', () => {
       capability: 'alarm_generic',
     }, { replaceExisting: true });
 
-    expect(resubscribe).not.toHaveBeenCalled();
     expect(device.setInputForFormula).not.toHaveBeenCalled();
   });
 });

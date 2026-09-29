@@ -731,8 +731,6 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
       if (replaceExisting) {
         await this.reconcileLinkedInput({
-          api,
-          deviceId,
           inputId,
           capability,
           targetDevice,
@@ -753,12 +751,11 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
    * Applies a linked value that the realtime listener missed. The health
    * check fetches every linked device anyway; when that snapshot differs from
    * the cached input and no newer event arrived after the snapshot was
-   * requested, the realtime subscription is recreated and the current value
-   * is replayed through the listener.
+   * requested, the snapshot value is replayed through the listener. Keeping
+   * the realtime subscription alive is left to homey-api's subscription
+   * registry (3.20+), which also restores it after a reconnect.
    */
   async reconcileLinkedInput({
-    api,
-    deviceId,
     inputId,
     capability,
     targetDevice,
@@ -787,41 +784,11 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       capability,
     });
 
-    let replayValue = snapshotValue;
-    let replayRequestedAt = snapshotRequestedAt;
-    if (typeof api?.__sctResubscribe === "function" && targetDevice.uri) {
-      try {
-        await api.__sctResubscribe(targetDevice.uri);
-      } catch (error) {
-        this.logger.error("listener.resubscribe_failed", {
-          input: inputId.toUpperCase(),
-          message: error.message,
-        });
-      }
-
-      // Resubscribing briefly removes the server subscription, and a change
-      // in that window produces no event. Read the value again now that the
-      // replacement subscription is active instead of replaying the snapshot.
-      replayRequestedAt = Date.now();
-      let freshDevice = null;
-      try {
-        freshDevice = await api.devices.getDevice({ id: deviceId || targetDevice.id });
-      } catch (error) {
-        this.logger.error("listener.refetch_failed", {
-          input: inputId.toUpperCase(),
-          message: error.message,
-        });
-        return false;
-      }
-      replayValue = freshDevice?.capabilitiesObj?.[capability]?.value;
-      if (replayValue === null || replayValue === undefined) return false;
-    }
-
     // A realtime event received after the value was read is newer and must
     // not be overwritten.
-    if (isStale(replayRequestedAt) || !differsFromInputs(replayValue)) return false;
+    if (isStale(snapshotRequestedAt) || !differsFromInputs(snapshotValue)) return false;
 
-    await listenerFn(replayValue);
+    await listenerFn(snapshotValue);
     return true;
   }
 

@@ -1,5 +1,45 @@
 # Worklog
 
+## 2026-09-29 — Issue #44: app keeps resetting
+
+### Requested
+- Fix GitHub issue #44 (v1.10.28/1.10.29, 24 Logic Devices and one Composite Device; the app restarts repeatedly, Homey crash count 8 → 12 in two days, no crash message).
+- Remove the stale `formula_result_is_ld` registration, add a regression test for Flow card ids, hunt for crash vectors, and make the next diagnostic report useful without exposing labels.
+- Follow-up evidence: `Device.driverUri is deprecated` floods stderr; a Logic Device that uses another Logic Device as input stops reacting after an app restart; Logic Devices randomly stop until the app is restarted; startup takes about 30 seconds.
+
+### Findings
+- Most likely restart cause (medium-high confidence): memory growth until Homey terminates the process, which leaves no JavaScript stack or crash message. homey-api 3.17.0 `subscribe()` leaves a `once("disconnect")` listener on the socket for every subscription, and that listener retains the whole HomeyAPI Device object. Every `getDevice()` returns a new Device object, so the five-minute Logic Device listener health refresh added in 1.10.26/1.10.27 created one new subscription per linked input per cycle. A local reproduction with the real homey-api code retained about 10 KB per refresh (7.6 MB per hour for 60 links, 30 MB after four hours). Waiters and Circadian Light Group temporary listeners add further subscriptions.
+- The same library version sends a server-side `unsubscribe` for the device URI whenever any Device object disconnects. A finished waiter, a reconfigured or deleted Logic Device, or a temporary Circadian listener therefore silently stopped realtime updates for every other consumer of that device until the next health refresh. This matches Logic Devices that randomly stop reacting and groups that use other Logic Device groups (typical waiter targets). homey-api 3.20.0 fixed both issues with a shared subscription registry.
+- `Device.driverUri` is a deprecated getter that always returns undefined and writes a warning. The device registry refresh read it for every Homey device at startup and every six hours; state-device and state-capture-device candidate filters, the Logic Device input picker driver name, and Circadian driver references also read it. With homey-api 3.x the Logic Device exclusion in the input picker never matched, so chaining Logic Devices has been available and is used; it was kept selectable.
+- The startup `formula_result_is_ld` error is caused by a card whose definition was removed in December 2025 but whose registration was re-added in 1.10.20.
+- A Logic Device formula with a timeout but without an expression threw `TypeError` inside the one-second timeout interval, which terminates the process.
+- Logic Devices wrote `alarm_generic` even when the result was unchanged; every write emits a realtime event, so mutually linked Logic Devices could re-trigger each other indefinitely.
+- Startup (not changed): the app awaits the device registry refresh before drivers start, and each Logic Device performs two sequential `getDevice()` calls per linked input.
+- Waiter timeout warnings in the reporter's log are normal behaviour and are not crash signals.
+
+### Implemented
+- Removed the `formula_result_is_ld` condition registration and the dangling `driver.compose.json` reference; "Device alarm is..." remains the Logic Device result condition.
+- Added `FlowCardDefinitions.test.js`, which statically resolves literal, looped, ternary, helper, and forwarded Flow card ids in `app.js`, `lib/`, and every driver file and checks them and driver Compose `flow` declarations against `.homeycompose/flow` and `driver.flow.compose.json` definitions.
+- Shared one realtime subscription per URI between all HomeyAPI Device objects (`configureHomeyApi`), so replacing or removing one listener never removes another consumer's subscription and periodic listener replacement no longer creates subscriptions. The wrapper is skipped when homey-api provides its own registry (3.20+). Listener exceptions are logged instead of escaping from the socket handler.
+- The Logic Device health refresh now compares each freshly fetched linked value with the cached input; a missed update is replayed, logged as a warning, and the shared subscription is recreated. Snapshots older than a received event and first-impression locked inputs are ignored.
+- Logic Devices only write `alarm_generic` when the value differs from the current capability value.
+- Guarded `parseExpression()` against missing or non-string expressions.
+- Replaced every `driverUri` read on HomeyAPI devices with `driverId` (device registry, Logic Device input picker, State Device and State Capture Device candidate filters, Circadian Light Group and collection driver references).
+- Diagnostics: persisted warnings and stackless errors now include the app-relative caller location (`file:line`); unhandled promise rejections are recorded and the process is kept alive; uncaught exceptions are observed with `uncaughtExceptionMonitor` (process termination is unchanged) and persisted immediately; a clean-shutdown marker records a warning with the previous session's start, last heartbeat, and uptime when it ended uncleanly; label-free heap/RSS samples are taken every 15 minutes and the report shows current and previous session samples plus the number of pre-existing process error handlers; this app's driver ids and kebab-case code identifiers are no longer redacted.
+
+### Companion tools
+- `docs/tools/boolean-editor.html`, `formula-builder.html`, `emulator.html`, and `flow-doctor.html` do not reference `formula_result_is_ld`; no Logic Device settings shape changed. `flow-doctor.html` already reads `driverId` and only uses registry entry names. The State Device filter changes do not affect the stored state JSON used by `state-editor.html` and `state-editor-api.html`.
+
+### Verification
+- `npm test -- --runInBand`: 21 suites and 243 tests passed.
+- `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.55 MB) and all 17 manifest assets were verified. The generated manifest no longer contains `formula_result_is_ld`.
+
+### Follow-ups
+- Consider upgrading homey-api to 3.20.x after live testing; the shared-subscription wrapper then becomes inactive automatically.
+- Consider not awaiting the startup device registry refresh and reusing the listener fetch for initial Logic Device values to shorten startup.
+- Oscillating Logic Device cycles (for example A = NOT B and B = A) still loop through Homey by design of the configuration; no automatic cycle breaker was added.
+- Verify on a live Homey that memory samples stay flat over several hours.
+
 ## 2026-09-07 — Diagnostic resource fallback v1.10.29
 
 ### Requested

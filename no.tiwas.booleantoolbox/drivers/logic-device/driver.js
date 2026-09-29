@@ -254,14 +254,13 @@ module.exports = class LogicDeviceDriver extends Homey.Driver {
     });
 
     // --- Existing Conditions ---
+    // The Logic Device result is exposed through 'device_alarm_is_ld'. The old
+    // 'formula_result_is_ld' card has no Flow definition, so requesting it
+    // throws during every driver start.
     const conditionCards = [
       {
         id: "formula_has_timed_out_ld",
         checkType: "timeout",
-      },
-      {
-        id: "formula_result_is_ld",
-        checkTypeFromArg: "what_is",
       },
       {
         id: "has_any_error_ld",

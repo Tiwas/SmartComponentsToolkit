@@ -613,6 +613,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         return;
       }
 
+      const snapshotRequestedAt = Date.now();
       const targetDevice = await api.devices.getDevice({
         id: deviceId,
       });
@@ -648,6 +649,9 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
       const listenerFn = async (value) => {
         if (this._isDeleting) return;
+
+        this.linkedInputEventAt ??= new Map();
+        this.linkedInputEventAt.set(inputId, Date.now());
 
         this.logger.input("listener.event_received", {
           input: inputId.toUpperCase(),
@@ -724,6 +728,17 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         device: targetDevice.name,
         capability,
       });
+
+      if (replaceExisting) {
+        await this.reconcileLinkedInput({
+          api,
+          inputId,
+          capability,
+          targetDevice,
+          listenerFn,
+          snapshotRequestedAt,
+        });
+      }
     } catch (e) {
       this.logger.error("listener.error_setup", {
         input: inputId.toUpperCase(),
@@ -731,6 +746,55 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       });
       this.logger.debug(e.stack);
     }
+  }
+
+  /**
+   * Applies a linked value that the realtime listener missed. The health
+   * check fetches every linked device anyway; when that snapshot differs from
+   * the cached input and no newer event arrived after the snapshot was
+   * requested, the value is replayed through the listener and the realtime
+   * subscription is recreated.
+   */
+  async reconcileLinkedInput({
+    api,
+    inputId,
+    capability,
+    targetDevice,
+    listenerFn,
+    snapshotRequestedAt,
+  }) {
+    if (this._isDeleting) return false;
+    const currentValue = targetDevice?.capabilitiesObj?.[capability]?.value;
+    if (currentValue === null || currentValue === undefined) return false;
+    if ((this.linkedInputEventAt?.get(inputId) || 0) >= snapshotRequestedAt) {
+      return false;
+    }
+
+    const boolValue = this.convertToBoolean(currentValue, capability);
+    const missed = (this.formulas || []).some((formula) => (
+      !(formula.firstImpression && formula.lockedInputs?.[inputId])
+      && formula.inputStates?.[inputId] !== boolValue
+    ));
+    if (!missed) return false;
+
+    this.logger.warn("listener.missed_update_recovered", {
+      input: inputId.toUpperCase(),
+      capability,
+    });
+
+    try {
+      if (typeof api?.__sctResubscribe === "function" && targetDevice.uri) {
+        await api.__sctResubscribe(targetDevice.uri);
+      }
+    } catch (error) {
+      this.logger.error("listener.resubscribe_failed", {
+        input: inputId.toUpperCase(),
+        message: error.message,
+      });
+    }
+
+    await listenerFn(currentValue);
+    return true;
   }
 
   convertToBoolean(value, capability) {
@@ -926,8 +990,16 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       const previousResult = formula.result;
 
       // ✅ CRITICAL: Only set alarm_generic (formula output), NOT onoff!
-      // onoff is user control (enable/disable), alarm_generic is formula result
-      await this.safeSetCapabilityValue("alarm_generic", result);
+      // onoff is user control (enable/disable), alarm_generic is formula result.
+      // Every write emits a realtime capability event, so unchanged results
+      // are not written: Logic Devices that use each other as inputs would
+      // otherwise keep re-triggering each other with the same value.
+      const currentAlarmValue = this.hasCapability("alarm_generic")
+        ? this.getCapabilityValue("alarm_generic")
+        : undefined;
+      if (currentAlarmValue !== result) {
+        await this.safeSetCapabilityValue("alarm_generic", result);
+      }
 
       if (!this.isCurrentEvaluation(revision)) return null;
       formula.result = result;
@@ -1236,6 +1308,10 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
   }
 
   parseExpression(expression) {
+    // checkTimeouts() runs in a 1-second interval; a formula with a timeout
+    // but no expression must not throw there, because a synchronous timer
+    // error terminates the app process.
+    if (typeof expression !== "string") return [];
     const inputs = this.getAvailableInputsUppercase();
     if (!inputs.length) return [];
     const varRe = new RegExp(`\\b(${inputs.join("|")})\\b`, "gi");

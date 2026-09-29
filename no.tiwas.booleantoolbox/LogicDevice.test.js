@@ -281,6 +281,157 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(device.deviceListeners.size).toBe(0);
     expect(destroyReplacement).toHaveBeenCalledTimes(1);
   });
+
+  function createReconcileHarness({ sourceValue, inputState, resubscribe = jest.fn(async () => true) }) {
+    let registeredListener = null;
+    const previousListener = { unregister: jest.fn(async () => {}) };
+    const api = {
+      __sctResubscribe: resubscribe,
+      devices: {
+        getDevice: jest.fn(async () => ({
+          uri: 'homey:device:source-id',
+          name: 'Source',
+          capabilities: ['alarm_generic'],
+          capabilitiesObj: { alarm_generic: { value: sourceValue } },
+          makeCapabilityInstance: jest.fn((capability, listener) => {
+            registeredListener = listener;
+            return { destroy: jest.fn() };
+          }),
+        })),
+      },
+    };
+    const device = createLogicDeviceHarness(api);
+    device._isDeleting = false;
+    device.formulas[0].inputStates.a = inputState;
+    device.deviceListeners = new Map([['a-source-id-alarm_generic', previousListener]]);
+    device.setInputForFormula = jest.fn(async () => true);
+    return { device, api, resubscribe, getListener: () => registeredListener };
+  }
+
+  test('health check replays a missed linked value and recreates the realtime subscription', async () => {
+    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(resubscribe).toHaveBeenCalledWith('homey:device:source-id');
+    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', true);
+    expect(device.logger.warn).toHaveBeenCalledWith('listener.missed_update_recovered', {
+      input: 'A',
+      capability: 'alarm_generic',
+    });
+  });
+
+  test('health check leaves matching linked values untouched', async () => {
+    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: true });
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(resubscribe).not.toHaveBeenCalled();
+    expect(device.setInputForFormula).not.toHaveBeenCalled();
+  });
+
+  test('health check does not replay a snapshot older than a received event', async () => {
+    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
+    device.linkedInputEventAt = new Map([['a', Date.now() + 60000]]);
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(resubscribe).not.toHaveBeenCalled();
+    expect(device.setInputForFormula).not.toHaveBeenCalled();
+  });
+
+  test('health check skips inputs locked by first-impression formulas', async () => {
+    const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: false });
+    device.formulas[0].firstImpression = true;
+    device.formulas[0].lockedInputs = { a: true };
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(resubscribe).not.toHaveBeenCalled();
+    expect(device.setInputForFormula).not.toHaveBeenCalled();
+  });
+});
+
+describe('LogicDeviceDevice timeout checks', () => {
+  test('does not throw from the timeout interval for a formula without an expression', () => {
+    const device = Object.create(LogicDeviceDevice.prototype);
+    device.logger = createLogger();
+    device.availableInputs = ['a', 'b'];
+    device.formulas = [{
+      id: 'formula_1', name: 'Incomplete', expression: undefined, enabled: true, timeout: 1,
+      inputStates: { a: true, b: 'undefined' }, lockedInputs: {}, lastInputTime: Date.now() - 5000, timedOut: false,
+    }];
+
+    expect(() => device.checkTimeouts()).not.toThrow();
+    expect(device.parseExpression(42)).toEqual([]);
+  });
+});
+
+describe('LogicDeviceDevice output writes', () => {
+  function createEvaluationHarness(currentAlarm) {
+    const device = Object.create(LogicDeviceDevice.prototype);
+    const capabilityValues = new Map([['alarm_generic', currentAlarm], ['onoff', true]]);
+    device.logger = createLogger();
+    device.formulaEvaluator = new FormulaEvaluator();
+    device.deviceEnabled = true;
+    device.availableInputs = ['a', 'b'];
+    device.getName = jest.fn(() => 'Logic Device');
+    device.getData = jest.fn(() => ({ id: 'logic-device-id' }));
+    device.formulas = [{
+      id: 'formula_1', name: 'Chained', expression: 'A AND B', enabled: true,
+      inputStates: { a: true, b: false }, lockedInputs: {}, result: false, timedOut: false,
+    }];
+    device.getCapabilityValue = jest.fn((capabilityId) => capabilityValues.get(capabilityId));
+    device.hasCapability = jest.fn(() => true);
+    device.safeSetCapabilityValue = jest.fn(async (capabilityId, value) => {
+      capabilityValues.set(capabilityId, value);
+    });
+    device.fireAllRelevantTriggers = jest.fn(async () => {});
+    return { device, capabilityValues };
+  }
+
+  test('does not rewrite an unchanged result, so chained Logic Devices cannot ping-pong', async () => {
+    const { device } = createEvaluationHarness(false);
+
+    await expect(device.setInputForFormula('formula_1', 'a', true)).resolves.toBe(false);
+
+    expect(device.safeSetCapabilityValue).not.toHaveBeenCalled();
+    expect(device.fireAllRelevantTriggers).not.toHaveBeenCalled();
+  });
+
+  test('writes and triggers when the result changes', async () => {
+    const { device, capabilityValues } = createEvaluationHarness(false);
+
+    await expect(device.setInputForFormula('formula_1', 'b', true)).resolves.toBe(true);
+
+    expect(device.safeSetCapabilityValue).toHaveBeenCalledWith('alarm_generic', true);
+    expect(capabilityValues.get('alarm_generic')).toBe(true);
+    expect(device.fireAllRelevantTriggers).toHaveBeenCalledWith(true, true, false, null);
+  });
+
+  test('corrects an output capability that differs from the cached result', async () => {
+    const { device } = createEvaluationHarness(null);
+
+    await device.setInputForFormula('formula_1', 'a', true);
+
+    expect(device.safeSetCapabilityValue).toHaveBeenCalledWith('alarm_generic', false);
+  });
 });
 
 describe('LogicDeviceDevice settings validation', () => {
@@ -361,7 +512,7 @@ describe('LogicDeviceDevice formula timeouts', () => {
 });
 
 describe('LogicDeviceDriver flow cards', () => {
-  test('registers formula_result_is_ld condition card', async () => {
+  test('registers only defined Logic Device condition cards', async () => {
     const conditionListeners = {};
     const triggerListeners = {};
     const autocompleteListeners = {};
@@ -394,17 +545,23 @@ describe('LogicDeviceDriver flow cards', () => {
     };
 
     await driver.registerFlowCards();
-    const result = await conditionListeners.formula_result_is_ld(
-      { device, what_is: 'true' },
-      {},
-    );
+    const result = await conditionListeners.has_any_error_ld({ device }, {});
 
     expect(result).toBe(true);
     expect(device.onFlowCondition).toHaveBeenCalledWith(
       expect.any(Object),
       expect.any(Object),
-      true,
+      'has_error',
     );
+    await expect(conditionListeners.formula_has_timed_out_ld({ device }, {}))
+      .resolves.toBe(true);
+    expect(device.onFlowCondition).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      'timeout',
+    );
+    expect(driver.homey.flow.getConditionCard).not.toHaveBeenCalledWith('formula_result_is_ld');
+    expect(driver.logger.error).not.toHaveBeenCalled();
     await expect(triggerListeners.formula_timeout_ld(
       { formula: { id: 'formula-1' } },
       { formulaId: 'formula-1' },

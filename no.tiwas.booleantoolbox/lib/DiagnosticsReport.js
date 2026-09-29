@@ -11,6 +11,18 @@ function isFiniteMetric(value) {
         && Number.isFinite(Number(value));
 }
 
+/**
+ * Lower-case words joined by hyphens, such as the driver id
+ * "circadian-light-group-collection", are code identifiers rather than
+ * secrets. They are kept readable even when they reach the long-token length.
+ *
+ * @param {string} value Candidate token
+ * @returns {boolean} True when the token is a readable identifier
+ */
+function isReadableIdentifier(value) {
+    return /^[a-z]+(?:-[a-z]+)+$/.test(value);
+}
+
 function redactDiagnosticText(value) {
     return String(value ?? "")
         .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "<redacted-id>")
@@ -19,7 +31,25 @@ function redactDiagnosticText(value) {
         .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1<redacted-token>")
         .replace(/(["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=]\s*)(["'])(.*?)\2/gi, "$1$2<redacted>$2")
         .replace(/(["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=]\s*)([^,;\r\n}]+?)(?=\s+(?:Bearer\b|["']?(?:token|api[_-]?key|password|secret)["']?\s*[:=])|[,;\r\n}]|$)/gi, "$1<redacted>")
-        .replace(/\b(?:[a-f0-9]{20,}|[A-Za-z0-9_-]{32,})\b/g, "<redacted-value>");
+        .replace(
+            /\b(?:[a-f0-9]{20,}|[A-Za-z0-9_-]{32,})\b/g,
+            (match) => (isReadableIdentifier(match) ? match : "<redacted-value>"),
+        );
+}
+
+/**
+ * Formats an app driver id for the report. Ids of this app's own drivers are
+ * never redacted; anything else still passes through the normal redaction.
+ *
+ * @param {unknown} driverId Driver id
+ * @param {Iterable<string>} [knownDriverIds] Ids of this app's drivers
+ * @returns {string} Report-safe driver id
+ */
+function formatDriverId(driverId, knownDriverIds = []) {
+    const id = String(driverId ?? "");
+    const known = new Set(Array.from(knownDriverIds || [], String));
+    if (known.has(id) && /^[A-Za-z0-9_-]{1,80}$/.test(id)) return id;
+    return redactDiagnosticText(id).slice(0, 80);
 }
 
 function formatBytes(value) {
@@ -62,9 +92,89 @@ function sanitizeEvent(event) {
     const category = redactDiagnosticText(event.category || "App").slice(0, 80);
     const message = redactDiagnosticText(event.message || "").replace(/\s+/g, " ").trim().slice(0, 320);
     const stack = redactDiagnosticText(event.stack || "").trim().slice(0, 900);
+    const source = redactDiagnosticText(event.source || "").replace(/\s+/g, " ").trim().slice(0, 160);
 
     if (!message && !stack) return null;
-    return { level, timestamp, category, message, stack };
+    return source
+        ? { level, timestamp, category, message, stack, source }
+        : { level, timestamp, category, message, stack };
+}
+
+function toNullableNumber(value) {
+    return isFiniteMetric(value) ? Number(value) : null;
+}
+
+function toIsoOrNull(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function sanitizeMemorySamples(samples) {
+    return (Array.isArray(samples) ? samples : [])
+        .filter((sample) => sample && typeof sample === "object")
+        .map((sample) => ({
+            at: toIsoOrNull(sample.at),
+            heapUsed: toNullableNumber(sample.heapUsed),
+            heapTotal: toNullableNumber(sample.heapTotal),
+            rss: toNullableNumber(sample.rss),
+        }))
+        .filter((sample) => sample.at);
+}
+
+/**
+ * Normalizes a persisted diagnostic session to plain, label-free values. The
+ * nested previous session is dropped so only one earlier session is kept.
+ *
+ * @param {unknown} session Stored session
+ * @returns {Object|null} Sanitized session or null
+ */
+function sanitizeSession(session) {
+    if (!session || typeof session !== "object" || Array.isArray(session)) return null;
+    const startedAt = toIsoOrNull(session.startedAt);
+    if (!startedAt) return null;
+
+    return {
+        startedAt,
+        appVersion: String(session.appVersion || "unknown").replace(/[^\w.+-]/g, "").slice(0, 32) || "unknown",
+        lastSeenAt: toIsoOrNull(session.lastSeenAt),
+        stoppedAt: toIsoOrNull(session.stoppedAt),
+        cleanShutdown: session.cleanShutdown === true,
+        memorySamples: sanitizeMemorySamples(session.memorySamples).slice(-16),
+    };
+}
+
+function formatMegabytes(value) {
+    return isFiniteMetric(value) ? (Number(value) / (1024 * 1024)).toFixed(1) : "?";
+}
+
+function formatMemorySample(sample) {
+    const time = String(sample.at || "").slice(11, 16) || "?";
+    return `${time} ${formatMegabytes(sample.heapUsed)}/${formatMegabytes(sample.rss)}`;
+}
+
+function formatSessionLines(currentSession, previousSession) {
+    const lines = [];
+    const current = sanitizeSession(currentSession);
+    const previous = sanitizeSession(previousSession);
+
+    if (current && current.memorySamples.length > 0) {
+        const samples = current.memorySamples.slice(-6).map(formatMemorySample).join(", ");
+        lines.push(`- Memory samples this session (UTC time heap/RSS MB): ${samples}`);
+    }
+    if (previous) {
+        const samples = previous.memorySamples;
+        const first = samples[0];
+        const last = samples.at(-1);
+        lines.push(
+            `- Previous session: started ${previous.startedAt}, last heartbeat ${previous.lastSeenAt || "unknown"}, ` +
+            `clean shutdown ${previous.cleanShutdown ? "yes" : "no"}` +
+            (first && last
+                ? `; heap/RSS MB ${formatMemorySample(first)} -> ${formatMemorySample(last)} (${samples.length} samples)`
+                : ""),
+        );
+    }
+    return lines;
 }
 
 function shortenText(value, maxLength, marker) {
@@ -75,7 +185,8 @@ function shortenText(value, maxLength, marker) {
 }
 
 function formatEvent(event) {
-    const lines = [`- ${event.timestamp} [${event.level}] [${event.category}] ${event.message || "(no message)"}`];
+    const source = event.source ? ` (at ${event.source})` : "";
+    const lines = [`- ${event.timestamp} [${event.level}] [${event.category}] ${event.message || "(no message)"}${source}`];
     if (event.stack) lines.push("```text", event.stack, "```");
     return lines.join("\n");
 }
@@ -118,10 +229,22 @@ function buildDiagnosticsReport(data, options = {}) {
         `- Debug mode: ${data.debugMode === true ? "enabled" : "disabled"}`,
         `- App state: ${resources.appState || "unavailable"}`,
         `- Homey-reported crash count: ${resources.crashedCount ?? "unavailable"}`,
+    ];
+
+    const processHandlers = data.processHandlers;
+    if (processHandlers && typeof processHandlers === "object") {
+        setupLines.push(
+            `- Process error handlers before app start: unhandledRejection ${Number(processHandlers.unhandledRejection) || 0}, ` +
+            `uncaughtException ${Number(processHandlers.uncaughtException) || 0}`,
+        );
+    }
+
+    setupLines.push(
         "",
         "## Resource load",
         "",
         `- App process memory: RSS ${formatBytes(memory.rss)}, heap used ${formatBytes(memory.heapUsed)} of ${formatBytes(memory.heapTotal)}`,
+        ...formatSessionLines(data.session, data.session?.previous),
         `- Homey-reported app memory: ${formatBytes(resources.appMemory)}`,
         `- Homey-reported app CPU metric: ${isFiniteMetric(resources.appCpu) ? Number(resources.appCpu).toFixed(6) : "unavailable"}`,
         `- Homey system load average (1 / 5 / 15 min): ${loadAverage}${resources.cpuCores ? ` across ${resources.cpuCores} CPU core(s)` : ""}`,
@@ -133,11 +256,11 @@ function buildDiagnosticsReport(data, options = {}) {
         `- App devices: ${deviceSummary.total || 0}`,
         `- Devices with configuration alarm: ${deviceSummary.configAlarms || 0}`,
         `- Homey registry snapshot: ${registry.currentCount || 0} current / ${registry.knownCount || 0} known / ${registry.missingCount || 0} deleted`,
-    ];
+    );
 
     const drivers = Array.isArray(deviceSummary.drivers) ? deviceSummary.drivers : [];
     for (const driver of drivers.slice(0, 20)) {
-        setupLines.push(`- Driver ${redactDiagnosticText(driver.id).slice(0, 80)}: ${Number(driver.count) || 0}`);
+        setupLines.push(`- Driver ${formatDriverId(driver.id, data.knownDriverIds)}: ${Number(driver.count) || 0}`);
     }
     if (drivers.length > 20) {
         setupLines.push(`- ${drivers.length - 20} additional driver entries omitted.`);
@@ -255,6 +378,9 @@ function buildGitHubIssueUrl({ appVersion, report, summary }) {
 module.exports = {
     buildDiagnosticsReport,
     buildGitHubIssueUrl,
+    formatDriverId,
+    formatDuration,
     redactDiagnosticText,
     sanitizeEvent,
+    sanitizeSession,
 };

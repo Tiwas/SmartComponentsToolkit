@@ -190,8 +190,11 @@ class StateCaptureDriver extends Homey.Driver {
                         continue;
                     }
 
-                    // Skip state devices to avoid recursion
-                    if (device.driverUri && (device.driverUri.includes('state-device') || device.driverUri.includes('state-capture-device'))) {
+                    // Skip state devices to avoid recursion. Homey API devices
+                    // expose driverId ("homey:app:<appId>:<driver>"); the
+                    // deprecated driverUri getter only warns and returns undefined.
+                    const driverRef = String(device.driverId || '');
+                    if (driverRef.includes('state-device') || driverRef.includes('state-capture-device')) {
                         continue;
                     }
 

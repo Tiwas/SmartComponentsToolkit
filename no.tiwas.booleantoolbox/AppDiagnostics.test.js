@@ -197,4 +197,198 @@ describe("BooleanToolboxApp diagnostics", () => {
             loadAverageSpy.mockRestore();
         }
     });
+
+    test("renders every app driver id verbatim in the report", async () => {
+        const app = new BooleanToolboxApp();
+        const driverIds = ["circadian-light-group-collection", "composite-device", "logic-device"];
+        app.homey = {
+            manifest: { version: "1.10.29", drivers: driverIds.map((id) => ({ id })) },
+            settings: createSettings({}),
+            drivers: {
+                getDrivers: jest.fn(() => Object.fromEntries(driverIds.map((id) => [id, {
+                    id,
+                    getDevices: jest.fn(() => []),
+                }]))),
+            },
+        };
+        app.api = { system: {}, apps: {} };
+        app.startedAt = new Date();
+        app.diagnosticEvents = [];
+
+        const payload = await app.getDiagnosticsPayload("Driver ids");
+
+        driverIds.forEach((id) => expect(payload.report).toContain(`- Driver ${id}: 0`));
+        expect(payload.report).not.toContain("<redacted-value>");
+    });
+});
+
+describe("BooleanToolboxApp process and session diagnostics", () => {
+    let consoleErrorSpy;
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+        consoleErrorSpy.mockRestore();
+    });
+
+    function createApp(values = {}) {
+        const app = new BooleanToolboxApp();
+        app.homey = {
+            manifest: { version: "1.10.30" },
+            settings: createSettings(values),
+        };
+        app.startedAt = new Date("2026-09-29T12:00:00.000Z");
+        app.diagnosticEvents = [];
+        app.diagnosticPersistTimer = null;
+        return app;
+    }
+
+    function lastListener(eventName) {
+        const listeners = process.listeners(eventName);
+        return listeners[listeners.length - 1];
+    }
+
+    test("registers process error hooks once per process and removes them on uninit", () => {
+        const before = {
+            unhandledRejection: process.listenerCount("unhandledRejection"),
+            uncaughtExceptionMonitor: process.listenerCount("uncaughtExceptionMonitor"),
+            uncaughtException: process.listenerCount("uncaughtException"),
+        };
+        const first = createApp();
+        const second = createApp();
+
+        const registration = first.registerProcessDiagnostics();
+        expect(first.registerProcessDiagnostics()).toBe(registration);
+        second.registerProcessDiagnostics();
+
+        expect(process.listenerCount("unhandledRejection")).toBe(before.unhandledRejection + 1);
+        expect(process.listenerCount("uncaughtExceptionMonitor")).toBe(before.uncaughtExceptionMonitor + 1);
+        expect(process.listenerCount("uncaughtException")).toBe(before.uncaughtException);
+        expect(registration.preexistingHandlers).toEqual({
+            unhandledRejection: before.unhandledRejection,
+            uncaughtException: before.uncaughtException,
+        });
+
+        first.unregisterProcessDiagnostics();
+        second.unregisterProcessDiagnostics();
+
+        expect(process.listenerCount("unhandledRejection")).toBe(before.unhandledRejection);
+        expect(process.listenerCount("uncaughtExceptionMonitor")).toBe(before.uncaughtExceptionMonitor);
+    });
+
+    test("records unhandled rejections without their message text", () => {
+        const app = createApp();
+        app.error = jest.fn();
+        app.registerProcessDiagnostics();
+        try {
+            const reason = new TypeError("Kitchen sensor failed");
+            lastListener("unhandledRejection")(reason, Promise.resolve());
+
+            const event = app.diagnosticEvents.at(-1);
+            expect(event).toEqual(expect.objectContaining({
+                level: "ERROR",
+                category: "Process",
+                message: "Unhandled promise rejection recorded (TypeError).",
+            }));
+            expect(event.stack).toContain("AppDiagnostics.test.js");
+            expect(JSON.stringify(app.diagnosticEvents)).not.toContain("Kitchen");
+            expect(app.error).toHaveBeenCalledWith(
+                "[Process] Unhandled promise rejection recorded (TypeError).",
+                reason,
+            );
+        } finally {
+            app.unregisterProcessDiagnostics();
+        }
+    });
+
+    test("persists uncaught exceptions immediately without handling them", () => {
+        const values = {};
+        const app = createApp(values);
+        app.registerProcessDiagnostics();
+        try {
+            lastListener("uncaughtExceptionMonitor")(new RangeError("Bedroom overflow"), "uncaughtException");
+
+            expect(app.homey.settings.set).toHaveBeenCalledWith("diagnostic_events", app.diagnosticEvents);
+            expect(app.diagnosticPersistTimer).toBeNull();
+            expect(values.diagnostic_events.at(-1)).toEqual(expect.objectContaining({
+                level: "ERROR",
+                category: "Process",
+                message: "Uncaught exception recorded (RangeError).",
+            }));
+            expect(JSON.stringify(values.diagnostic_events)).not.toContain("Bedroom");
+        } finally {
+            app.unregisterProcessDiagnostics();
+        }
+    });
+
+    test("warns about a previous session without a clean shutdown and tracks the new session", () => {
+        const values = {
+            diagnostic_session: {
+                startedAt: "2026-09-29T00:00:00.000Z",
+                lastSeenAt: "2026-09-29T09:45:00.000Z",
+                appVersion: "1.10.29",
+                cleanShutdown: false,
+                memorySamples: [{ at: "2026-09-29T09:45:00.000Z", heapUsed: 1024, rss: 2048 }],
+                previous: { startedAt: "2026-09-28T00:00:00.000Z" },
+            },
+        };
+        const app = createApp(values);
+
+        app.startDiagnosticSession();
+
+        expect(app.diagnosticEvents).toEqual([expect.objectContaining({
+            level: "WARN",
+            category: "App",
+            message: "Previous app session ended without a clean shutdown (version 1.10.29, "
+                + "started 2026-09-29T00:00:00.000Z, last heartbeat 2026-09-29T09:45:00.000Z, "
+                + "uptime at least 9h 45m 0s).",
+        })]);
+        expect(values.diagnostic_session).toEqual(expect.objectContaining({
+            startedAt: "2026-09-29T12:00:00.000Z",
+            appVersion: "1.10.30",
+            cleanShutdown: false,
+            previous: expect.objectContaining({
+                startedAt: "2026-09-29T00:00:00.000Z",
+                cleanShutdown: false,
+                memorySamples: [{ at: "2026-09-29T09:45:00.000Z", heapUsed: 1024, heapTotal: null, rss: 2048 }],
+            }),
+        }));
+        expect(values.diagnostic_session.previous).not.toHaveProperty("previous");
+
+        const sample = app.recordMemorySample();
+        expect(sample.heapUsed).toEqual(expect.any(Number));
+        expect(values.diagnostic_session.memorySamples).toEqual([sample]);
+        expect(values.diagnostic_session.lastSeenAt).toBe(sample.at);
+
+        app.markDiagnosticSessionStopped();
+        expect(values.diagnostic_session.cleanShutdown).toBe(true);
+
+        const restarted = createApp(values);
+        restarted.startDiagnosticSession();
+        expect(restarted.diagnosticEvents).toEqual([]);
+        expect(values.diagnostic_session.previous.cleanShutdown).toBe(true);
+    });
+
+    test("keeps memory samples bounded and falls back to V8 heap statistics", () => {
+        const memorySpy = jest.spyOn(process, "memoryUsage").mockImplementation(() => {
+            throw new Error("ENOENT: no such file or directory, uv_resident_set_memory");
+        });
+        const app = createApp();
+        try {
+            app.startDiagnosticSession();
+            for (let index = 0; index < 20; index += 1) app.recordMemorySample();
+
+            expect(app.diagnosticSession.memorySamples).toHaveLength(16);
+            expect(app.diagnosticSession.memorySamples.at(-1)).toEqual(expect.objectContaining({
+                heapUsed: expect.any(Number),
+                rss: null,
+            }));
+        } finally {
+            memorySpy.mockRestore();
+        }
+    });
 });

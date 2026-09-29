@@ -597,7 +597,7 @@ class CircadianLightGroupDriver extends Homey.Driver {
     for (const deviceId in allDevices) {
       const homeyDevice = allDevices[deviceId];
       if (!isZoneSelected(homeyDevice.zone)) continue;
-      const driverRef = `${homeyDevice.driverUri || ''}|${homeyDevice.driverId || ''}|${homeyDevice.driver?.id || ''}`;
+      const driverRef = `${homeyDevice.driverId || ''}|${homeyDevice.driver?.id || ''}`;
       if (driverRef.includes('circadian-light-group')) continue;
 
       const hasLightControl = ['dim', 'light_temperature', 'light_hue', 'light_saturation']

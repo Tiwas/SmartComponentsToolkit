@@ -1,5 +1,18 @@
 # Worklog
 
+## 2026-09-29 — Test release v1.10.31
+
+### Requested
+- Release the homey-api 3.20.0 upgrade (PR #50) as a new test version after live testing, and investigate why "All on" appeared to give much less light from all-off than after "All on (flood)".
+
+### Implemented
+- Bumped the app to 1.10.31 with English and Norwegian changelog text; updated CHANGELOG.md, the README test badge and summary, and the Homey Community listing source.
+
+### Verification
+- Live test of the homey-api 3.20.0 build (`homey app run --remote`, Lars's New Homey): clean startup; the 55 s in-card gate guard fired and took the error path; a background gate GO after 65 s fired `conditional_gate_wait_finished`; a background capability wait matched after 81.8 s through the 3.20 `SubscriptionRegistry`.
+- "All on" investigation with debug logging, "All off" → "All on" and "All off" → "All on (flood)" → "All on": both paths ended with every reachable Circadian Light Group member at the same target (main group 62 %, bedroom group 9 % by design), confirmed by a device snapshot. Remaining differences were hardware or configuration: "Soverom: Nattbord v" unplugged, "Vindfang 1/2" underpowered (unavailable), "Kjøkken: Led h" unreachable, "Smart Energy Illuminator" Z-Wave `TRANSMIT_COMPLETE_NO_ACK` for dim writes, and "Bad: Vegglys" only switched by the flood flow. The earlier "much more light after flood" was most likely the pre-1.10.30 subscription bug, where member on/off watchers lost realtime updates and turn-on acknowledgement/target writes misbehaved.
+- In the user's Flow "All on (by time)", the solar/time branches are not connected to the start card, so "All on" always runs only "All on - Toolbox"; reported to the user, not changed (user-owned Flow).
+
 ## 2026-09-29 — homey-api 3.20.0 upgrade
 
 ### Requested
@@ -21,7 +34,7 @@
 - `npm run test:package`: publish-level validation passed; bundle contains 909 files (8.00 MB) and all 17 manifest assets were verified.
 
 ### Follow-ups
-- Live-test realtime Logic Device, Composite Device, Circadian, and waiter updates on the configured Homey before release.
+- Live-tested on the configured Homey before the v1.10.31 release (see the release entry above).
 - Remove the dormant wrapper in a later change once 3.20 has proven stable.
 
 ## 2026-09-29 — Test release v1.10.30

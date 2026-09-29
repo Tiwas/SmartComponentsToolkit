@@ -6,6 +6,14 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.31] - September 2026 (Test channel)
+
+### Changed
+- Updated the Homey Web API library (`homey-api`) from 3.17.0 to 3.20.0 ([#50](https://github.com/Tiwas/SmartComponentsToolkit/pull/50)). It shares one realtime subscription per device and restores subscriptions automatically after a connection drop, so Logic Devices, Circadian Light Groups and capability waiters keep receiving device changes after network hiccups. The app's own subscription safeguard from 1.10.30 stays in place as a fallback and switches off automatically on this library version.
+
+### Verified
+- Live-tested on a Homey Pro (Early 2023): Logic Devices, Circadian Light Group "All on" from all-off and after "All on (flood)", Conditional Gate and capability background waits beyond 60 seconds, and the in-card 55-second limit.
+
 ## [1.10.30] - September 2026 (Test channel)
 
 ### Fixed

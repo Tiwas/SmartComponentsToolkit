@@ -1,5 +1,17 @@
 # Worklog
 
+## 2026-09-29 — Test release v1.10.30
+
+### Requested
+- Ship the fixes for #44 (app resets) and #46 (Conditional Gate 60 s timeout) after Codex approval and live testing on the configured Homey, with a descriptive changelog that links the changed guides.
+
+### Implemented
+- Merged PR #48 (#44) and PR #47 (#46) after Codex reported no major issues on their final commits.
+- Bumped the app to 1.10.30 (manifest, package files) with English and Norwegian changelog text linking the Conditional Gates and Waiter Gates guides; updated CHANGELOG.md, the README test badge and summary, and the Homey Community listing source.
+
+### Verification
+- Live test before merge (combined #47 + #48 build, `homey app run --remote` on Lars's New Homey): clean startup without errors or `driverUri` warnings; the 55 s in-card guard, background gate GO after 65 s and background capability MATCHED after 81.6 s all behaved as specified; diagnostics showed warning locations, memory samples and unredacted driver ids, and that the Homey SDK already installs one `unhandledRejection` and one `uncaughtException` handler.
+
 ## 2026-09-29 — Issue #44: app keeps resetting
 
 ### Requested

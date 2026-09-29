@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.29 test - Diagnostics fix]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.30 test - Stability + long waits]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.29
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.30
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,13 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.30 (test channel)
+
+- **No more app restarts from leaked subscriptions:** realtime device subscriptions are shared, so the Logic Device health check no longer grows memory until Homey restarts the app, and one listener finishing no longer stops updates for other Logic Devices on the same device.
+- **Wait longer than one minute:** *Start waiting for Conditional Gate GO* and *Start waiting until device capability becomes value* wait in the background; the *…wait finished* triggers continue your Flow. <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html" target="_blank">Conditional Gates guide</a> · <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html" target="_blank">Waiter Gates guide</a>
+- **Clear 60-second limit handling:** waits inside a card end with an explanatory message at 55 s instead of Homey's generic `Timeout after 60000ms`.
+- **Better diagnostics:** warnings show where they come from, memory is sampled over time, and unclean shutdowns are reported.
 
 ### v1.10.29 (test channel)
 

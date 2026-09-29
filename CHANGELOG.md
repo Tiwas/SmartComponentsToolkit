@@ -6,6 +6,24 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.30] - September 2026 (Test channel)
+
+### Fixed
+- App restarts and Logic Devices that randomly stopped reacting ([#44](https://github.com/Tiwas/SmartComponentsToolkit/issues/44)). Realtime device subscriptions are now shared per device: the periodic Logic Device link health check no longer leaks memory with every refresh, and one listener finishing (a waiter, a reconfigured Logic Device or a Circadian watcher) no longer silently stops updates for every other listener on the same device. The health check also replays values it missed.
+- `Conditional Gate: Wait for GO` and `Wait until device capability becomes value` failed with `Timeout after 60000ms` for timeouts above one minute ([#46](https://github.com/Tiwas/SmartComponentsToolkit/issues/46)). Homey stops every app Flow card after ~60 seconds; these cards now end with a clear message at 55 seconds, and the timeout counts from the moment the card starts.
+- Mutually linked Logic Devices can no longer re-trigger each other when their result does not change.
+- A formula with a timeout but no expression could crash the app from the one-second timeout check.
+- Removed a stale Logic Device condition registration that logged an error on every start, and the deprecated `driverUri` reads that flooded the Homey log.
+
+### Added
+- **Long waits:** new actions *Start waiting for Conditional Gate GO* and *Start waiting until device capability becomes value* return immediately and wait in the background (minutes or hours). The new triggers *Conditional Gate wait finished* and *Capability wait finished* continue the Flow with `opened`/`matched`, `result` and `waited_seconds` tokens. See the [Conditional Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html) and [Waiter Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html) guides.
+- **Diagnostics:** warnings show the code location they come from, memory is sampled every 15 minutes, and a previous session that ended without a clean shutdown is reported. App driver ids are no longer redacted.
+
+### Changed
+- Re-starting a waiter ID that is still waiting now sends the previous card run through its NO path instead of leaving it hanging.
+- Disabled waiters stay waiting as documented; timeouts, matching values and gate changes are completed when the waiter is re-enabled.
+- New *Conditional Gate: Wait for GO* cards default to a 30-second timeout. The *Wait* action rejects durations above 55 seconds; use Homey's built-in Flow delay for longer pauses.
+
 ## [1.10.29] - September 2026 (Test channel)
 
 ### Fixed

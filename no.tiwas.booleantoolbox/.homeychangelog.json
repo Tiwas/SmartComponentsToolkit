@@ -138,5 +138,9 @@
   },
   "1.10.29": {
     "en": "Fixed diagnostic report generation on Homey systems where process memory or other resource metrics are unavailable."
+  },
+  "1.10.30": {
+    "en": "Stability: fixes app restarts and Logic Devices that randomly stopped reacting. Realtime device subscriptions are now shared, so they no longer leak memory or cut off other listeners. New: Conditional Gate and \"Wait until device capability becomes value\" can wait longer than Homey's 60-second Flow card limit with the new \"Start waiting…\" actions and \"…wait finished\" triggers; waits inside a card now end with a clear message at 55 s. Diagnostics show where warnings come from, plus memory samples. Guides: https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html",
+    "no": "Stabilitet: retter app-restarter og Logic Devices som tilfeldig sluttet å reagere. Sanntidsabonnementer på enheter deles nå, så de lekker ikke lenger minne eller kutter andre lyttere. Nytt: Betinget Port og «Vent til enhetens capability blir verdi» kan vente lenger enn Homeys grense på 60 sekunder for flowkort, med de nye «Start venting …»-handlingene og «… fullført»-triggerne; venting inne i et kort avsluttes nå med en tydelig melding etter 55 s. Diagnosen viser hvor advarsler kommer fra, og minnemålinger. Guider: https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html"
   }
 }

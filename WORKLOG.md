@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-09-29 — homey-api 3.20.0 upgrade
+
+### Requested
+- Upgrade `homey-api` from 3.17.0 to 3.20.0, keep the #44 shared-subscription wrapper as a dormant safety net, and make its tests independent of the installed library.
+
+### Implemented
+- Pinned `homey-api` 3.20.0 (`--save-exact`). New transitive packages: `jsonwebtoken` and its `jws`/`jwa`/`lodash.*`/`semver`/`safe-buffer` dependencies (loaded eagerly through `homey-api`'s index). Socket.IO stays at 2.5.0 and the `socket.io-parser` 3.3.6 override still applies; `npm audit --omit=dev` reports the same four moderate Socket.IO 2.x findings as before and no high findings. Updated the accepted-risk note in SECURITY.md.
+- 3.20.0 shares one server subscription per URI through `SubscriptionRegistry`, removes the per-subscribe `once("disconnect")` listener, and moves Item/Manager realtime handling into `RealtimeConsumer`. `shareHomeyApiSubscriptions` detects `__subscriptionRegistry` and stays inactive, so `__sctResubscribe` is absent and the Logic Device health refresh replays missed values without resubscribing.
+- Rewrote the wrapper tests against a self-contained in-test model of the 3.17 realtime behaviour (per-subscribe wire subscription and leaked disconnect listener, URI-wide server unsubscribe, reconnect re-subscription, no registry); all fourteen scenarios keep their assertions and still fail without the wrapper.
+- Added tests against the installed library: version check, the wrapper stays inactive on a real `HomeyAPIV3Local`, and with the real 3.20 `SubscriptionRegistry`, Item, Device, and DeviceCapability code, destroying one Device object keeps another consumer of the same device subscribed. Added Logic Device tests for the health-refresh replay without a resubscribe hook.
+
+### Compatibility review (3.17 → 3.20)
+- Unchanged: `createAppAPI`, `HomeyAPIV3Local`, `ManagerDevices` (including `scheduleRefresh`), `Device` (`makeCapabilityInstance`, deprecated `driverUri`/`zoneName` getters, `driverId`), and `EventEmitter`. Manager caching still only applies to connected managers, which the app never connects, so `getDevice()`/`getDevices()` stay uncached.
+- Changed but compatible: Item `connect()`/`disconnect()` now use `RealtimeConsumer` (the app never calls them directly or reads `io`/`__homeySocket`); device namespace `update` events now update the Device object and `delete` events destroy it (capability instances are destroyed as before); `DeviceCapability.lastChanged` is null for events without a transaction time (Composite Device already falls back to the current time); API calls fall back to HTTP while the socket session is not ready.
+- Node.js: 3.20.0 declares `engines.node >=22`; a scan found nothing newer than Node.js 16 (`??=`, `AbortController`, `Promise.any`, `node:` builtins). Homey Pro (Early 2023) runs Node.js 22.
+
+### Verification
+- `npm test -- --runInBand`: 22 suites and 343 tests passed.
+- `npm run test:package`: publish-level validation passed; bundle contains 909 files (8.00 MB) and all 17 manifest assets were verified.
+
+### Follow-ups
+- Live-test realtime Logic Device, Composite Device, Circadian, and waiter updates on the configured Homey before release.
+- Remove the dormant wrapper in a later change once 3.20 has proven stable.
+
 ## 2026-09-29 — Test release v1.10.30
 
 ### Requested

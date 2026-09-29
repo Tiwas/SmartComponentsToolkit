@@ -336,6 +336,38 @@ describe('LogicDeviceDevice linked inputs', () => {
     });
   });
 
+  test('health check replays a missed value when homey-api provides no resubscribe hook', async () => {
+    // homey-api 3.20+ shares subscriptions itself, so the app wrapper and its
+    // __sctResubscribe hook are not installed.
+    const { device, api } = createReconcileHarness({ sourceValue: true, inputState: false });
+    delete api.__sctResubscribe;
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(api.devices.getDevice).toHaveBeenCalledTimes(1);
+    expect(device.setInputForFormula).toHaveBeenCalledTimes(1);
+    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', true);
+    expect(device.logger.error).not.toHaveBeenCalled();
+  });
+
+  test('health check without a resubscribe hook does not replay over a newer event', async () => {
+    const { device, api } = createReconcileHarness({ sourceValue: true, inputState: false });
+    delete api.__sctResubscribe;
+    device.linkedInputEventAt = new Map([['a', Date.now() + 60000]]);
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(device.setInputForFormula).not.toHaveBeenCalled();
+  });
+
   test('health check leaves matching linked values untouched', async () => {
     const { device, resubscribe } = createReconcileHarness({ sourceValue: true, inputState: true });
 

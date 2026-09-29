@@ -11,7 +11,7 @@ The dashboard's development and production dependency trees must have no high-or
 
 ## Accepted Homey runtime risk
 
-`homey-api` 3.17.0 uses Socket.IO 2.x, which still pulls in `parseuri` 0.0.6. Its [ReDoS advisory](https://github.com/advisories/GHSA-6fx8-h7jm-663j) has no compatible fixed transitive version: `parseuri` 3.x is not API-compatible with the Socket.IO 2.x client. Newer `homey-api` releases require Node.js 24, while this Homey app supports the older Homey Node.js runtime.
+`homey-api` 3.20.0 still uses Socket.IO 2.x, which still pulls in `parseuri` 0.0.6. Its [ReDoS advisory](https://github.com/advisories/GHSA-6fx8-h7jm-663j) has no compatible fixed transitive version: `parseuri` 3.x is not API-compatible with the Socket.IO 2.x client. `homey-api` 3.20.0 declares Node.js 22 or newer, which matches the Homey Pro (Early 2023) runtime; its code uses no API newer than Node.js 16.
 
 The app is a Socket.IO client; it does not expose a listening Socket.IO endpoint. The remaining risk therefore requires a malicious or compromised Homey/API endpoint to supply a crafted URI. This moderate upstream risk is accepted only while all of the following remain true:
 

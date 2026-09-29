@@ -3,7 +3,7 @@
   "version": "1.10.30",
   "main": "app.js",
   "dependencies": {
-    "homey-api": "3.17.0",
+    "homey-api": "3.20.0",
     "suncalc": "^1.9.0"
   },
   "author": "Lars Kvanum",

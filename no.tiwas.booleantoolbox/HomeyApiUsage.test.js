@@ -1,10 +1,8 @@
 "use strict";
 
+const EventEmitter = require("node:events");
 const fs = require("node:fs");
 const path = require("node:path");
-const Emitter = require("component-emitter");
-const HomeyAPIV3 = require("homey-api/lib/HomeyAPI/HomeyAPIV3");
-const Device = require("homey-api/lib/HomeyAPI/HomeyAPIV3/ManagerDevices/Device");
 
 jest.mock("homey", () => ({
     App: class {},
@@ -16,68 +14,138 @@ jest.mock("./lib/CapturedStateManager", () => jest.fn());
 
 const BooleanToolboxApp = require("./app");
 
-Device.ID = "device";
-
 /**
- * Builds a HomeyAPI-like object that runs the real homey-api 3.17 subscribe(),
- * Item and DeviceCapability code against an in-memory socket.
+ * Creates a socket whose "subscribe"/"unsubscribe" emits model Homey's
+ * server: acknowledgements arrive asynchronously, "unsubscribe" is URI-wide,
+ * and events are only delivered for subscribed URIs.
  */
-function createRealtimeApi() {
+function createWireSocket() {
     const wire = [];
     const failures = { subscribe: 0 };
-    // Server-side room membership of this socket: "unsubscribe" is URI-wide.
     const serverSubscriptions = new Set();
-    const homeySocket = new Emitter();
-    homeySocket.connected = true;
+    const homeySocket = new EventEmitter();
+    homeySocket.setMaxListeners(0);
     homeySocket.emit = function emit(event, ...args) {
         if (event === "subscribe" || event === "unsubscribe") {
+            const uri = args[0];
             const failed = event === "subscribe" && failures.subscribe > 0;
             if (failed) failures.subscribe -= 1;
-            wire.push(`${failed ? "failed-" : ""}${event}:${args[0]}`);
-            if (event === "unsubscribe") serverSubscriptions.delete(args[0]);
-            if (event === "subscribe" && !failed) serverSubscriptions.add(args[0]);
+            wire.push(`${failed ? "failed-" : ""}${event}:${uri}`);
+            if (event === "unsubscribe") serverSubscriptions.delete(uri);
+            if (event === "subscribe" && !failed) serverSubscriptions.add(uri);
             const acknowledge = args[1];
             if (typeof acknowledge === "function") {
                 setImmediate(() => acknowledge(failed ? new Error("subscribe failed") : null));
             }
-            return this;
+            return true;
         }
-        return Emitter.prototype.emit.call(this, event, ...args);
+        return EventEmitter.prototype.emit.call(this, event, ...args);
     };
-
-    const api = {
-        constructor: HomeyAPIV3,
-        __homeySocket: homeySocket,
-        __socket: new Emitter(),
-        __debug() {},
-        isConnected: HomeyAPIV3.prototype.isConnected,
-        connect: async () => {},
-        subscribe: HomeyAPIV3.prototype.subscribe,
-    };
-    const manager = { __debug() {}, scheduleRefresh() {} };
-    const newDevice = (id) => new Device({
-        id,
-        homey: api,
-        manager,
-        properties: {
-            name: "Private sensor name",
-            capabilities: ["alarm_motion"],
-            capabilitiesObj: { alarm_motion: { id: "alarm_motion", value: false, lastUpdated: null } },
-        },
-    });
-    const pushCapability = (id, value, transactionTime = Date.now()) => {
+    const pushCapability = (id, value, capabilityId = "alarm_motion") => {
         const uri = `homey:device:${id}`;
         // Homey only delivers events for URIs this socket is subscribed to.
         if (!serverSubscriptions.has(uri)) return;
-        Emitter.prototype.emit.call(homeySocket, uri, "capability", {
-            capabilityId: "alarm_motion",
+        EventEmitter.prototype.emit.call(homeySocket, uri, "capability", {
+            capabilityId,
             value,
-            transactionId: `t-${transactionTime}-${Math.random()}`,
-            transactionTime,
+            transactionId: `t-${Math.random()}`,
+            transactionTime: Date.now(),
         });
     };
+    return { wire, failures, serverSubscriptions, homeySocket, pushCapability };
+}
 
-    return { api, wire, failures, serverSubscriptions, homeySocket, newDevice, pushCapability };
+/**
+ * Self-contained model of the homey-api 3.17 realtime behaviour that the
+ * shared subscription wrapper protects against, independent of the installed
+ * homey-api version:
+ * - every subscribe() is its own wire subscription and leaves a
+ *   once("disconnect") listener on the namespace socket;
+ * - unsubscribe() sends a URI-wide server "unsubscribe";
+ * - a socket "reconnect" re-subscribes and reports onReconnectError on failure;
+ * - there is no __subscriptionRegistry.
+ * newDevice() models a 3.17 Device object: one subscription per object,
+ * shared by its capability instances and released with the last one.
+ */
+function createRealtimeApi() {
+    const wireSocket = createWireSocket();
+    const { homeySocket } = wireSocket;
+    const socket = new EventEmitter();
+    socket.setMaxListeners(0);
+
+    const subscribeOnWire = (uri) => new Promise((resolve, reject) => {
+        // 3.17 never removes this listener after a successful subscribe.
+        homeySocket.once("disconnect", (reason) => reject(new Error(reason)));
+        homeySocket.emit("subscribe", uri, (error) => (error ? reject(error) : resolve()));
+    });
+
+    const api = {
+        async subscribe(uri, {
+            onConnect = () => {},
+            onReconnect = () => {},
+            onReconnectError = () => {},
+            onDisconnect = () => {},
+            onEvent = () => {},
+        } = {}) {
+            await subscribeOnWire(uri);
+            const handleEvent = (event, data) => onEvent(event, data);
+            const handleDisconnect = (reason) => onDisconnect(reason);
+            const handleReconnect = () => {
+                subscribeOnWire(uri).then(() => onReconnect(), (error) => onReconnectError(error));
+            };
+            homeySocket.on(uri, handleEvent);
+            socket.on("disconnect", handleDisconnect);
+            socket.on("reconnect", handleReconnect);
+            onConnect();
+            return {
+                unsubscribe() {
+                    homeySocket.emit("unsubscribe", uri);
+                    homeySocket.removeListener(uri, handleEvent);
+                    socket.removeListener("disconnect", handleDisconnect);
+                    socket.removeListener("reconnect", handleReconnect);
+                },
+            };
+        },
+    };
+
+    const newDevice = (id) => {
+        const uri = `homey:device:${id}`;
+        const instances = new Set();
+        let subscription = null;
+        return {
+            uri,
+            makeCapabilityInstance(capabilityId, listener) {
+                if (!subscription) {
+                    subscription = api.subscribe(uri, {
+                        onEvent: (event, data) => {
+                            if (event !== "capability") return;
+                            for (const instance of Array.from(instances)) {
+                                if (instance.capabilityId === data.capabilityId) {
+                                    instance.listener(data.value, instance);
+                                }
+                            }
+                        },
+                    });
+                    subscription.catch(() => {});
+                }
+                const instance = {
+                    capabilityId,
+                    listener,
+                    destroy() {
+                        if (!instances.delete(instance)) return;
+                        if (instances.size > 0 || !subscription) return;
+                        const pending = subscription;
+                        subscription = null;
+                        pending.then((handle) => handle.unsubscribe(), () => {});
+                    },
+                };
+                instances.add(instance);
+                return instance;
+            },
+        };
+    };
+
+    return { ...wireSocket, api, socket, newDevice };
 }
 
 async function settle() {
@@ -343,7 +411,7 @@ describe("shared Homey API realtime subscriptions", () => {
         await settle();
 
         realtime.failures.subscribe = 1;
-        realtime.api.__socket.emit("reconnect");
+        realtime.socket.emit("reconnect");
         await settle();
         const entry = realtime.api.__sctSharedSubscriptions.get(uri);
         expect(entry.consumers.size).toBe(1);
@@ -360,7 +428,7 @@ describe("shared Homey API realtime subscriptions", () => {
             `subscribe:${uri}`,
         ]);
         expect(realtime.homeySocket.listeners(uri)).toHaveLength(1);
-        expect(realtime.api.__socket.listeners("reconnect")).toHaveLength(1);
+        expect(realtime.socket.listeners("reconnect")).toHaveLength(1);
         watcherInstance.destroy();
     });
 
@@ -368,8 +436,8 @@ describe("shared Homey API realtime subscriptions", () => {
         return {
             server: realtime.serverSubscriptions.has(uri),
             uriListeners: realtime.homeySocket.listeners(uri).length,
-            disconnectListeners: realtime.api.__socket.listeners("disconnect").length,
-            reconnectListeners: realtime.api.__socket.listeners("reconnect").length,
+            disconnectListeners: realtime.socket.listeners("disconnect").length,
+            reconnectListeners: realtime.socket.listeners("reconnect").length,
         };
     }
 
@@ -487,6 +555,86 @@ describe("shared Homey API realtime subscriptions", () => {
 
         expect(api.subscribe).toBe(subscribe);
         expect(api.__sctSharedSubscriptions).toBeUndefined();
+    });
+});
+
+describe("installed homey-api realtime subscriptions", () => {
+    const homeyApiVersion = require("homey-api/package.json").version;
+    const HomeyAPIV3Local = require("homey-api/lib/HomeyAPI/HomeyAPIV3Local");
+    const Device = require("homey-api/lib/HomeyAPI/HomeyAPIV3/ManagerDevices/Device");
+    const SubscriptionRegistry = require("homey-api/lib/HomeyAPI/HomeyAPIV3/SubscriptionRegistry");
+
+    /**
+     * Runs the installed homey-api SubscriptionRegistry, Item, Device, and
+     * DeviceCapability code; only the Homey socket session is simulated.
+     */
+    function createRegistryRealtime() {
+        const wireSocket = createWireSocket();
+        const session = new EventEmitter();
+        session.revision = 1;
+        session.homeySocket = wireSocket.homeySocket;
+        session.isConnected = () => true;
+        session.ensureConnected = async () => ({ homeySocket: wireSocket.homeySocket, revision: 1 });
+        const homey = { constructor: { SUBSCRIBE_TIMEOUT: 1000 }, __debug() {} };
+        const registry = new SubscriptionRegistry({ homey, session });
+        homey.subscribe = (uri, handlers) => registry.subscribe(uri, handlers);
+        const manager = { __debug() {}, scheduleRefresh() {} };
+        Device.ID = "device";
+        const newDevice = (id) => new Device({
+            id,
+            homey,
+            manager,
+            properties: {
+                capabilities: ["alarm_motion"],
+                capabilitiesObj: { alarm_motion: { id: "alarm_motion", value: false, lastUpdated: null } },
+            },
+        });
+        return { ...wireSocket, registry, newDevice };
+    }
+
+    test("uses homey-api 3.20 or newer", () => {
+        const [major, minor] = homeyApiVersion.split(".").map(Number);
+        expect(major > 3 || (major === 3 && minor >= 20)).toBe(true);
+    });
+
+    test("the shared-subscription wrapper stays inactive on the installed HomeyAPIV3", () => {
+        const api = new HomeyAPIV3Local({
+            properties: { id: "homey-test" },
+            baseUrl: "http://127.0.0.1",
+            token: "test-token",
+            strategy: [],
+        });
+        try {
+            configure(api);
+
+            expect(api.__subscriptionRegistry).toBeInstanceOf(SubscriptionRegistry);
+            expect(Object.prototype.hasOwnProperty.call(api, "subscribe")).toBe(false);
+            expect(api.subscribe).toBe(HomeyAPIV3Local.prototype.subscribe);
+            expect(api.__sctResubscribe).toBeUndefined();
+            expect(api.__sctSharedSubscriptions).toBeUndefined();
+        } finally {
+            api.destroy();
+        }
+    });
+
+    test("destroying one Device object keeps another consumer of the same device subscribed", async () => {
+        const realtime = createRegistryRealtime();
+        const remainingListener = jest.fn();
+        const destroyedListener = jest.fn();
+        realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", remainingListener);
+        const destroyedInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", destroyedListener);
+        await settle();
+
+        destroyedInstance.destroy();
+        await settle();
+        realtime.pushCapability("sensor", true);
+
+        expect(realtime.wire).toEqual(["subscribe:homey:device:sensor"]);
+        expect(remainingListener).toHaveBeenCalledWith(true, expect.anything());
+        expect(destroyedListener).not.toHaveBeenCalled();
+        // 3.20 removes the once("disconnect") listener after subscribing.
+        expect(realtime.homeySocket.listeners("disconnect")).toHaveLength(0);
+        realtime.registry.destroy();
     });
 });
 

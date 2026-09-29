@@ -282,22 +282,33 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(destroyReplacement).toHaveBeenCalledTimes(1);
   });
 
-  function createReconcileHarness({ sourceValue, inputState, resubscribe = jest.fn(async () => true) }) {
+  function createReconcileHarness({
+    sourceValue,
+    inputState,
+    freshValue = sourceValue,
+    resubscribe = jest.fn(async () => true),
+  }) {
     let registeredListener = null;
     const previousListener = { unregister: jest.fn(async () => {}) };
+    const sourceDevice = (value) => ({
+      id: 'source-id',
+      uri: 'homey:device:source-id',
+      name: 'Source',
+      capabilities: ['alarm_generic'],
+      capabilitiesObj: { alarm_generic: { value } },
+      makeCapabilityInstance: jest.fn((capability, listener) => {
+        registeredListener = listener;
+        return { destroy: jest.fn() };
+      }),
+    });
     const api = {
       __sctResubscribe: resubscribe,
       devices: {
-        getDevice: jest.fn(async () => ({
-          uri: 'homey:device:source-id',
-          name: 'Source',
-          capabilities: ['alarm_generic'],
-          capabilitiesObj: { alarm_generic: { value: sourceValue } },
-          makeCapabilityInstance: jest.fn((capability, listener) => {
-            registeredListener = listener;
-            return { destroy: jest.fn() };
-          }),
-        })),
+        // The health check reads the snapshot first; the reconciliation
+        // re-reads the value after resubscribing.
+        getDevice: jest.fn()
+          .mockImplementationOnce(async () => sourceDevice(sourceValue))
+          .mockImplementation(async () => sourceDevice(freshValue)),
       },
     };
     const device = createLogicDeviceHarness(api);
@@ -352,8 +363,42 @@ describe('LogicDeviceDevice linked inputs', () => {
     expect(device.setInputForFormula).not.toHaveBeenCalled();
   });
 
+  test('health check replays the value read after resubscribing when it changed without an event', async () => {
+    const { device, api, resubscribe } = createReconcileHarness({
+      sourceValue: true,
+      inputState: 'undefined',
+      // The source changes to false while the server subscription is being
+      // replaced, so no realtime event is delivered for that change.
+      freshValue: false,
+    });
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(resubscribe).toHaveBeenCalledWith('homey:device:source-id');
+    expect(api.devices.getDevice).toHaveBeenCalledTimes(2);
+    expect(api.devices.getDevice).toHaveBeenLastCalledWith({ id: 'source-id' });
+    expect(device.setInputForFormula).toHaveBeenCalledTimes(1);
+    expect(device.setInputForFormula).toHaveBeenCalledWith('formula_1', 'a', false);
+  });
+
+  test('health check does not replay when the value read after resubscribing matches the input', async () => {
+    const { device } = createReconcileHarness({ sourceValue: true, inputState: false, freshValue: false });
+
+    await device.setupDeviceListener({
+      input: 'A',
+      deviceId: 'source-id',
+      capability: 'alarm_generic',
+    }, { replaceExisting: true });
+
+    expect(device.setInputForFormula).not.toHaveBeenCalled();
+  });
+
   test('health check does not replay the snapshot over an event received while resubscribing', async () => {
-    const harness = createReconcileHarness({ sourceValue: true, inputState: false });
+    const harness = createReconcileHarness({ sourceValue: true, inputState: false, freshValue: false });
     const { device, resubscribe } = harness;
     resubscribe.mockImplementation(async () => {
       // The source changes again while the subscription is being replaced.

@@ -24,13 +24,18 @@ Device.ID = "device";
  */
 function createRealtimeApi() {
     const wire = [];
+    const failures = { subscribe: 0 };
     const homeySocket = new Emitter();
     homeySocket.connected = true;
     homeySocket.emit = function emit(event, ...args) {
         if (event === "subscribe" || event === "unsubscribe") {
-            wire.push(`${event}:${args[0]}`);
+            const failed = event === "subscribe" && failures.subscribe > 0;
+            if (failed) failures.subscribe -= 1;
+            wire.push(`${failed ? "failed-" : ""}${event}:${args[0]}`);
             const acknowledge = args[1];
-            if (typeof acknowledge === "function") setImmediate(() => acknowledge(null));
+            if (typeof acknowledge === "function") {
+                setImmediate(() => acknowledge(failed ? new Error("subscribe failed") : null));
+            }
             return this;
         }
         return Emitter.prototype.emit.call(this, event, ...args);
@@ -65,7 +70,7 @@ function createRealtimeApi() {
         });
     };
 
-    return { api, wire, homeySocket, newDevice, pushCapability };
+    return { api, wire, failures, homeySocket, newDevice, pushCapability };
 }
 
 async function settle() {
@@ -213,6 +218,143 @@ describe("shared Homey API realtime subscriptions", () => {
         ]);
         expect(listener).toHaveBeenCalledTimes(1);
         await expect(realtime.api.__sctResubscribe("homey:device:unknown")).resolves.toBe(false);
+    });
+
+    test("keeps consumers after a failed resubscribe and restores them on the next subscribe", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const uri = "homey:device:sensor";
+        const watcher = jest.fn();
+        const watcherInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", watcher);
+        await settle();
+
+        realtime.failures.subscribe = 1;
+        await expect(realtime.api.__sctResubscribe(uri)).rejects.toThrow("subscribe failed");
+        const entry = realtime.api.__sctSharedSubscriptions.get(uri);
+        expect(entry.consumers.size).toBe(1);
+        expect(entry.needsResubscribe).toBe(true);
+
+        const laterInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", () => {});
+        await settle();
+        realtime.pushCapability("sensor", true);
+
+        expect(watcher).toHaveBeenCalledWith(true, expect.anything());
+        expect(realtime.api.__sctSharedSubscriptions.get(uri)).toBe(entry);
+        expect(entry.needsResubscribe).toBe(false);
+        expect(realtime.wire).toEqual([
+            `subscribe:${uri}`,
+            `unsubscribe:${uri}`,
+            `failed-subscribe:${uri}`,
+            `subscribe:${uri}`,
+        ]);
+        expect(realtime.homeySocket.listeners(uri)).toHaveLength(1);
+
+        watcherInstance.destroy();
+        laterInstance.destroy();
+        await settle();
+        expect(realtime.api.__sctSharedSubscriptions.size).toBe(0);
+        expect(realtime.wire.at(-1)).toBe(`unsubscribe:${uri}`);
+    });
+
+    test("restores a failed subscription on the next health-refresh resubscribe", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const uri = "homey:device:sensor";
+        const watcher = jest.fn();
+        const watcherInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", watcher);
+        await settle();
+
+        realtime.failures.subscribe = 1;
+        await expect(realtime.api.__sctResubscribe(uri)).rejects.toThrow("subscribe failed");
+        await expect(realtime.api.__sctResubscribe(uri)).resolves.toBe(true);
+        realtime.pushCapability("sensor", true);
+
+        expect(watcher).toHaveBeenCalledTimes(1);
+        expect(realtime.wire.slice(-2)).toEqual([`failed-subscribe:${uri}`, `subscribe:${uri}`]);
+        watcherInstance.destroy();
+    });
+
+    test("retries a failed subscription with backoff while it has consumers", async () => {
+        jest.useFakeTimers({ doNotFake: ["setImmediate", "nextTick", "queueMicrotask"] });
+        try {
+            const realtime = createRealtimeApi();
+            configure(realtime.api);
+            const uri = "homey:device:sensor";
+            const watcher = jest.fn();
+            const watcherInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", watcher);
+            await settle();
+
+            realtime.failures.subscribe = 2;
+            await expect(realtime.api.__sctResubscribe(uri)).rejects.toThrow("subscribe failed");
+            jest.advanceTimersByTime(5000);
+            await settle();
+            expect(realtime.wire.filter((entry) => entry === `failed-subscribe:${uri}`)).toHaveLength(2);
+
+            jest.advanceTimersByTime(10000);
+            await settle();
+            realtime.pushCapability("sensor", true);
+
+            expect(watcher).toHaveBeenCalledTimes(1);
+            expect(realtime.wire.at(-1)).toBe(`subscribe:${uri}`);
+            expect(jest.getTimerCount()).toBe(0);
+            watcherInstance.destroy();
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    test("an unsubscribe after a failed resubscribe releases the entry without leaks", async () => {
+        jest.useFakeTimers({ doNotFake: ["setImmediate", "nextTick", "queueMicrotask"] });
+        try {
+            const realtime = createRealtimeApi();
+            configure(realtime.api);
+            const uri = "homey:device:sensor";
+            const watcherInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", () => {});
+            await settle();
+
+            realtime.failures.subscribe = 1;
+            await expect(realtime.api.__sctResubscribe(uri)).rejects.toThrow("subscribe failed");
+            const wireBeforeRelease = [...realtime.wire];
+            watcherInstance.destroy();
+            await settle();
+
+            expect(realtime.api.__sctSharedSubscriptions.size).toBe(0);
+            expect(realtime.wire).toEqual(wireBeforeRelease);
+            expect(realtime.homeySocket.listeners(uri)).toHaveLength(0);
+            expect(jest.getTimerCount()).toBe(0);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    test("keeps consumers when resubscribing after a socket reconnect fails and restores them", async () => {
+        const realtime = createRealtimeApi();
+        configure(realtime.api);
+        const uri = "homey:device:sensor";
+        const watcher = jest.fn();
+        const watcherInstance = realtime.newDevice("sensor").makeCapabilityInstance("alarm_motion", watcher);
+        await settle();
+
+        realtime.failures.subscribe = 1;
+        realtime.api.__socket.emit("reconnect");
+        await settle();
+        const entry = realtime.api.__sctSharedSubscriptions.get(uri);
+        expect(entry.consumers.size).toBe(1);
+        expect(entry.needsResubscribe).toBe(true);
+
+        await expect(realtime.api.__sctResubscribe(uri)).resolves.toBe(true);
+        realtime.pushCapability("sensor", true);
+
+        expect(watcher).toHaveBeenCalledTimes(1);
+        expect(realtime.wire).toEqual([
+            `subscribe:${uri}`,
+            `failed-subscribe:${uri}`,
+            `unsubscribe:${uri}`,
+            `subscribe:${uri}`,
+        ]);
+        expect(realtime.homeySocket.listeners(uri)).toHaveLength(1);
+        expect(realtime.api.__socket.listeners("reconnect")).toHaveLength(1);
+        watcherInstance.destroy();
     });
 
     test("leaves homey-api versions with their own subscription registry untouched", () => {

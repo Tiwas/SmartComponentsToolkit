@@ -732,6 +732,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       if (replaceExisting) {
         await this.reconcileLinkedInput({
           api,
+          deviceId,
           inputId,
           capability,
           targetDevice,
@@ -752,11 +753,12 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
    * Applies a linked value that the realtime listener missed. The health
    * check fetches every linked device anyway; when that snapshot differs from
    * the cached input and no newer event arrived after the snapshot was
-   * requested, the value is replayed through the listener and the realtime
-   * subscription is recreated.
+   * requested, the realtime subscription is recreated and the current value
+   * is replayed through the listener.
    */
   async reconcileLinkedInput({
     api,
+    deviceId,
     inputId,
     capability,
     targetDevice,
@@ -764,41 +766,62 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
     snapshotRequestedAt,
   }) {
     if (this._isDeleting) return false;
-    const currentValue = targetDevice?.capabilitiesObj?.[capability]?.value;
-    if (currentValue === null || currentValue === undefined) return false;
+    const snapshotValue = targetDevice?.capabilitiesObj?.[capability]?.value;
+    if (snapshotValue === null || snapshotValue === undefined) return false;
 
-    const boolValue = this.convertToBoolean(currentValue, capability);
-    const snapshotIsStale = () => (
+    const isStale = (requestedAt) => (
       this._isDeleting
-      || (this.linkedInputEventAt?.get(inputId) || 0) >= snapshotRequestedAt
+      || (this.linkedInputEventAt?.get(inputId) || 0) >= requestedAt
     );
-    const snapshotDiffers = () => (this.formulas || []).some((formula) => (
-      !(formula.firstImpression && formula.lockedInputs?.[inputId])
-      && formula.inputStates?.[inputId] !== boolValue
-    ));
-    if (snapshotIsStale() || !snapshotDiffers()) return false;
+    const differsFromInputs = (value) => {
+      const boolValue = this.convertToBoolean(value, capability);
+      return (this.formulas || []).some((formula) => (
+        !(formula.firstImpression && formula.lockedInputs?.[inputId])
+        && formula.inputStates?.[inputId] !== boolValue
+      ));
+    };
+    if (isStale(snapshotRequestedAt) || !differsFromInputs(snapshotValue)) return false;
 
     this.logger.warn("listener.missed_update_recovered", {
       input: inputId.toUpperCase(),
       capability,
     });
 
-    try {
-      if (typeof api?.__sctResubscribe === "function" && targetDevice.uri) {
+    let replayValue = snapshotValue;
+    let replayRequestedAt = snapshotRequestedAt;
+    if (typeof api?.__sctResubscribe === "function" && targetDevice.uri) {
+      try {
         await api.__sctResubscribe(targetDevice.uri);
+      } catch (error) {
+        this.logger.error("listener.resubscribe_failed", {
+          input: inputId.toUpperCase(),
+          message: error.message,
+        });
       }
-    } catch (error) {
-      this.logger.error("listener.resubscribe_failed", {
-        input: inputId.toUpperCase(),
-        message: error.message,
-      });
+
+      // Resubscribing briefly removes the server subscription, and a change
+      // in that window produces no event. Read the value again now that the
+      // replacement subscription is active instead of replaying the snapshot.
+      replayRequestedAt = Date.now();
+      let freshDevice = null;
+      try {
+        freshDevice = await api.devices.getDevice({ id: deviceId || targetDevice.id });
+      } catch (error) {
+        this.logger.error("listener.refetch_failed", {
+          input: inputId.toUpperCase(),
+          message: error.message,
+        });
+        return false;
+      }
+      replayValue = freshDevice?.capabilitiesObj?.[capability]?.value;
+      if (replayValue === null || replayValue === undefined) return false;
     }
 
-    // A realtime event can arrive while the subscription is being replaced.
-    // It is newer than the snapshot, so the snapshot must not overwrite it.
-    if (snapshotIsStale() || !snapshotDiffers()) return false;
+    // A realtime event received after the value was read is newer and must
+    // not be overwritten.
+    if (isStale(replayRequestedAt) || !differsFromInputs(replayValue)) return false;
 
-    await listenerFn(currentValue);
+    await listenerFn(replayValue);
     return true;
   }
 

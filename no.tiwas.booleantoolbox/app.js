@@ -35,6 +35,8 @@ const DIAGNOSTIC_SESSION_KEY = "diagnostic_session";
 const DIAGNOSTIC_MEMORY_SAMPLE_INTERVAL_MS = 15 * 60 * 1000;
 const DIAGNOSTIC_MEMORY_SAMPLES_LIMIT = 16;
 const PROCESS_DIAGNOSTICS_REGISTRATION = Symbol.for("no.tiwas.booleantoolbox.processDiagnostics");
+const SHARED_SUBSCRIPTION_RETRY_BASE_MS = 5000;
+const SHARED_SUBSCRIPTION_RETRY_MAX_MS = 5 * 60 * 1000;
 
 function isFiniteDiagnosticMetric(value) {
     return value !== null
@@ -147,50 +149,94 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
         }
     };
 
+    const clearRetry = (entry) => {
+        if (entry.retryTimer) {
+            clearTimeout(entry.retryTimer);
+            entry.retryTimer = null;
+        }
+    };
+
+    // An entry stays registered for as long as it has consumers, also when
+    // its server subscription failed, so every unsubscribe handle keeps
+    // releasing the entry it was created for.
     const release = (entry) => {
         if (entries.get(entry.uri) === entry) entries.delete(entry.uri);
         if (entry.released) return;
         entry.released = true;
-        // A subscription that failed to resume is already gone server-side.
-        // Unsubscribing it would remove a newer subscription for the same URI.
-        if (entry.failed || !entry.subscription) return;
+        clearRetry(entry);
         const subscription = entry.subscription;
         entry.subscription = null;
-        unsubscribeWire(subscription);
+        if (subscription) unsubscribeWire(subscription);
     };
 
+    // scheduleRetry and connectEntry call each other; both only run after
+    // this function has finished defining them.
+    const scheduleRetry = (entry) => {
+        if (entry.released || entry.connecting || entry.retryTimer) return;
+        const delay = Math.min(
+            SHARED_SUBSCRIPTION_RETRY_MAX_MS,
+            SHARED_SUBSCRIPTION_RETRY_BASE_MS * (2 ** Math.min(entry.retryAttempts, 10)),
+        );
+        entry.retryAttempts += 1;
+        entry.retryTimer = setTimeout(() => {
+            entry.retryTimer = null;
+            if (entry.released || entry.connecting || !entry.needsResubscribe) return;
+            connectEntry(entry).catch(() => {});
+        }, delay);
+        if (typeof entry.retryTimer?.unref === "function") entry.retryTimer.unref();
+    };
+
+    /**
+     * Creates the server subscription for an entry, replacing a previous one.
+     * On failure the entry keeps its consumers, is marked for resubscription,
+     * and is retried with bounded backoff, on the next subscribe for the URI,
+     * or on the next explicit resubscribe.
+     */
     const connectEntry = (entry) => {
+        clearRetry(entry);
+        const previous = entry.subscription;
+        entry.subscription = null;
+        if (previous) unsubscribeWire(previous);
+
+        entry.connecting = true;
         const ready = subscribeUri(entry.uri, entry.wireHandlers);
         entry.ready = ready;
         ready.then((subscription) => {
             if (entry.ready !== ready) return;
+            entry.connecting = false;
             if (entry.released) {
-                unsubscribeWire(subscription);
+                // A newer entry for the URI owns the server subscription.
+                if (!entries.has(entry.uri)) unsubscribeWire(subscription);
                 return;
             }
+            const recovered = entry.hasConnected;
             entry.subscription = subscription;
+            entry.hasConnected = true;
+            entry.needsResubscribe = false;
+            entry.retryAttempts = 0;
+            if (recovered) notify(entry, "onReconnect");
         }, () => {
             if (entry.ready !== ready) return;
-            entry.failed = true;
-            if (entries.get(entry.uri) === entry) entries.delete(entry.uri);
+            entry.connecting = false;
+            entry.needsResubscribe = true;
+            scheduleRetry(entry);
         });
         return ready;
     };
 
     /**
      * Replaces the server subscription of a URI while keeping its consumers,
-     * for use when a consumer detects that realtime updates were missed.
+     * for use when a consumer detects that realtime updates were missed. It
+     * also restores a subscription that previously failed.
      *
      * @param {string} uri Subscription URI
-     * @returns {Promise<boolean>} True when a new subscription was created
+     * @returns {Promise<boolean>} True when a subscription is active afterwards
      */
     const resubscribe = async (uri) => {
         const entry = entries.get(uri);
-        if (!entry || entry.released || entry.failed || !entry.subscription) return false;
-        const previous = entry.subscription;
-        entry.subscription = null;
-        unsubscribeWire(previous);
-        await connectEntry(entry);
+        if (!entry || entry.released) return false;
+        if (!entry.connecting) connectEntry(entry);
+        await entry.ready;
         return true;
     };
 
@@ -201,22 +247,35 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
                 uri,
                 consumers: new Set(),
                 released: false,
-                failed: false,
+                connecting: false,
+                hasConnected: false,
+                needsResubscribe: false,
+                retryAttempts: 0,
+                retryTimer: null,
                 subscription: null,
             };
             const current = entry;
             current.wireHandlers = {
                 onEvent: (event, data) => notify(current, "onEvent", event, data),
                 onDisconnect: (reason) => notify(current, "onDisconnect", reason),
-                onReconnect: () => notify(current, "onReconnect"),
+                onReconnect: () => {
+                    current.needsResubscribe = false;
+                    current.retryAttempts = 0;
+                    clearRetry(current);
+                    notify(current, "onReconnect");
+                },
                 onReconnectError: (error) => {
-                    current.failed = true;
-                    if (entries.get(uri) === current) entries.delete(uri);
+                    // The subscription could not be restored after a socket
+                    // reconnect. Keep the consumers and restore it.
+                    current.needsResubscribe = true;
+                    scheduleRetry(current);
                     notify(current, "onReconnectError", error);
                 },
             };
             entries.set(uri, current);
             connectEntry(current);
+        } else if (entry.needsResubscribe && !entry.connecting) {
+            connectEntry(entry);
         }
 
         const consumer = { handlers, active: true };
@@ -232,9 +291,9 @@ function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
         try {
             await subscribedEntry.ready;
         } catch (error) {
-            // The failed entry was already removed from the registry.
-            consumer.active = false;
-            subscribedEntry.consumers.delete(consumer);
+            // No unsubscribe handle is returned; earlier consumers keep the
+            // entry, which is retried.
+            removeConsumer();
             throw error;
         }
 
@@ -505,7 +564,13 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         if (this.waiterManager) {
             this.waiterManager.destroy();
         }
-        this.markDiagnosticSessionStopped();
+        // Wait for the clean-shutdown marker; otherwise the next start can
+        // report a false unclean shutdown.
+        try {
+            await this.markDiagnosticSessionStopped();
+        } catch (error) {
+            this.logger.error("Failed to persist the clean shutdown marker", error);
+        }
         await this.persistDiagnosticEvents();
         this.unregisterProcessDiagnostics();
         this.logger.info("App uninitialized.", {});
@@ -690,23 +755,36 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         return sample;
     }
 
+    /**
+     * Marks the session as cleanly stopped.
+     *
+     * @returns {Promise<void>} Resolves once the marker is persisted; never rejects
+     */
     markDiagnosticSessionStopped() {
-        if (!this.diagnosticSession) return;
+        if (!this.diagnosticSession) return Promise.resolve();
         this.diagnosticSession.cleanShutdown = true;
         this.diagnosticSession.stoppedAt = new Date().toISOString();
         this.diagnosticSession.lastSeenAt = this.diagnosticSession.stoppedAt;
-        this.persistDiagnosticSession();
+        return this.persistDiagnosticSession();
     }
 
+    /**
+     * Persists the diagnostic session record.
+     *
+     * @returns {Promise<void>} Resolves once Homey stored the record; failures
+     *   are logged and never reject
+     */
     persistDiagnosticSession() {
-        if (!this.diagnosticSession) return;
-        try {
-            const result = this.homey.settings.set(DIAGNOSTIC_SESSION_KEY, this.diagnosticSession);
-            if (result && typeof result.catch === "function") {
-                result.catch(() => {});
-            }
-        } catch (error) {
+        if (!this.diagnosticSession) return Promise.resolve();
+        const logFailure = (error) => {
             console.error("Failed to persist diagnostic session", error);
+        };
+        try {
+            return Promise.resolve(this.homey.settings.set(DIAGNOSTIC_SESSION_KEY, this.diagnosticSession))
+                .then(() => {}, logFailure);
+        } catch (error) {
+            logFailure(error);
+            return Promise.resolve();
         }
     }
 

@@ -373,6 +373,53 @@ describe("BooleanToolboxApp process and session diagnostics", () => {
         expect(values.diagnostic_session.previous.cleanShutdown).toBe(true);
     });
 
+    test("onUninit waits until the clean-shutdown marker is persisted", async () => {
+        jest.useRealTimers();
+        const stored = {};
+        const app = createApp();
+        app.logger = { error: jest.fn(), info: jest.fn() };
+        app.homey.settings.set = jest.fn((key, value) => new Promise((resolve) => {
+            const snapshot = JSON.parse(JSON.stringify(value));
+            // The session write is slower than the event write, so an
+            // un-awaited marker would still be pending when onUninit returns.
+            setTimeout(() => {
+                stored[key] = snapshot;
+                resolve();
+            }, key === "diagnostic_session" ? 30 : 0);
+        }));
+        app.diagnosticSession = {
+            startedAt: "2026-09-29T12:00:00.000Z",
+            cleanShutdown: false,
+            memorySamples: [],
+            previous: null,
+        };
+
+        await app.onUninit();
+
+        expect(stored.diagnostic_session).toEqual(expect.objectContaining({ cleanShutdown: true }));
+        expect(app.logger.error).not.toHaveBeenCalled();
+    });
+
+    test("onUninit logs a failed clean-shutdown write instead of throwing", async () => {
+        jest.useRealTimers();
+        const app = createApp();
+        app.logger = { error: jest.fn(), info: jest.fn() };
+        const failure = new Error("settings unavailable");
+        app.homey.settings.set = jest.fn(async (key) => {
+            if (key === "diagnostic_session") throw failure;
+        });
+        app.diagnosticSession = {
+            startedAt: "2026-09-29T12:00:00.000Z",
+            cleanShutdown: false,
+            memorySamples: [],
+            previous: null,
+        };
+
+        await expect(app.onUninit()).resolves.toBeUndefined();
+        expect(console.error).toHaveBeenCalledWith("Failed to persist diagnostic session", failure);
+        expect(app.logger.info).toHaveBeenCalledWith("App uninitialized.", {});
+    });
+
     test("keeps memory samples bounded and falls back to V8 heap statistics", () => {
         const memorySpy = jest.spyOn(process, "memoryUsage").mockImplementation(() => {
             throw new Error("ENOENT: no such file or directory, uv_resident_set_memory");

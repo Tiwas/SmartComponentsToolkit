@@ -133,7 +133,7 @@ ELSE ❌ notify "Light didn't turn on - check bulb?"</code></pre>
                 <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                     <h3 class="text-xl font-semibold mb-2 text-green-600">Start waiting until device capability becomes value</h3>
                     <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">ACTION</span></p>
-                    <p class="mb-4 text-gray-700">Starts a background wait and lets the flow continue immediately. When the capability reaches the target value or the timeout expires, the <em>Capability wait finished</em> trigger fires for this Waiter ID. Use this for anything longer than 55 seconds.</p>
+                    <p class="mb-4 text-gray-700">Starts a background wait and lets the flow continue immediately - the card returns before it contacts the device, so a slow or stalled device can never make it hit Homey's 60-second limit. When the capability reaches the target value or the timeout expires, the <em>Capability wait finished</em> trigger fires for this Waiter ID. Use this for anything longer than 55 seconds.</p>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
                     <ul class="space-y-2 text-sm text-gray-600 mb-4">
@@ -144,9 +144,9 @@ ELSE ❌ notify "Light didn't turn on - check bulb?"</code></pre>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Behaviour:</h4>
                     <ul class="list-disc ml-6 space-y-1 text-sm text-gray-600">
-                        <li>Value already matches → the trigger fires right away (result MATCHED).</li>
+                        <li>In the background the app first installs the capability listener and then reads the current value. If that value already matches, the trigger fires as soon as it has been read (result MATCHED). Because the listener is installed first, a change during setup is not missed.</li>
                         <li>Starting again with the same Waiter ID while a background wait is pending <strong>restarts</strong> it; the replaced wait does not fire the trigger. When two starts overlap, the most recent start wins, even if an older start's device lookup finishes later.</li>
-                        <li>The timeout counts from when the card ran, including the device lookup. If the lookup took longer than the timeout, TIMEOUT fires right away (unless the value already matches).</li>
+                        <li>The timeout and the <em>Waited (seconds)</em> tag count from when the card ran. A slow value read never delays the timeout; if it has not returned by then, the wait ends as TIMEOUT.</li>
                         <li>A Waiter ID can be used by a waiting <em>condition</em> card or by a background wait, not both at the same time; the second one fails with "Waiter ID already exists". A capability wait also cannot use the ID of a pending Conditional Gate background wait (<code>gate_&lt;name&gt;_background</code>), and vice versa.</li>
                     </ul>
                 </div>

@@ -469,7 +469,9 @@ class WaiterManager {
         
         if (updates.timeoutMs !== undefined) {
             const wasIndefinite = waiter.timeoutMs === 0;
-            waiter.timeoutMs = updates.timeoutMs;
+            // Same limits as at creation: 0 = no timeout, otherwise clamped to
+            // MIN_TIMEOUT_MS..MAX_TIMEOUT_MS (24 h), so orphan cleanup stays meaningful.
+            waiter.timeoutMs = this.validateTimeout(updates.timeoutMs);
             if (waiter.timeoutMs === 0 && !wasIndefinite) waiter.indefiniteSince = Date.now();
             if (waiter.timeoutMs !== 0) waiter.indefiniteSince = null;
             // A new timeout replaces one that elapsed while the waiter was disabled.

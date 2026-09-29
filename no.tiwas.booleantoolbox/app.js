@@ -1216,25 +1216,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                         // Use IIFE to allow async/await inside Promise constructor
                         (async () => {
                             try {
-                                // Check current value first - if already matches, resolve immediately
-                                try {
-                                    const apiDevice = await this.getApiDevice(device.id, { maxAgeMs: 0 });
-                                    const currentValue = apiDevice.capabilitiesObj[capability]?.value;
-
-                                    if (this.waiterManager.valueMatches(currentValue, targetValue)) {
-                                        this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} (target: ${targetValue})`);
-                                        this.logger.info(`🎯 Resolving immediately to YES-output (no wait needed)`);
-                                        settle(resolve, true);
-                                        return;
-                                    }
-
-                                    this.logger.debug(`⏳ Current value: ${currentValue}, waiting for: ${targetValue}`);
-                                } catch (error) {
-                                    this.logger.warn(`⚠️  Could not check current value, will wait for change: ${error.message}`);
-                                }
+                                // Order: create the waiter, install the capability listener, then
+                                // sample the current value. With the listener live before the
+                                // sample, a target transition during setup arrives as an event.
 
                                 // The configured timeout counts from the start of the run, like
-                                // Homey's limit and the guard, so the device lookup is deducted.
+                                // Homey's limit and the guard.
                                 const remainingTimeoutMs = this.getRemainingWaitTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
                                 if (remainingTimeoutMs === 0) {
                                     this.logger.info(`⏰ Waiter ${waiterId}: timeout already elapsed during setup - NO path`);
@@ -1285,9 +1272,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     this.api
                                 );
 
-                                // Close the gap between the value check above and the listener
-                                // installation: a change in between produced no event.
-                                if (waiterData && await this.recheckCapabilityWaiter(waiterData)) return;
+                                // Initial value check, now that the listener is live. A matching
+                                // value completes the waiter through the same once-only path (YES).
+                                if (waiterData && await this.recheckCapabilityWaiter(waiterData)) {
+                                    this.logger.info(`🎯 ${device.name}.${capability} already matches ${targetValue} - YES-output`);
+                                    return;
+                                }
 
                                 // Promise stays open until resolver is called by capability listener or timeout
                                 // DO NOT call resolve/reject here - let waiter handle it
@@ -1705,7 +1695,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             waitUntilStartCard.registerArgumentAutocompleteListener('waiter_id', waiterIdAutocomplete);
 
             waitUntilStartCard.registerRunListener(async (args, state) => {
-                // The configured timeout counts from here, including the device lookup below.
+                // The configured timeout and waited_seconds count from here.
                 const runStartedAt = Date.now();
                 let waiterId = this.extractWaiterId(args.waiter_id);
                 if (!waiterId) {
@@ -1731,76 +1721,50 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 // Ordering token, taken before any await: once a newer start of this
                 // Waiter ID has begun, this run must not replace, install or fire anything.
                 const startToken = this.waiterManager.beginBackgroundStart('capability', waiterId);
-                const isSuperseded = () => !this.waiterManager.isLatestBackgroundStart('capability', waiterId, startToken);
 
-                // Restart semantics: a pending background wait with the same ID is replaced without firing.
-                const replacePendingBackgroundWait = () => this.waiterManager.cancelBackgroundWaiter(waiterId, 'capability');
-                replacePendingBackgroundWait();
-
-                let currentValue;
-                let valueMatched = false;
-                try {
-                    const apiDevice = await this.getApiDevice(device.id, { maxAgeMs: 0 });
-                    currentValue = apiDevice?.capabilitiesObj?.[capability]?.value;
-                    valueMatched = this.waiterManager.valueMatches(currentValue, targetValue);
-                } catch (error) {
-                    this.logger.warn(`⚠️  Could not check current value, will wait for change: ${error.message}`);
-                }
-
-                if (isSuperseded()) {
-                    this.logger.debug(`⏭️  Start of background waiter ${waiterId} superseded by a newer start - nothing to do`);
-                    return true;
-                }
-
-                if (valueMatched) {
-                    // An overlapping (older) run may have started its background wait while
-                    // this lookup was pending; replace it so it cannot fire later.
-                    replacePendingBackgroundWait();
-                    this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} - firing 'wait_until_finished' now`);
-                    this.triggerCapabilityWaitFinished(waiterId, true, currentValue, 0);
-                    return true;
-                }
-
-                // The lookup counts against the configured timeout (0 = no timeout).
-                const remainingTimeoutMs = this.getRemainingWaitTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
-                if (remainingTimeoutMs === 0) {
-                    replacePendingBackgroundWait();
-                    this.logger.info(`⏰ Background waiter ${waiterId}: timeout elapsed during the device lookup - firing TIMEOUT now`);
-                    this.triggerCapabilityWaitFinished(waiterId, false, currentValue, Date.now() - runStartedAt);
-                    return true;
-                }
-
-                // startBackgroundWaiter() replaces a background wait that an overlapping (older)
-                // run with the same ID started while the lookup above was pending.
+                // Install the waiter now. startBackgroundWaiter() registers it synchronously
+                // (no I/O), replaces a pending wait with the same ID without firing it
+                // (restart semantics), and its timeout counts from the start of this card.
+                // ID conflicts (e.g. a waiting condition card) still fail this card.
                 const waiterData = await this.waiterManager.startBackgroundWaiter(
                     waiterId,
-                    remainingTimeoutMs === null
-                        ? { timeoutValue: 0, timeoutUnit }
-                        : { timeoutValue: remainingTimeoutMs, timeoutUnit: 'ms' },
+                    { timeoutValue, timeoutUnit },
                     { deviceId: device.id, capability, targetValue },
                     null,
                     ({ id, success, waitedMs, lastValue }) =>
                         this.triggerCapabilityWaitFinished(id, success, lastValue, waitedMs),
                     { startedAt: runStartedAt },
                 );
-                waiterData.lastValue = currentValue;
+                const isCurrentStart = () =>
+                    this.waiterManager.isLatestBackgroundStart('capability', waiterId, startToken)
+                    && this.waiterManager.waiters.get(waiterData.id) === waiterData;
 
-                try {
-                    const api = await this.ensureHomeyApi();
-                    // An overlapping run may have replaced this wait meanwhile; never
-                    // attach this run's listener to its successor.
-                    if (this.waiterManager.waiters.get(waiterData.id) !== waiterData) return true;
-                    await this.waiterManager.registerCapabilityListener(waiterData.id, api);
-                } catch (error) {
-                    this.waiterManager.removeWaiterIfCurrent(waiterData.id, waiterData);
-                    throw error;
-                }
+                // Listener installation and the initial value check talk to the Homey API and
+                // may be slow or stall. Run them detached so this card returns right away and
+                // can never hit Homey's ~60 s Flow card limit; the waiter's own timeout still
+                // ends the wait. After every await, a replaced or superseded start stops.
+                (async () => {
+                    try {
+                        const api = await this.ensureHomeyApi();
+                        if (!isCurrentStart()) return;
+                        await this.waiterManager.registerCapabilityListener(waiterData.id, api);
+                        if (!isCurrentStart()) return;
 
-                // Close the gap between the value check above and the listener
-                // installation: a change in between produced no event.
-                if (await this.recheckCapabilityWaiter(waiterData)) return true;
+                        // Initial value check after the listener is live: any later change arrives
+                        // as an event. A match completes through the same once-only path.
+                        if (await this.recheckCapabilityWaiter(waiterData)) {
+                            this.logger.info(`✅ ${device.name}.${capability} already matches ${targetValue} - 'wait_until_finished' fired`);
+                            return;
+                        }
+                        if (!isCurrentStart()) return;
+                        this.logger.info(`🕓 Background waiter ${waiterData.id} listening for ${device.name}.${capability} = ${targetValue} (timeout: ${timeoutValue}${timeoutUnit})`);
+                    } catch (error) {
+                        // The waiter stays in place: it still ends through its timeout (or the
+                        // orphan reaper for timeout 0) instead of disappearing silently.
+                        this.logger.error(`❌ Background waiter ${waiterData.id}: listener setup failed`, error);
+                    }
+                })();
 
-                this.logger.info(`🕓 Background waiter ${waiterData.id} listening for ${device.name}.${capability} = ${targetValue} (timeout: ${timeoutValue}${timeoutUnit})`);
                 return true;
             });
             this.logger.debug(` -> OK: ACTION registered: 'wait_until_start'`);
@@ -2133,7 +2097,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
      * Returns how much of a wait's configured timeout is left when its waiter is
      * created. The configured timeout counts from the start of the card run (like
      * Homey's Flow card limit and the in-card guard), so setup time such as a
-     * device lookup is deducted. Used by the in-card conditions and wait_until_start.
+     * device lookup is deducted. Used by the in-card condition cards.
      *
      * @param {number} timeoutValue - Configured timeout value (0 = no timeout)
      * @param {string} timeoutUnit - Configured unit (ms/s/m/h)
@@ -2149,9 +2113,10 @@ module.exports = class BooleanToolboxApp extends Homey.App {
     }
 
     /**
-     * Re-reads a capability waiter's value after its listener is installed. A change
-     * between the initial value check and the listener installation produces no
-     * event, so without this the waiter would miss it and time out.
+     * Reads a capability waiter's current value after its listener is installed and
+     * completes the waiter if it already matches. Both capability waits sample only
+     * once the listener is live, so any later transition arrives as an event and a
+     * target pulse during setup cannot slip between the read and the subscription.
      *
      * @param {Object} waiterData - The capability waiter
      * @returns {Promise<boolean>} True when the waiter was completed by this read
@@ -2164,11 +2129,11 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             const value = apiDevice?.capabilitiesObj?.[deviceConfig.capability]?.value;
             const completed = this.waiterManager.settleCapabilityWaiterIfMatches(waiterData, value);
             if (completed) {
-                this.logger.info(`✅ Waiter ${waiterData.id} matched on re-check after listener setup (value: ${value})`);
+                this.logger.info(`✅ Waiter ${waiterData.id} matched on the initial value check (value: ${value})`);
             }
             return completed;
         } catch (error) {
-            this.logger.warn(`⚠️  Could not re-check waiter ${waiterData.id} after listener setup: ${error.message}`);
+            this.logger.warn(`⚠️  Could not read the current value for waiter ${waiterData.id}, waiting for a change: ${error.message}`);
             return false;
         }
     }

@@ -433,6 +433,25 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
     expect(onFinish).toHaveBeenCalledWith(expect.objectContaining({ id: 'timed', success: false, waitedMs: 10000 }));
   });
 
+  test('updateWaiter clamps a new timeout to 24 hours and keeps 0 as no timeout', async () => {
+    await manager.createWaiter('modified', { timeoutValue: 1, timeoutUnit: 'm' }, { flowId: 'unknown' });
+    const waiter = manager.waiters.get('modified');
+    waiter.resolver = jest.fn();
+
+    expect(manager.updateWaiter('modified', { timeoutMs: 48 * 3600000 })).toBe(true);
+    expect(waiter.timeoutMs).toBe(manager.MAX_TIMEOUT_MS);
+    expect(waiter.timeoutAt).toBe(Date.now() + manager.MAX_TIMEOUT_MS);
+
+    manager.updateWaiter('modified', { timeoutMs: 0 });
+    expect(waiter.timeoutMs).toBe(0);
+    expect(waiter.indefiniteSince).toBe(Date.now());
+
+    manager.updateWaiter('modified', { timeoutMs: 5 });
+    expect(waiter.timeoutMs).toBe(manager.MIN_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(manager.MIN_TIMEOUT_MS);
+    expect(waiter.resolver).toHaveBeenCalledWith(false);
+  });
+
   test('stopping a background waiter never calls onFinish', async () => {
     const onFinish = jest.fn();
     await manager.startBackgroundWaiter('bg', { timeoutValue: 1, timeoutUnit: 'm' }, null, null, onFinish);

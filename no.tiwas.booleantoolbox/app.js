@@ -1235,7 +1235,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                                 // The configured timeout counts from the start of the run, like
                                 // Homey's limit and the guard, so the device lookup is deducted.
-                                const remainingTimeoutMs = this.getRemainingInCardTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
+                                const remainingTimeoutMs = this.getRemainingWaitTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
                                 if (remainingTimeoutMs === 0) {
                                     this.logger.info(`⏰ Waiter ${waiterId}: timeout already elapsed during setup - NO path`);
                                     settle(resolve, false);
@@ -1383,7 +1383,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                         try {
                             // The configured timeout counts from the start of the run, like
                             // Homey's limit and the guard.
-                            const remainingTimeoutMs = this.getRemainingInCardTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
+                            const remainingTimeoutMs = this.getRemainingWaitTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
                             if (remainingTimeoutMs === 0) {
                                 this.logger.debug(`🎯 conditional_gate_start: timeout already elapsed during setup, returning false`);
                                 settle(resolve, false);
@@ -1650,12 +1650,14 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 if (!gateName) throw new Error('Gate Name is required');
 
                 const waiterId = this.waiterManager.getBackgroundGateWaiterId(gateName);
+                // A capability wait that uses this ID as a custom Waiter ID is never
+                // cancelled by a gate wait (throws, leaves it untouched).
+                this.waiterManager.assertBackgroundKind(waiterId, 'gate');
                 const currentState = this.waiterManager.getGateState(gateName, defaultState);
 
                 if (currentState === 'GO') {
                     // Restart semantics: a pending background wait for this gate is replaced without firing.
-                    const existing = this.waiterManager.waiters.get(waiterId);
-                    if (existing && existing.background) this.waiterManager.removeWaiterIfCurrent(waiterId, existing);
+                    this.waiterManager.cancelBackgroundWaiter(waiterId, 'gate');
 
                     this.logger.info(`✅ Gate "${gateName}" is already GO - firing 'conditional_gate_wait_finished' now`);
                     this.triggerGateWaitFinished(gateName, true, 0);
@@ -1703,6 +1705,8 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             waitUntilStartCard.registerArgumentAutocompleteListener('waiter_id', waiterIdAutocomplete);
 
             waitUntilStartCard.registerRunListener(async (args, state) => {
+                // The configured timeout counts from here, including the device lookup below.
+                const runStartedAt = Date.now();
                 let waiterId = this.extractWaiterId(args.waiter_id);
                 if (!waiterId) {
                     waiterId = `waiter_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -1720,39 +1724,64 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                     throw new Error(`Capability "${capability}" not found on device "${device?.name}". Available capabilities: ${availableCaps}`);
                 }
 
+                // A Conditional Gate wait that already uses this ID (e.g. a custom ID
+                // "gate_<name>_background") is never cancelled here: throw instead.
+                this.waiterManager.assertBackgroundKind(waiterId, 'capability');
+
+                // Ordering token, taken before any await: once a newer start of this
+                // Waiter ID has begun, this run must not replace, install or fire anything.
+                const startToken = this.waiterManager.beginBackgroundStart('capability', waiterId);
+                const isSuperseded = () => !this.waiterManager.isLatestBackgroundStart('capability', waiterId, startToken);
+
                 // Restart semantics: a pending background wait with the same ID is replaced without firing.
-                const replacePendingBackgroundWait = () => {
-                    const existing = this.waiterManager.waiters.get(waiterId);
-                    if (existing && existing.background) this.waiterManager.removeWaiterIfCurrent(waiterId, existing);
-                };
+                const replacePendingBackgroundWait = () => this.waiterManager.cancelBackgroundWaiter(waiterId, 'capability');
                 replacePendingBackgroundWait();
 
                 let currentValue;
+                let valueMatched = false;
                 try {
                     const apiDevice = await this.getApiDevice(device.id, { maxAgeMs: 0 });
                     currentValue = apiDevice?.capabilitiesObj?.[capability]?.value;
-
-                    if (this.waiterManager.valueMatches(currentValue, targetValue)) {
-                        // An overlapping run with the same ID may have started its background
-                        // wait while this lookup was pending; replace it so it cannot fire later.
-                        replacePendingBackgroundWait();
-                        this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} - firing 'wait_until_finished' now`);
-                        this.triggerCapabilityWaitFinished(waiterId, true, currentValue, 0);
-                        return true;
-                    }
+                    valueMatched = this.waiterManager.valueMatches(currentValue, targetValue);
                 } catch (error) {
                     this.logger.warn(`⚠️  Could not check current value, will wait for change: ${error.message}`);
                 }
 
-                // startBackgroundWaiter() replaces a background wait that an overlapping run
-                // with the same ID started while the lookup above was pending.
+                if (isSuperseded()) {
+                    this.logger.debug(`⏭️  Start of background waiter ${waiterId} superseded by a newer start - nothing to do`);
+                    return true;
+                }
+
+                if (valueMatched) {
+                    // An overlapping (older) run may have started its background wait while
+                    // this lookup was pending; replace it so it cannot fire later.
+                    replacePendingBackgroundWait();
+                    this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} - firing 'wait_until_finished' now`);
+                    this.triggerCapabilityWaitFinished(waiterId, true, currentValue, 0);
+                    return true;
+                }
+
+                // The lookup counts against the configured timeout (0 = no timeout).
+                const remainingTimeoutMs = this.getRemainingWaitTimeoutMs(timeoutValue, timeoutUnit, runStartedAt);
+                if (remainingTimeoutMs === 0) {
+                    replacePendingBackgroundWait();
+                    this.logger.info(`⏰ Background waiter ${waiterId}: timeout elapsed during the device lookup - firing TIMEOUT now`);
+                    this.triggerCapabilityWaitFinished(waiterId, false, currentValue, Date.now() - runStartedAt);
+                    return true;
+                }
+
+                // startBackgroundWaiter() replaces a background wait that an overlapping (older)
+                // run with the same ID started while the lookup above was pending.
                 const waiterData = await this.waiterManager.startBackgroundWaiter(
                     waiterId,
-                    { timeoutValue, timeoutUnit },
+                    remainingTimeoutMs === null
+                        ? { timeoutValue: 0, timeoutUnit }
+                        : { timeoutValue: remainingTimeoutMs, timeoutUnit: 'ms' },
                     { deviceId: device.id, capability, targetValue },
                     null,
                     ({ id, success, waitedMs, lastValue }) =>
                         this.triggerCapabilityWaitFinished(id, success, lastValue, waitedMs),
+                    { startedAt: runStartedAt },
                 );
                 waiterData.lastValue = currentValue;
 
@@ -2101,17 +2130,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
     }
 
     /**
-     * Returns how much of an in-card wait's configured timeout is left when its
-     * waiter is created. The configured timeout counts from the start of the card
-     * run (like Homey's Flow card limit and the guard), so setup time such as a
-     * device lookup is deducted.
+     * Returns how much of a wait's configured timeout is left when its waiter is
+     * created. The configured timeout counts from the start of the card run (like
+     * Homey's Flow card limit and the in-card guard), so setup time such as a
+     * device lookup is deducted. Used by the in-card conditions and wait_until_start.
      *
      * @param {number} timeoutValue - Configured timeout value (0 = no timeout)
      * @param {string} timeoutUnit - Configured unit (ms/s/m/h)
      * @param {number} runStartedAt - When the card run began
      * @returns {number|null} Remaining milliseconds (0 = already elapsed), or null for no timeout
      */
-    getRemainingInCardTimeoutMs(timeoutValue, timeoutUnit, runStartedAt) {
+    getRemainingWaitTimeoutMs(timeoutValue, timeoutUnit, runStartedAt) {
         if (!timeoutValue) return null;
         const configuredMs = this.waiterManager.validateTimeout(
             this.waiterManager.convertToMs(timeoutValue, timeoutUnit),

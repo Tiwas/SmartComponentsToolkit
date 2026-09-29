@@ -589,24 +589,36 @@ describe("Flow card wait limit (issue #46)", () => {
 
         const deviceValue = (value) => ({ capabilitiesObj: { onoff: { value } } });
 
-        test("overlapping starts: a matching lookup in the second run replaces the first run's background wait", async () => {
-            let resolveSecondLookup;
-            ctx.app.getApiDevice = jest.fn()
-                .mockImplementationOnce(async () => deviceValue(false)) // run A lookup
-                .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondLookup = resolve; })) // run B lookup
-                .mockImplementation(async () => deviceValue(false)); // re-checks after listener setup
+        // Queues the device lookups in call order: a value resolves at once, "deferred"
+        // stays pending until the returned resolver is called. Later calls (the re-check
+        // after the listener is installed) return false.
+        function queueLookups(...specs) {
+            const deferred = [];
+            const lookup = jest.fn();
+            for (const spec of specs) {
+                if (spec === "deferred") {
+                    lookup.mockImplementationOnce(() => new Promise((resolve) => { deferred.push(resolve); }));
+                } else {
+                    lookup.mockImplementationOnce(async () => deviceValue(spec));
+                }
+            }
+            lookup.mockImplementation(async () => deviceValue(false));
+            ctx.app.getApiDevice = lookup;
+            return deferred;
+        }
 
-            // Both runs pass the initial restart check before either lookup returns.
-            const runA = startCapabilityWait();
-            const runB = startCapabilityWait();
+        test("overlapping starts: an older start whose lookup returns first is superseded; the newer MATCHED fires once", async () => {
+            const pendingLookups = queueLookups(false, "deferred");
 
-            // Run A installs its background wait while run B's lookup is still pending.
+            const runA = startCapabilityWait(); // older
+            const runB = startCapabilityWait(); // newer
+
+            // Run A's lookup returns first, but run B has already started: A installs nothing.
             await expect(runA).resolves.toBe(true);
-            expect(ctx.manager.waiters.get("kettle_boil").background).toBe(true);
-            expect(ctx.capabilityInstances).toHaveLength(1);
+            expect(ctx.manager.waiters.has("kettle_boil")).toBe(false);
+            expect(ctx.capabilityInstances).toHaveLength(0);
 
-            // Run B's lookup now sees the target value and completes immediately.
-            resolveSecondLookup(deviceValue(true));
+            pendingLookups[0](deviceValue(true));
             await expect(runB).resolves.toBe(true);
 
             expect(finished()).toHaveBeenCalledTimes(1);
@@ -614,40 +626,87 @@ describe("Flow card wait limit (issue #46)", () => {
                 { matched: true, result: "MATCHED", value: "true", waited_seconds: 0 },
                 { waiter_id: "kettle_boil" },
             );
-            expect(ctx.manager.waiters.has("kettle_boil")).toBe(false);
-            expect(ctx.capabilityInstances[0].destroy).toHaveBeenCalledTimes(1);
-
-            // Run A's wait can no longer fire MATCHED or TIMEOUT.
-            await ctx.capabilityInstances[0].listener(true);
             await jest.advanceTimersByTimeAsync(10 * 60000);
             expect(finished()).toHaveBeenCalledTimes(1);
+            expect(ctx.manager.waiters.size).toBe(0);
         });
 
-        test("overlapping starts: a non-matching lookup in the second run restarts the wait once", async () => {
-            let resolveSecondLookup;
-            ctx.app.getApiDevice = jest.fn()
-                .mockImplementationOnce(async () => deviceValue(false))
-                .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondLookup = resolve; }))
-                .mockImplementation(async () => deviceValue(false));
+        test("overlapping starts: an older start whose lookup returns first never installs; only the newer wait is live", async () => {
+            const pendingLookups = queueLookups(false, "deferred");
 
             const runA = startCapabilityWait();
             const runB = startCapabilityWait();
             await expect(runA).resolves.toBe(true);
-            const firstWaiter = ctx.manager.waiters.get("kettle_boil");
+            expect(ctx.manager.waiters.has("kettle_boil")).toBe(false);
 
             await jest.advanceTimersByTimeAsync(60000);
-            resolveSecondLookup(deviceValue(false));
+            pendingLookups[0](deviceValue(false));
             await expect(runB).resolves.toBe(true);
-            expect(ctx.manager.waiters.get("kettle_boil")).not.toBe(firstWaiter);
-            expect(ctx.capabilityInstances[0].destroy).toHaveBeenCalledTimes(1);
+            expect(ctx.manager.waiters.get("kettle_boil").background).toBe(true);
+            expect(ctx.capabilityInstances).toHaveLength(1);
 
-            // Run A's timeout (5 min) passes silently; only run B's fires.
-            await jest.advanceTimersByTimeAsync(4 * 60000);
+            // The 60 s lookup counts against run B's 5 minutes.
+            await jest.advanceTimersByTimeAsync(4 * 60000 - 1);
             expect(finished()).not.toHaveBeenCalled();
-            await jest.advanceTimersByTimeAsync(60000);
+            await jest.advanceTimersByTimeAsync(1);
             expect(finished()).toHaveBeenCalledTimes(1);
             expect(finished()).toHaveBeenCalledWith(
                 expect.objectContaining({ matched: false, result: "TIMEOUT", waited_seconds: 300 }),
+                { waiter_id: "kettle_boil" },
+            );
+        });
+
+        test("reverse order: an older, slower start that sees a match neither fires nor cancels the newer wait", async () => {
+            const pendingLookups = queueLookups("deferred", false);
+
+            const runA = startCapabilityWait(); // older, slow lookup
+            const runB = startCapabilityWait(); // newer, installs its wait first
+            await expect(runB).resolves.toBe(true);
+            const newerWaiter = ctx.manager.waiters.get("kettle_boil");
+            expect(newerWaiter.background).toBe(true);
+            expect(ctx.capabilityInstances).toHaveLength(1);
+
+            pendingLookups[0](deviceValue(true));
+            await expect(runA).resolves.toBe(true);
+
+            expect(finished()).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.get("kettle_boil")).toBe(newerWaiter);
+            expect(ctx.capabilityInstances[0].destroy).not.toHaveBeenCalled();
+
+            // Only run B's wait reports.
+            await ctx.capabilityInstances[0].listener(true);
+            expect(finished()).toHaveBeenCalledTimes(1);
+            expect(finished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: true, result: "MATCHED", value: "true" }),
+                { waiter_id: "kettle_boil" },
+            );
+            await jest.advanceTimersByTimeAsync(10 * 60000);
+            expect(finished()).toHaveBeenCalledTimes(1);
+        });
+
+        test("reverse order: an older, slower start that does not match never replaces the newer wait", async () => {
+            const pendingLookups = queueLookups("deferred", false);
+
+            const runA = startCapabilityWait();
+            const runB = startCapabilityWait();
+            await expect(runB).resolves.toBe(true);
+            const newerWaiter = ctx.manager.waiters.get("kettle_boil");
+
+            await jest.advanceTimersByTimeAsync(30000);
+            pendingLookups[0](deviceValue(false));
+            await expect(runA).resolves.toBe(true);
+
+            expect(ctx.manager.waiters.get("kettle_boil")).toBe(newerWaiter);
+            expect(ctx.capabilityInstances).toHaveLength(1);
+            expect(ctx.capabilityInstances[0].destroy).not.toHaveBeenCalled();
+
+            // Run B's own timeout (5 min after it started) is the only result.
+            await jest.advanceTimersByTimeAsync(270000 - 1);
+            expect(finished()).not.toHaveBeenCalled();
+            await jest.advanceTimersByTimeAsync(1);
+            expect(finished()).toHaveBeenCalledTimes(1);
+            expect(finished()).toHaveBeenCalledWith(
+                { matched: false, result: "TIMEOUT", value: "false", waited_seconds: 300 },
                 { waiter_id: "kettle_boil" },
             );
         });
@@ -680,6 +739,143 @@ describe("Flow card wait limit (issue #46)", () => {
             expect(finished()).toHaveBeenCalledTimes(1);
             await jest.advanceTimersByTimeAsync(10 * 60000);
             expect(finished()).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe("background wait IDs and setup time (Codex review)", () => {
+        const deviceValue = (value) => ({ capabilitiesObj: { onoff: { value } } });
+        const gateFinished = () => ctx.trigger("conditional_gate_wait_finished").trigger;
+        const capabilityFinished = () => ctx.trigger("wait_until_finished").trigger;
+
+        function startGateWait(overrides = {}) {
+            return ctx.action("conditional_gate_start_wait").runListener({
+                gate_name: GATE,
+                default_state: "NO_GO",
+                timeout_value: 2,
+                timeout_unit: "m",
+                ...overrides,
+            }, {});
+        }
+
+        function startCapabilityWait(overrides = {}) {
+            return ctx.action("wait_until_start").runListener({
+                device: DEVICE,
+                capability: { id: "onoff", name: "onoff" },
+                target_value: "true",
+                timeout_value: 10,
+                timeout_unit: "s",
+                waiter_id: "kettle_boil",
+                ...overrides,
+            }, {});
+        }
+
+        function slowLookup(delayMs, value = false) {
+            ctx.app.getApiDevice = jest.fn(() => new Promise((resolve) => {
+                setTimeout(() => resolve(deviceValue(value)), delayMs);
+            }));
+        }
+
+        test("a capability wait cannot take over a gate wait's ID (gate_<name>_background)", async () => {
+            await startGateWait();
+            const gateWaiter = ctx.manager.waiters.get("gate_Razor_background");
+
+            await expect(startCapabilityWait({ waiter_id: "gate_Razor_background" }))
+                .rejects.toThrow('Waiter ID "gate_Razor_background" is already used by a Conditional Gate wait');
+
+            expect(ctx.manager.waiters.get("gate_Razor_background")).toBe(gateWaiter);
+            expect(ctx.capabilityInstances).toHaveLength(0);
+            await modifyGate({ new_state: "GO" });
+            expect(gateFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ opened: true, result: "GO" }),
+                { gate_name: "Razor" },
+            );
+            expect(capabilityFinished()).not.toHaveBeenCalled();
+        });
+
+        test("a gate wait cannot take over a capability wait that uses its ID", async () => {
+            await startCapabilityWait({ waiter_id: "gate_Razor_background", timeout_value: 5, timeout_unit: "m" });
+            const capabilityWaiter = ctx.manager.waiters.get("gate_Razor_background");
+            expect(capabilityWaiter.kind).toBe("capability");
+
+            await expect(startGateWait())
+                .rejects.toThrow('Waiter ID "gate_Razor_background" is already used by a capability wait');
+            // Also when the gate is already GO.
+            await modifyGate({ new_state: "GO" });
+            await expect(startGateWait())
+                .rejects.toThrow('Waiter ID "gate_Razor_background" is already used by a capability wait');
+
+            expect(ctx.manager.waiters.get("gate_Razor_background")).toBe(capabilityWaiter);
+            expect(ctx.capabilityInstances[0].destroy).not.toHaveBeenCalled();
+            expect(gateFinished()).not.toHaveBeenCalled();
+
+            await ctx.capabilityInstances[0].listener(true);
+            expect(capabilityFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: true, result: "MATCHED" }),
+                { waiter_id: "gate_Razor_background" },
+            );
+        });
+
+        test("a 30 s lookup with a 10 s timeout fires TIMEOUT right after the lookup", async () => {
+            slowLookup(30000);
+
+            const run = track(startCapabilityWait());
+            await jest.advanceTimersByTimeAsync(30000 - 1);
+            expect(capabilityFinished()).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(1);
+            expect(run.value).toBe(true);
+            expect(capabilityFinished()).toHaveBeenCalledTimes(1);
+            expect(capabilityFinished()).toHaveBeenCalledWith(
+                { matched: false, result: "TIMEOUT", value: "false", waited_seconds: 30 },
+                { waiter_id: "kettle_boil" },
+            );
+            expect(ctx.manager.waiters.size).toBe(0);
+            expect(ctx.capabilityInstances).toHaveLength(0);
+        });
+
+        test("a matching value still wins when the lookup took longer than the timeout", async () => {
+            slowLookup(30000, true);
+
+            track(startCapabilityWait());
+            await jest.advanceTimersByTimeAsync(30000);
+
+            expect(capabilityFinished()).toHaveBeenCalledTimes(1);
+            expect(capabilityFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: true, result: "MATCHED", value: "true" }),
+                { waiter_id: "kettle_boil" },
+            );
+        });
+
+        test("a 5 s lookup with a 10 s timeout fires TIMEOUT 10 s after the start", async () => {
+            slowLookup(5000);
+
+            track(startCapabilityWait());
+            await jest.advanceTimersByTimeAsync(10000 - 1);
+            expect(capabilityFinished()).not.toHaveBeenCalled();
+            expect(ctx.manager.waiters.get("kettle_boil").background).toBe(true);
+
+            await jest.advanceTimersByTimeAsync(1);
+            expect(capabilityFinished()).toHaveBeenCalledTimes(1);
+            expect(capabilityFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: false, result: "TIMEOUT", waited_seconds: 10 }),
+                { waiter_id: "kettle_boil" },
+            );
+        });
+
+        test("timeout 0 still means no timeout after a slow lookup", async () => {
+            slowLookup(30000);
+
+            track(startCapabilityWait({ timeout_value: 0 }));
+            await jest.advanceTimersByTimeAsync(2 * 3600000);
+
+            expect(capabilityFinished()).not.toHaveBeenCalled();
+            const waiter = ctx.manager.waiters.get("kettle_boil");
+            expect(waiter.timeoutMs).toBe(0);
+            await ctx.capabilityInstances[0].listener(true);
+            expect(capabilityFinished()).toHaveBeenCalledWith(
+                expect.objectContaining({ matched: true, result: "MATCHED" }),
+                { waiter_id: "kettle_boil" },
+            );
         });
     });
 

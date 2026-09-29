@@ -11,6 +11,8 @@ class WaiterManager {
         this.waiters = new Map();
         this.flowTracking = new Map();
         this.virtualGates = new Map(); // gateName -> { state, waiters: Set<waiterId> }
+        // "<kind>:<waiterId>" -> number of background starts, used to order overlapping starts
+        this.backgroundStartGenerations = new Map();
         this.MAX_WAITERS = 100;
         this.MAX_TIMEOUT_MS = 24 * 60 * 60 * 1000;
         // A no-timeout waiter represents a running Flow. Keep it long enough for
@@ -21,6 +23,12 @@ class WaiterManager {
         this.cleanupInterval = setInterval(() => this.cleanupOrphans(), 60000);
         WaiterManager.instance = this;
         this.logger.info('🔧 WaiterManager initialized');
+    }
+
+    static getWaiterKind(deviceConfig, virtualGateConfig) {
+        if (deviceConfig) return 'capability';
+        if (virtualGateConfig) return 'gate';
+        return 'generic';
     }
 
     generateWaiterId() {
@@ -87,6 +95,7 @@ class WaiterManager {
             config,
             deviceConfig,
             virtualGateConfig,
+            kind: WaiterManager.getWaiterKind(deviceConfig, virtualGateConfig),
             capabilityListener: null,
         };
 
@@ -257,40 +266,102 @@ class WaiterManager {
      * onFinish (restart semantics). Stopping or replacing a background waiter
      * never calls onFinish.
      */
-    async startBackgroundWaiter(id, config, deviceConfig = null, virtualGateConfig = null, onFinish = null) {
-        const existing = this.waiters.get(id);
-        if (existing && existing.background) {
+    async startBackgroundWaiter(id, config, deviceConfig = null, virtualGateConfig = null, onFinish = null, options = {}) {
+        if (!id || String(id).trim() === '') id = this.generateWaiterId();
+        const kind = WaiterManager.getWaiterKind(deviceConfig, virtualGateConfig);
+
+        // Only a background wait of the same kind is restarted; a Conditional Gate
+        // wait and a capability wait never cancel each other.
+        this.assertBackgroundKind(id, kind);
+        if (this.cancelBackgroundWaiter(id, kind)) {
             this.logger.info(`🔁 Restarting background waiter: ${id}`);
-            this.removeWaiterById(id);
         }
 
-        const actualId = await this.createWaiter(
+        // createWaiter() registers the waiter synchronously. Configure it before the
+        // first await so an overlapping start never sees a half-initialised waiter.
+        const previous = this.waiters.get(id);
+        const creation = this.createWaiter(
             id,
             config,
             { flowId: WaiterManager.BACKGROUND_FLOW_ID, flowToken: null },
             deviceConfig,
             virtualGateConfig,
         );
-        const waiterData = this.waiters.get(actualId);
+        const waiterData = this.waiters.get(id);
+        if (!waiterData || waiterData === previous) {
+            await creation; // Surfaces the reason (e.g. the ID is used by a waiting condition card)
+            throw new Error(`Background waiter "${id}" could not be created`);
+        }
         waiterData.background = true;
 
+        // waitedMs counts from when the start card ran (setup time included).
+        const startedAt = typeof options.startedAt === 'number' ? options.startedAt : waiterData.created;
         let finished = false;
         waiterData.resolver = (result) => {
             if (finished) return;
             finished = true;
             if (typeof onFinish === 'function') {
                 onFinish({
-                    id: actualId,
+                    id,
                     success: result !== false,
                     result,
-                    waitedMs: Math.max(0, Date.now() - waiterData.created),
+                    waitedMs: Math.max(0, Date.now() - startedAt),
                     lastValue: waiterData.lastValue,
                 });
             }
         };
 
-        this.logger.info(`🕓 Background waiter started: ${actualId}`);
+        await creation;
+        this.logger.info(`🕓 Background waiter started: ${id}`);
         return waiterData;
+    }
+
+    /**
+     * Throws when a background waiter of another kind already uses this ID, e.g. a
+     * custom capability Waiter ID "gate_<name>_background". The existing waiter is
+     * left untouched.
+     */
+    assertBackgroundKind(id, kind) {
+        const existing = this.waiters.get(id);
+        if (!existing || !existing.background || existing.kind === kind) return;
+        if (existing.kind === 'gate') {
+            throw new Error(`Waiter ID "${id}" is already used by a Conditional Gate wait. Use a different Waiter ID.`);
+        }
+        if (existing.kind === 'capability') {
+            throw new Error(`Waiter ID "${id}" is already used by a capability wait ("Start waiting until device capability becomes value"). Stop that wait or give it a different Waiter ID.`);
+        }
+        throw new Error(`Waiter ID "${id}" is already used by another background wait.`);
+    }
+
+    /**
+     * Removes a pending background waiter of the given kind without finishing it
+     * (restart semantics). Waiters of another kind are never touched.
+     *
+     * @returns {boolean} True when a waiter was removed
+     */
+    cancelBackgroundWaiter(id, kind) {
+        const existing = this.waiters.get(id);
+        if (!existing || !existing.background || existing.kind !== kind) return false;
+        return this.removeWaiterIfCurrent(id, existing);
+    }
+
+    /**
+     * Registers a new start of a background wait and returns its ordering token.
+     * Call it synchronously when the start card begins, before any await.
+     */
+    beginBackgroundStart(kind, id) {
+        const key = `${kind}:${id}`;
+        const generation = (this.backgroundStartGenerations.get(key) || 0) + 1;
+        this.backgroundStartGenerations.set(key, generation);
+        return generation;
+    }
+
+    /**
+     * True while no newer start of the same background wait has begun. An older
+     * start must not replace, install or fire anything once this is false.
+     */
+    isLatestBackgroundStart(kind, id, token) {
+        return this.backgroundStartGenerations.get(`${kind}:${id}`) === token;
     }
 
     async registerCapabilityListener(waiterId, homey) {
@@ -462,6 +533,7 @@ class WaiterManager {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
         for (const id of [...this.waiters.keys()]) this.removeWaiter(id);
         this.waiters.clear(); this.virtualGates.clear(); this.flowTracking.clear();
+        this.backgroundStartGenerations.clear();
         this.logger.info('🛑 WaiterManager destroyed');
     }
 }

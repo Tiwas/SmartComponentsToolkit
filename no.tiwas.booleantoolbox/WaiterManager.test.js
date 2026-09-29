@@ -388,6 +388,51 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
     expect(manager.waiters.get('shared').background).toBeUndefined();
   });
 
+  test('background waiters of another kind are never restarted by a start with the same ID', async () => {
+    const gateFinish = jest.fn();
+    const gateWaiter = await manager.startBackgroundWaiter('gate_Razor_background', { timeoutValue: 1, timeoutUnit: 'm' },
+      null, { gateName: 'Razor', targetState: 'GO' }, gateFinish);
+    expect(gateWaiter.kind).toBe('gate');
+
+    await expect(manager.startBackgroundWaiter('gate_Razor_background', { timeoutValue: 1, timeoutUnit: 'm' },
+      { deviceId: 'device-1', capability: 'onoff', targetValue: 'true' }))
+      .rejects.toThrow('is already used by a Conditional Gate wait');
+    expect(manager.waiters.get('gate_Razor_background')).toBe(gateWaiter);
+    expect(manager.cancelBackgroundWaiter('gate_Razor_background', 'capability')).toBe(false);
+
+    await manager.startBackgroundWaiter('kettle', { timeoutValue: 1, timeoutUnit: 'm' },
+      { deviceId: 'device-1', capability: 'onoff', targetValue: 'true' });
+    expect(() => manager.assertBackgroundKind('kettle', 'gate')).toThrow('is already used by a capability wait');
+    expect(() => manager.assertBackgroundKind('kettle', 'capability')).not.toThrow();
+
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(gateFinish).toHaveBeenCalledTimes(1);
+  });
+
+  test('background start generations order overlapping starts per kind and ID', () => {
+    const first = manager.beginBackgroundStart('capability', 'kettle');
+    expect(manager.isLatestBackgroundStart('capability', 'kettle', first)).toBe(true);
+
+    const second = manager.beginBackgroundStart('capability', 'kettle');
+    expect(manager.isLatestBackgroundStart('capability', 'kettle', first)).toBe(false);
+    expect(manager.isLatestBackgroundStart('capability', 'kettle', second)).toBe(true);
+
+    // Other IDs and kinds have their own sequence.
+    const gate = manager.beginBackgroundStart('gate', 'kettle');
+    expect(manager.isLatestBackgroundStart('capability', 'kettle', second)).toBe(true);
+    expect(manager.isLatestBackgroundStart('gate', 'kettle', gate)).toBe(true);
+  });
+
+  test('waitedMs counts from the given start time', async () => {
+    const onFinish = jest.fn();
+    const startedAt = Date.now() - 5000;
+    await manager.startBackgroundWaiter('timed', { timeoutValue: 5000, timeoutUnit: 'ms' }, null, null, onFinish, { startedAt });
+
+    await jest.advanceTimersByTimeAsync(5000);
+
+    expect(onFinish).toHaveBeenCalledWith(expect.objectContaining({ id: 'timed', success: false, waitedMs: 10000 }));
+  });
+
   test('stopping a background waiter never calls onFinish', async () => {
     const onFinish = jest.fn();
     await manager.startBackgroundWaiter('bg', { timeoutValue: 1, timeoutUnit: 'm' }, null, null, onFinish);

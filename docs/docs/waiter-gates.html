@@ -145,8 +145,9 @@ ELSE ❌ notify "Light didn't turn on - check bulb?"</code></pre>
                     <h4 class="font-semibold mb-2 text-gray-900">Behaviour:</h4>
                     <ul class="list-disc ml-6 space-y-1 text-sm text-gray-600">
                         <li>Value already matches → the trigger fires right away (result MATCHED).</li>
-                        <li>Starting again with the same Waiter ID while a background wait is pending <strong>restarts</strong> it; the replaced wait does not fire the trigger.</li>
-                        <li>A Waiter ID can be used by a waiting <em>condition</em> card or by a background wait, not both at the same time; the second one fails with "Waiter ID already exists".</li>
+                        <li>Starting again with the same Waiter ID while a background wait is pending <strong>restarts</strong> it; the replaced wait does not fire the trigger. When two starts overlap, the most recent start wins, even if an older start's device lookup finishes later.</li>
+                        <li>The timeout counts from when the card ran, including the device lookup. If the lookup took longer than the timeout, TIMEOUT fires right away (unless the value already matches).</li>
+                        <li>A Waiter ID can be used by a waiting <em>condition</em> card or by a background wait, not both at the same time; the second one fails with "Waiter ID already exists". A capability wait also cannot use the ID of a pending Conditional Gate background wait (<code>gate_&lt;name&gt;_background</code>), and vice versa.</li>
                     </ul>
                 </div>
 

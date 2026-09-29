@@ -105,7 +105,7 @@ class CircadianLightGroupCollectionDriver extends CircadianLightGroupDriver {
       const homeyDevice = allDevices[deviceId];
       if (!isZoneSelected(homeyDevice.zone)) continue;
 
-      const driverRef = `${homeyDevice.driverUri || ''}|${homeyDevice.driverId || ''}|${homeyDevice.driver?.id || ''}`;
+      const driverRef = `${homeyDevice.driverId || ''}|${homeyDevice.driver?.id || ''}`;
       if (!driverRef.includes('circadian-light-group')) continue;
       if (driverRef.includes('circadian-light-group-collection')) continue;
 

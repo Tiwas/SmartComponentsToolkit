@@ -613,6 +613,7 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         return;
       }
 
+      const snapshotRequestedAt = Date.now();
       const targetDevice = await api.devices.getDevice({
         id: deviceId,
       });
@@ -648,6 +649,9 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
 
       const listenerFn = async (value) => {
         if (this._isDeleting) return;
+
+        this.linkedInputEventAt ??= new Map();
+        this.linkedInputEventAt.set(inputId, Date.now());
 
         this.logger.input("listener.event_received", {
           input: inputId.toUpperCase(),
@@ -724,6 +728,18 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
         device: targetDevice.name,
         capability,
       });
+
+      if (replaceExisting) {
+        await this.reconcileLinkedInput({
+          api,
+          deviceId,
+          inputId,
+          capability,
+          targetDevice,
+          listenerFn,
+          snapshotRequestedAt,
+        });
+      }
     } catch (e) {
       this.logger.error("listener.error_setup", {
         input: inputId.toUpperCase(),
@@ -731,6 +747,82 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       });
       this.logger.debug(e.stack);
     }
+  }
+
+  /**
+   * Applies a linked value that the realtime listener missed. The health
+   * check fetches every linked device anyway; when that snapshot differs from
+   * the cached input and no newer event arrived after the snapshot was
+   * requested, the realtime subscription is recreated and the current value
+   * is replayed through the listener.
+   */
+  async reconcileLinkedInput({
+    api,
+    deviceId,
+    inputId,
+    capability,
+    targetDevice,
+    listenerFn,
+    snapshotRequestedAt,
+  }) {
+    if (this._isDeleting) return false;
+    const snapshotValue = targetDevice?.capabilitiesObj?.[capability]?.value;
+    if (snapshotValue === null || snapshotValue === undefined) return false;
+
+    const isStale = (requestedAt) => (
+      this._isDeleting
+      || (this.linkedInputEventAt?.get(inputId) || 0) >= requestedAt
+    );
+    const differsFromInputs = (value) => {
+      const boolValue = this.convertToBoolean(value, capability);
+      return (this.formulas || []).some((formula) => (
+        !(formula.firstImpression && formula.lockedInputs?.[inputId])
+        && formula.inputStates?.[inputId] !== boolValue
+      ));
+    };
+    if (isStale(snapshotRequestedAt) || !differsFromInputs(snapshotValue)) return false;
+
+    this.logger.warn("listener.missed_update_recovered", {
+      input: inputId.toUpperCase(),
+      capability,
+    });
+
+    let replayValue = snapshotValue;
+    let replayRequestedAt = snapshotRequestedAt;
+    if (typeof api?.__sctResubscribe === "function" && targetDevice.uri) {
+      try {
+        await api.__sctResubscribe(targetDevice.uri);
+      } catch (error) {
+        this.logger.error("listener.resubscribe_failed", {
+          input: inputId.toUpperCase(),
+          message: error.message,
+        });
+      }
+
+      // Resubscribing briefly removes the server subscription, and a change
+      // in that window produces no event. Read the value again now that the
+      // replacement subscription is active instead of replaying the snapshot.
+      replayRequestedAt = Date.now();
+      let freshDevice = null;
+      try {
+        freshDevice = await api.devices.getDevice({ id: deviceId || targetDevice.id });
+      } catch (error) {
+        this.logger.error("listener.refetch_failed", {
+          input: inputId.toUpperCase(),
+          message: error.message,
+        });
+        return false;
+      }
+      replayValue = freshDevice?.capabilitiesObj?.[capability]?.value;
+      if (replayValue === null || replayValue === undefined) return false;
+    }
+
+    // A realtime event received after the value was read is newer and must
+    // not be overwritten.
+    if (isStale(replayRequestedAt) || !differsFromInputs(replayValue)) return false;
+
+    await listenerFn(replayValue);
+    return true;
   }
 
   convertToBoolean(value, capability) {
@@ -926,8 +1018,16 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
       const previousResult = formula.result;
 
       // ✅ CRITICAL: Only set alarm_generic (formula output), NOT onoff!
-      // onoff is user control (enable/disable), alarm_generic is formula result
-      await this.safeSetCapabilityValue("alarm_generic", result);
+      // onoff is user control (enable/disable), alarm_generic is formula result.
+      // Every write emits a realtime capability event, so unchanged results
+      // are not written: Logic Devices that use each other as inputs would
+      // otherwise keep re-triggering each other with the same value.
+      const currentAlarmValue = this.hasCapability("alarm_generic")
+        ? this.getCapabilityValue("alarm_generic")
+        : undefined;
+      if (currentAlarmValue !== result) {
+        await this.safeSetCapabilityValue("alarm_generic", result);
+      }
 
       if (!this.isCurrentEvaluation(revision)) return null;
       formula.result = result;
@@ -1236,6 +1336,10 @@ module.exports = class LogicDeviceDevice extends Homey.Device {
   }
 
   parseExpression(expression) {
+    // checkTimeouts() runs in a 1-second interval; a formula with a timeout
+    // but no expression must not throw there, because a synchronous timer
+    // error terminates the app process.
+    if (typeof expression !== "string") return [];
     const inputs = this.getAvailableInputsUppercase();
     if (!inputs.length) return [];
     const varRe = new RegExp(`\\b(${inputs.join("|")})\\b`, "gi");

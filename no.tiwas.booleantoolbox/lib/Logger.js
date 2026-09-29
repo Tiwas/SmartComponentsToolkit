@@ -1,5 +1,10 @@
 "use strict";
 
+const path = require("path");
+
+// App root used to make diagnostic caller locations app-relative ("/app" on Homey).
+const LOGGER_APP_ROOT = path.resolve(__dirname, "..");
+
 /**
  * Advanced Logger for Homey Apps
  *
@@ -252,6 +257,39 @@ class Logger {
     return `${symbol} [${this.category}]`;
   }
 
+  /**
+   * Finds the code location that called the logger, as an app-relative
+   * "file:line". Only code paths are returned, never message text, so the
+   * location stays free of user-defined labels.
+   *
+   * @private
+   * @param {string} stack Stack trace captured inside the logger
+   * @returns {string} Caller location, or an empty string
+   */
+  static _findCallerLocation(stack) {
+    const frames = String(stack || "").split(/\r?\n/).slice(1);
+    for (const frame of frames) {
+      const match = frame.match(/((?:[A-Za-z]:)?[^():\s]+):(\d+):\d+\)?\s*$/);
+      if (!match) continue;
+      const filePath = match[1].trim();
+      const normalizedPath = filePath.split("\\").join("/");
+      if (filePath === __filename || normalizedPath.endsWith("/lib/Logger.js")) continue;
+      if (normalizedPath.startsWith("node:") || normalizedPath.startsWith("internal/")) continue;
+
+      const appRoot = LOGGER_APP_ROOT.split("\\").join("/");
+      let location = normalizedPath;
+      if (normalizedPath.startsWith(`${appRoot}/`)) {
+        location = normalizedPath.slice(appRoot.length + 1);
+      } else if (normalizedPath.includes("/node_modules/")) {
+        location = normalizedPath.slice(normalizedPath.lastIndexOf("/node_modules/") + 1);
+      } else {
+        location = normalizedPath.split("/").pop();
+      }
+      return `${location}:${match[2]}`;
+    }
+    return "";
+  }
+
   _recordDiagnosticEvent(level, message, error) {
     if (level !== "WARN" && level !== "ERROR") return;
     const app = this.homey && this.homey.app;
@@ -260,6 +298,9 @@ class Logger {
     const stack = error instanceof Error && typeof error.stack === "string"
       ? error.stack.split(/\r?\n/).slice(1).join("\n")
       : "";
+    // Warnings (and errors logged without an Error object) have no stack, so
+    // record where the logger was called from.
+    const source = stack ? "" : Logger._findCallerLocation(new Error().stack);
 
     try {
       app.recordDiagnosticEvent({
@@ -270,6 +311,7 @@ class Logger {
         // or formula labels. Keep the persisted diagnostic event label-free.
         message: level === "WARN" ? "Warning recorded." : "Error recorded.",
         stack,
+        source,
       });
     } catch (recordingError) {
       console.error("Logger diagnostic capture failed:", recordingError);

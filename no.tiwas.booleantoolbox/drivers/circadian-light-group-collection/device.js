@@ -56,7 +56,7 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
           const all = await api.devices.getDevices();
           uuidToDataId = new Map();
           Object.values(all).forEach(d => {
-            const driverRef = `${d.driverUri || ''}|${d.driverId || ''}|${d.driver?.id || ''}`;
+            const driverRef = `${d.driverId || ''}|${d.driver?.id || ''}`;
             if (!driverRef.includes('circadian-light-group')) return;
             if (driverRef.includes('circadian-light-group-collection')) return;
             const dataId = d.data?.id;

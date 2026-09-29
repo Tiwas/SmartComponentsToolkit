@@ -2,14 +2,17 @@
 
 const Homey = require("homey");
 const os = require("node:os");
+const v8 = require("node:v8");
 const Logger = require("./lib/Logger");
 const WaiterManager = require("./lib/WaiterManager");
 const CapturedStateManager = require("./lib/CapturedStateManager");
 const {
     buildDiagnosticsReport,
     buildGitHubIssueUrl,
-    redactDiagnosticText,
+    formatDriverId,
+    formatDuration,
     sanitizeEvent,
+    sanitizeSession,
 } = require("./lib/DiagnosticsReport");
 const {
     compareNumbers,
@@ -28,6 +31,12 @@ const API_DEVICES_CACHE_TTL_MS = 1000;
 const DIAGNOSTIC_EVENTS_KEY = "diagnostic_events";
 const DIAGNOSTIC_EVENTS_LIMIT = 40;
 const DIAGNOSTIC_PERSIST_DELAY_MS = 2000;
+const DIAGNOSTIC_SESSION_KEY = "diagnostic_session";
+const DIAGNOSTIC_MEMORY_SAMPLE_INTERVAL_MS = 15 * 60 * 1000;
+const DIAGNOSTIC_MEMORY_SAMPLES_LIMIT = 16;
+const PROCESS_DIAGNOSTICS_REGISTRATION = Symbol.for("no.tiwas.booleantoolbox.processDiagnostics");
+const SHARED_SUBSCRIPTION_RETRY_BASE_MS = 5000;
+const SHARED_SUBSCRIPTION_RETRY_MAX_MS = 5 * 60 * 1000;
 
 function isFiniteDiagnosticMetric(value) {
     return value !== null
@@ -47,6 +56,303 @@ function getDiagnosticValue(getter, fallback = null) {
 function getProcessMemoryDiagnostics() {
     const memory = getDiagnosticValue(() => process.memoryUsage(), null);
     return memory && typeof memory === "object" ? memory : {};
+}
+
+/**
+ * Takes a label-free memory sample. process.memoryUsage() can fail on Homey
+ * (ENOENT for uv_resident_set_memory), so the V8 heap statistics are used as
+ * a fallback and RSS is reported as unavailable.
+ *
+ * @returns {{at: string, heapUsed: number|null, heapTotal: number|null, rss: number|null}}
+ */
+function getMemorySample() {
+    const memory = getProcessMemoryDiagnostics();
+    let heapUsed = memory.heapUsed;
+    let heapTotal = memory.heapTotal;
+    if (!isFiniteDiagnosticMetric(heapUsed)) {
+        const heap = getDiagnosticValue(() => v8.getHeapStatistics(), null) || {};
+        heapUsed = heap.used_heap_size;
+        heapTotal = heap.total_heap_size;
+    }
+    const toBytes = (value) => (isFiniteDiagnosticMetric(value) ? Math.round(Number(value)) : null);
+
+    return {
+        at: new Date().toISOString(),
+        heapUsed: toBytes(heapUsed),
+        heapTotal: toBytes(heapTotal),
+        rss: toBytes(memory.rss),
+    };
+}
+
+/**
+ * Returns the stack frames of an Error without its message line. Messages can
+ * contain device, zone, or formula labels; frames only contain code locations.
+ *
+ * @param {unknown} error Error or rejection reason
+ * @returns {string} Stack frames, or an empty string
+ */
+function getLabelFreeStack(error) {
+    return error instanceof Error && typeof error.stack === "string"
+        ? error.stack.split(/\r?\n/).slice(1).join("\n")
+        : "";
+}
+
+/**
+ * Shares one Homey realtime subscription per URI between all consumers.
+ *
+ * homey-api 3.17 creates a new server subscription for every Device object
+ * and sends a server-side "unsubscribe" for the URI when any of them
+ * disconnects. Because every getDevice() call returns a new Device object,
+ * one consumer (a finished waiter, a deleted or reconfigured Logic Device, or
+ * a listener health refresh) silently stopped realtime updates for every other
+ * consumer of the same device. Each subscription also leaves a
+ * once("disconnect") listener on the socket that retains the whole Device
+ * object, so periodic resubscription grew memory without bound.
+ *
+ * homey-api 3.20 introduced an equivalent registry; the wrapper is skipped
+ * when that registry exists.
+ *
+ * @param {Object} api HomeyAPI instance
+ * @param {Function} [onConsumerError] Called when one consumer handler throws
+ * @returns {Object} The same API instance
+ */
+function shareHomeyApiSubscriptions(api, onConsumerError = () => {}) {
+    if (
+        !api
+        || typeof api.subscribe !== "function"
+        || api.__subscriptionRegistry
+        || api.__sctSharedSubscriptions
+    ) {
+        return api;
+    }
+
+    const subscribeUri = api.subscribe.bind(api);
+    const entries = new Map();
+
+    const notify = (entry, handlerName, ...args) => {
+        for (const consumer of Array.from(entry.consumers)) {
+            const handler = consumer.handlers[handlerName];
+            if (typeof handler !== "function") continue;
+            try {
+                handler(...args);
+            } catch (error) {
+                onConsumerError(error);
+            }
+        }
+    };
+
+    const unsubscribeWire = (subscription) => {
+        try {
+            subscription.unsubscribe();
+        } catch (error) {
+            onConsumerError(error);
+        }
+    };
+
+    const clearRetry = (entry) => {
+        if (entry.retryTimer) {
+            clearTimeout(entry.retryTimer);
+            entry.retryTimer = null;
+        }
+    };
+
+    // Per URI: settles once a released entry's in-flight subscription has
+    // been created and unsubscribed (or has failed). A new entry for the same
+    // URI subscribes only afterwards, because the server "unsubscribe" is
+    // URI-wide and would otherwise remove the newer subscription.
+    const pendingReleases = new Map();
+
+    const trackPendingRelease = (uri, pending) => {
+        const tracked = pending.then(() => {}, () => {});
+        pendingReleases.set(uri, tracked);
+        tracked.then(() => {
+            if (pendingReleases.get(uri) === tracked) pendingReleases.delete(uri);
+        });
+    };
+
+    // An entry stays registered for as long as it has consumers, also when
+    // its server subscription failed, so every unsubscribe handle keeps
+    // releasing the entry it was created for.
+    const release = (entry) => {
+        if (entries.get(entry.uri) === entry) entries.delete(entry.uri);
+        if (entry.released) return;
+        entry.released = true;
+        clearRetry(entry);
+        const subscription = entry.subscription;
+        entry.subscription = null;
+        if (subscription) {
+            unsubscribeWire(subscription);
+        } else if (entry.connecting) {
+            trackPendingRelease(entry.uri, entry.ready.then(unsubscribeWire, () => {}));
+        }
+    };
+
+    // scheduleRetry and connectEntry call each other; both only run after
+    // this function has finished defining them.
+    const scheduleRetry = (entry) => {
+        if (entry.released || entry.connecting || entry.retryTimer) return;
+        const delay = Math.min(
+            SHARED_SUBSCRIPTION_RETRY_MAX_MS,
+            SHARED_SUBSCRIPTION_RETRY_BASE_MS * (2 ** Math.min(entry.retryAttempts, 10)),
+        );
+        entry.retryAttempts += 1;
+        entry.retryTimer = setTimeout(() => {
+            entry.retryTimer = null;
+            if (entry.released || entry.connecting || !entry.needsResubscribe) return;
+            connectEntry(entry).catch(() => {});
+        }, delay);
+        if (typeof entry.retryTimer?.unref === "function") entry.retryTimer.unref();
+    };
+
+    /**
+     * Creates the server subscription for an entry, replacing a previous one.
+     * On failure the entry keeps its consumers, is marked for resubscription,
+     * and is retried with bounded backoff, on the next subscribe for the URI,
+     * or on the next explicit resubscribe.
+     */
+    const connectEntry = (entry) => {
+        clearRetry(entry);
+        const previous = entry.subscription;
+        entry.subscription = null;
+        if (previous) unsubscribeWire(previous);
+
+        entry.connecting = true;
+        const pendingRelease = pendingReleases.get(entry.uri);
+        const ready = pendingRelease
+            ? pendingRelease.then(() => {
+                if (entry.released) {
+                    throw new Error(`Subscription to ${entry.uri} was released before it was created.`);
+                }
+                return subscribeUri(entry.uri, entry.wireHandlers);
+            })
+            : subscribeUri(entry.uri, entry.wireHandlers);
+        entry.ready = ready;
+        ready.then((subscription) => {
+            if (entry.ready !== ready) return;
+            entry.connecting = false;
+            // A released entry's subscription is unsubscribed by release().
+            if (entry.released) return;
+            const recovered = entry.hasConnected;
+            entry.subscription = subscription;
+            entry.hasConnected = true;
+            entry.needsResubscribe = false;
+            entry.retryAttempts = 0;
+            if (recovered) notify(entry, "onReconnect");
+        }, () => {
+            if (entry.ready !== ready) return;
+            entry.connecting = false;
+            entry.needsResubscribe = true;
+            scheduleRetry(entry);
+        });
+        return ready;
+    };
+
+    /**
+     * Replaces the server subscription of a URI while keeping its consumers,
+     * for use when a consumer detects that realtime updates were missed. It
+     * also restores a subscription that previously failed.
+     *
+     * @param {string} uri Subscription URI
+     * @returns {Promise<boolean>} True when a subscription is active afterwards
+     */
+    const resubscribe = async (uri) => {
+        const entry = entries.get(uri);
+        if (!entry || entry.released) return false;
+        if (!entry.connecting) connectEntry(entry);
+        await entry.ready;
+        return true;
+    };
+
+    const shared = async (uri, handlers = {}) => {
+        let entry = entries.get(uri);
+        if (!entry) {
+            entry = {
+                uri,
+                consumers: new Set(),
+                released: false,
+                connecting: false,
+                hasConnected: false,
+                needsResubscribe: false,
+                retryAttempts: 0,
+                retryTimer: null,
+                subscription: null,
+            };
+            const current = entry;
+            current.wireHandlers = {
+                onEvent: (event, data) => notify(current, "onEvent", event, data),
+                onDisconnect: (reason) => notify(current, "onDisconnect", reason),
+                onReconnect: () => {
+                    current.needsResubscribe = false;
+                    current.retryAttempts = 0;
+                    clearRetry(current);
+                    notify(current, "onReconnect");
+                },
+                onReconnectError: (error) => {
+                    // The subscription could not be restored after a socket
+                    // reconnect. Keep the consumers and restore it.
+                    current.needsResubscribe = true;
+                    scheduleRetry(current);
+                    notify(current, "onReconnectError", error);
+                },
+            };
+            entries.set(uri, current);
+            connectEntry(current);
+        } else if (entry.needsResubscribe && !entry.connecting) {
+            connectEntry(entry);
+        }
+
+        const consumer = { handlers, active: true };
+        const subscribedEntry = entry;
+        const removeConsumer = () => {
+            if (!consumer.active) return;
+            consumer.active = false;
+            subscribedEntry.consumers.delete(consumer);
+            if (subscribedEntry.consumers.size === 0) release(subscribedEntry);
+        };
+
+        subscribedEntry.consumers.add(consumer);
+        try {
+            await subscribedEntry.ready;
+        } catch (error) {
+            // No unsubscribe handle is returned; earlier consumers keep the
+            // entry, which is retried.
+            removeConsumer();
+            throw error;
+        }
+
+        if (consumer.active && typeof handlers.onConnect === "function") {
+            try {
+                handlers.onConnect();
+            } catch (error) {
+                // No unsubscribe handle is returned, so the consumer must not
+                // stay registered and keep receiving events.
+                removeConsumer();
+                throw error;
+            }
+        }
+
+        return {
+            unsubscribe: removeConsumer,
+        };
+    };
+
+    Object.defineProperty(api, "subscribe", {
+        value: shared,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+    });
+    Object.defineProperty(api, "__sctSharedSubscriptions", {
+        value: entries,
+        enumerable: false,
+        configurable: true,
+    });
+    Object.defineProperty(api, "__sctResubscribe", {
+        value: resubscribe,
+        enumerable: false,
+        configurable: true,
+    });
+    return api;
 }
 
 /**
@@ -181,6 +487,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         this.diagnosticEvents = this.loadDiagnosticEvents();
         this.diagnosticPersistTimer = null;
         this.logger = new Logger(this, "App");
+        this.registerProcessDiagnostics();
         try {
             const version = this.getAppVersion();
             this.logger.banner(`BOOLEAN TOOLBOX v${version}`);
@@ -191,6 +498,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             );
             this.logger.banner(`BOOLEAN TOOLBOX vUNKNOWN`); // Fallback banner
         }
+        this.startDiagnosticSession();
 
         // --- DEBUG SETTING ---
         // Respect user's debug_mode setting from app settings
@@ -257,6 +565,11 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             });
         }, DEVICE_REGISTRY_REFRESH_INTERVAL_MS);
 
+        this.recordMemorySample();
+        this.diagnosticMemoryInterval = setInterval(() => {
+            this.recordMemorySample();
+        }, DIAGNOSTIC_MEMORY_SAMPLE_INTERVAL_MS);
+
         this.logger.info("App initialization complete.", {});
     }
 
@@ -265,13 +578,237 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             clearInterval(this.deviceRegistryInterval);
             this.deviceRegistryInterval = null;
         }
+        if (this.diagnosticMemoryInterval) {
+            clearInterval(this.diagnosticMemoryInterval);
+            this.diagnosticMemoryInterval = null;
+        }
 
         // Cleanup WaiterManager
         if (this.waiterManager) {
             this.waiterManager.destroy();
         }
+        // Wait for the clean-shutdown marker; otherwise the next start can
+        // report a false unclean shutdown.
+        try {
+            await this.markDiagnosticSessionStopped();
+        } catch (error) {
+            this.logger.error("Failed to persist the clean shutdown marker", error);
+        }
         await this.persistDiagnosticEvents();
+        this.unregisterProcessDiagnostics();
         this.logger.info("App uninitialized.", {});
+    }
+
+    /**
+     * Records fatal and unhandled process errors in the persisted diagnostics.
+     *
+     * Unhandled promise rejections are recorded and the process is kept
+     * alive: a rejected promise does not leave synchronous state half-updated,
+     * while terminating the process takes every app device offline until
+     * Homey restarts the app. Uncaught exceptions are only observed through
+     * 'uncaughtExceptionMonitor', which never changes Node's or the Homey
+     * SDK's handling, so a corrupted process still terminates.
+     *
+     * The handlers are registered once per process; a later App instance
+     * replaces the earlier registration instead of adding another one.
+     */
+    registerProcessDiagnostics() {
+        const previousRegistration = process[PROCESS_DIAGNOSTICS_REGISTRATION];
+        if (previousRegistration && previousRegistration.owner === this) {
+            return previousRegistration;
+        }
+        if (previousRegistration && typeof previousRegistration.remove === "function") {
+            previousRegistration.remove();
+        }
+
+        const preexistingHandlers = {
+            unhandledRejection: process.listenerCount("unhandledRejection"),
+            uncaughtException: process.listenerCount("uncaughtException"),
+        };
+        const onUnhandledRejection = (reason) => {
+            this.recordProcessFailure("unhandledRejection", reason);
+        };
+        const onUncaughtExceptionMonitor = (error) => {
+            this.recordProcessFailure("uncaughtException", error);
+        };
+
+        process.on("unhandledRejection", onUnhandledRejection);
+        process.on("uncaughtExceptionMonitor", onUncaughtExceptionMonitor);
+
+        const registration = {
+            owner: this,
+            preexistingHandlers,
+            remove: () => {
+                process.removeListener("unhandledRejection", onUnhandledRejection);
+                process.removeListener("uncaughtExceptionMonitor", onUncaughtExceptionMonitor);
+                if (process[PROCESS_DIAGNOSTICS_REGISTRATION] === registration) {
+                    delete process[PROCESS_DIAGNOSTICS_REGISTRATION];
+                }
+            },
+        };
+        process[PROCESS_DIAGNOSTICS_REGISTRATION] = registration;
+        this.processDiagnostics = registration;
+        return registration;
+    }
+
+    unregisterProcessDiagnostics() {
+        if (this.processDiagnostics && typeof this.processDiagnostics.remove === "function") {
+            this.processDiagnostics.remove();
+        }
+        this.processDiagnostics = null;
+    }
+
+    /**
+     * Persists a label-free process failure event. The error message is left
+     * out because it can contain device, zone, or formula labels; the error
+     * type and stack frames identify the failing code.
+     *
+     * @param {"unhandledRejection"|"uncaughtException"} kind Failure kind
+     * @param {unknown} error Error or rejection reason
+     */
+    recordProcessFailure(kind, error) {
+        const fatal = kind === "uncaughtException";
+        const errorType = error instanceof Error
+            ? String(error.name || "Error").replace(/[^\w.-]/g, "").slice(0, 40) || "Error"
+            : typeof error;
+        const message = fatal
+            ? `Uncaught exception recorded (${errorType}).`
+            : `Unhandled promise rejection recorded (${errorType}).`;
+
+        try {
+            this.recordDiagnosticEvent({
+                level: "ERROR",
+                category: "Process",
+                message,
+                stack: getLabelFreeStack(error),
+            });
+            if (fatal) {
+                // The process is about to terminate, so skip the debounce. The
+                // Homey settings write itself is asynchronous and can still be
+                // lost; the unclean-shutdown marker covers that case.
+                this.persistDiagnosticEventsNow();
+            }
+        } catch (recordingError) {
+            console.error("Failed to record process failure", recordingError);
+        }
+
+        try {
+            if (typeof this.error === "function") {
+                this.error(`[Process] ${message}`, error);
+            } else {
+                console.error(`[Process] ${message}`, error);
+            }
+        } catch (logError) {
+            // Logging must never throw from a process-level handler.
+        }
+    }
+
+    persistDiagnosticEventsNow() {
+        if (this.diagnosticPersistTimer) {
+            clearTimeout(this.diagnosticPersistTimer);
+            this.diagnosticPersistTimer = null;
+        }
+        try {
+            const result = this.homey.settings.set(
+                DIAGNOSTIC_EVENTS_KEY,
+                (this.diagnosticEvents || []).slice(-DIAGNOSTIC_EVENTS_LIMIT),
+            );
+            if (result && typeof result.catch === "function") {
+                result.catch(() => {});
+            }
+        } catch (error) {
+            console.error("Failed to persist diagnostic events", error);
+        }
+    }
+
+    /**
+     * Starts the persisted diagnostic session and records a warning when the
+     * previous session ended without onUninit (for example a crash, an
+     * out-of-memory kill, or a Homey watchdog restart).
+     */
+    startDiagnosticSession() {
+        let storedSession = null;
+        try {
+            storedSession = this.homey.settings.get(DIAGNOSTIC_SESSION_KEY);
+        } catch (error) {
+            storedSession = null;
+        }
+        const previous = sanitizeSession(storedSession);
+        const startedAt = (this.startedAt instanceof Date ? this.startedAt : new Date()).toISOString();
+
+        if (previous && previous.cleanShutdown !== true) {
+            const previousStart = new Date(previous.startedAt).getTime();
+            const previousLastSeen = new Date(previous.lastSeenAt).getTime();
+            const uptime = Number.isFinite(previousStart) && Number.isFinite(previousLastSeen)
+                ? formatDuration(Math.max(0, (previousLastSeen - previousStart) / 1000))
+                : "unknown";
+            this.recordDiagnosticEvent({
+                level: "WARN",
+                category: "App",
+                message: "Previous app session ended without a clean shutdown "
+                    + `(version ${previous.appVersion || "unknown"}, started ${previous.startedAt || "unknown"}, `
+                    + `last heartbeat ${previous.lastSeenAt || "unknown"}, uptime at least ${uptime}).`,
+                stack: "",
+            });
+        }
+
+        this.diagnosticSession = {
+            startedAt,
+            appVersion: getDiagnosticValue(() => this.getAppVersion(), "unknown"),
+            lastSeenAt: startedAt,
+            cleanShutdown: false,
+            stoppedAt: null,
+            memorySamples: [],
+            // sanitizeSession() drops the nested previous session, so only one
+            // earlier session is retained.
+            previous,
+        };
+        this.persistDiagnosticSession();
+    }
+
+    recordMemorySample() {
+        if (!this.diagnosticSession) return null;
+        const sample = getMemorySample();
+        this.diagnosticSession.lastSeenAt = sample.at;
+        this.diagnosticSession.memorySamples = [
+            ...(Array.isArray(this.diagnosticSession.memorySamples) ? this.diagnosticSession.memorySamples : []),
+            sample,
+        ].slice(-DIAGNOSTIC_MEMORY_SAMPLES_LIMIT);
+        this.persistDiagnosticSession();
+        return sample;
+    }
+
+    /**
+     * Marks the session as cleanly stopped.
+     *
+     * @returns {Promise<void>} Resolves once the marker is persisted; never rejects
+     */
+    markDiagnosticSessionStopped() {
+        if (!this.diagnosticSession) return Promise.resolve();
+        this.diagnosticSession.cleanShutdown = true;
+        this.diagnosticSession.stoppedAt = new Date().toISOString();
+        this.diagnosticSession.lastSeenAt = this.diagnosticSession.stoppedAt;
+        return this.persistDiagnosticSession();
+    }
+
+    /**
+     * Persists the diagnostic session record.
+     *
+     * @returns {Promise<void>} Resolves once Homey stored the record; failures
+     *   are logged and never reject
+     */
+    persistDiagnosticSession() {
+        if (!this.diagnosticSession) return Promise.resolve();
+        const logFailure = (error) => {
+            console.error("Failed to persist diagnostic session", error);
+        };
+        try {
+            return Promise.resolve(this.homey.settings.set(DIAGNOSTIC_SESSION_KEY, this.diagnosticSession))
+                .then(() => {}, logFailure);
+        } catch (error) {
+            logFailure(error);
+            return Promise.resolve();
+        }
     }
 
     getAppVersion() {
@@ -291,7 +828,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         if (!Array.isArray(storedEvents)) return [];
 
         return storedEvents
-            .map(sanitizeEvent)
+            .map((event) => sanitizeEvent(event))
             .filter(Boolean)
             .slice(-DIAGNOSTIC_EVENTS_LIMIT);
     }
@@ -329,6 +866,29 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         );
     }
 
+    /**
+     * Returns the ids of this app's own drivers. They are code identifiers and
+     * are rendered verbatim in diagnostic reports.
+     *
+     * @returns {string[]} Known driver ids
+     */
+    getKnownDriverIds() {
+        const ids = new Set();
+        const manifestDrivers = this.homey?.manifest?.drivers || Homey.manifest?.drivers;
+        if (Array.isArray(manifestDrivers)) {
+            manifestDrivers.forEach((driver) => {
+                if (driver && driver.id) ids.add(String(driver.id));
+            });
+        }
+        const drivers = getDiagnosticValue(() => this.homey.drivers.getDrivers(), null);
+        if (drivers && typeof drivers === "object") {
+            Object.entries(drivers).forEach(([driverKey, driver]) => {
+                ids.add(String(driver?.id || driverKey));
+            });
+        }
+        return Array.from(ids);
+    }
+
     collectDeviceDiagnostics() {
         const summary = {
             total: 0,
@@ -344,6 +904,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         } catch (error) {
             collectionErrors.push(`Could not enumerate app drivers: ${error.message}`);
         }
+        const knownDriverIds = driverEntries.map(([driverKey, driver]) => String(driver?.id || driverKey));
 
         for (const [driverKey, driver] of driverEntries) {
             const driverId = String(driver?.id || driverKey || "unknown");
@@ -352,7 +913,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 const driverDevices = driver.getDevices();
                 devices = Array.isArray(driverDevices) ? driverDevices : [];
             } catch (error) {
-                collectionErrors.push(`Could not inspect driver ${redactDiagnosticText(driverId)}: ${error.message}`);
+                collectionErrors.push(`Could not inspect driver ${formatDriverId(driverId, knownDriverIds)}: ${error.message}`);
             }
 
             summary.total += devices.length;
@@ -364,7 +925,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                         summary.configAlarms += 1;
                     }
                 } catch (error) {
-                    collectionErrors.push(`Could not read a configuration alarm for driver ${redactDiagnosticText(driverId)}.`);
+                    collectionErrors.push(`Could not read a configuration alarm for driver ${formatDriverId(driverId, knownDriverIds)}.`);
                 }
 
                 if (driverId !== "circadian-light-group") continue;
@@ -507,9 +1068,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             memory: getProcessMemoryDiagnostics(),
             systemResources,
             deviceSummary: deviceDiagnostics.summary,
+            knownDriverIds: this.getKnownDriverIds(),
             clgGroups: deviceDiagnostics.clgGroups,
             collectionErrors: deviceDiagnostics.collectionErrors,
             registry,
+            session: this.diagnosticSession || null,
+            processHandlers: this.processDiagnostics?.preexistingHandlers || null,
             events: this.diagnosticEvents,
         });
 
@@ -553,6 +1117,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
     configureHomeyApi(api) {
         if (!api || api.__sctConfigured) return api;
+
+        shareHomeyApiSubscriptions(api, (error) => {
+            if (this.logger) {
+                this.logger.error("Realtime capability listener failed", error);
+            }
+        });
 
         [
             api.devices,
@@ -683,7 +1253,11 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             const existing = entries[id] || {};
             const zoneId = device.zone || existing.zoneId || null;
             const zoneName = zoneId && zones[zoneId] ? zones[zoneId].name : existing.zoneName || null;
-            const driverUri = device.driverUri || existing.driverUri || null;
+            // Homey API devices expose the full driver reference as driverId
+            // ("homey:app:<appId>:<driver>"). The deprecated driverUri getter
+            // only logs a warning and returns undefined. Registry entries keep
+            // their stored driverUri/driverId fields.
+            const driverUri = device.driverId || existing.driverUri || null;
 
             entries[id] = {
                 id,
@@ -810,7 +1384,13 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             for (const deviceId in allDevices) {
                 const device = allDevices[deviceId];
                 if (device.zone !== zoneId) continue;
-                if (device.driverUri?.includes("logic-device")) continue;
+
+                // Homey API devices expose "homey:app:<appId>:<driver>" as
+                // driverId. The deprecated driverUri getter only logs a
+                // warning and returns undefined, so the former Logic Device
+                // exclusion never matched and chaining Logic Devices is in
+                // use. They therefore remain selectable as inputs.
+                const driverRef = String(device.driverId || "");
 
                 const capabilities = device.capabilities || [];
                 if (capabilities.length === 0) continue;
@@ -831,7 +1411,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 deviceList.push({
                     id: deviceId,
                     name: device.name,
-                    driverName: device.driverUri?.split(":").pop() || "Unknown",
+                    driverName: driverRef.split(":").pop() || "Unknown",
                     capabilities: capabilityList,
                 });
             }

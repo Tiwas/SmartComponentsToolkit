@@ -3,7 +3,10 @@
 const {
     buildDiagnosticsReport,
     buildGitHubIssueUrl,
+    formatDriverId,
     redactDiagnosticText,
+    sanitizeEvent,
+    sanitizeSession,
 } = require("./lib/DiagnosticsReport");
 
 describe("DiagnosticsReport", () => {
@@ -115,5 +118,132 @@ describe("DiagnosticsReport", () => {
         expect(report).toContain("Homey-reported app memory: unavailable");
         expect(report).toContain("Homey-reported app CPU metric: unavailable");
         expect(report).toContain("Homey storage: unavailable used of unavailable");
+    });
+
+    test("never redacts this app's driver ids, including long collection ids in code paths", () => {
+        const drivers = [
+            "circadian-light-group-collection",
+            "circadian-light-group",
+            "composite-device",
+            "logic-device",
+            "logic-unit-10",
+            "state-capture-device",
+        ];
+        const report = buildDiagnosticsReport({
+            deviceSummary: { drivers: drivers.map((id) => ({ id, count: 1 })) },
+            knownDriverIds: drivers,
+            events: [{
+                timestamp: "2026-09-29T10:00:00.000Z",
+                level: "ERROR",
+                message: "Error recorded.",
+                stack: "    at /app/drivers/circadian-light-group-collection/device.js:59:12",
+            }],
+        });
+
+        drivers.forEach((id) => expect(report).toContain(`- Driver ${id}: 1`));
+        expect(report).toContain("/app/drivers/circadian-light-group-collection/device.js:59:12");
+        expect(report).not.toContain("<redacted-value>");
+        expect(formatDriverId("circadian-light-group-collection")).toBe("circadian-light-group-collection");
+        expect(formatDriverId("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6", ["logic-device"])).toBe("<redacted-value>");
+        expect(redactDiagnosticText("key AbCdEfGhIjKlMnOpQrStUvWxYz012345")).toBe("key <redacted-value>");
+    });
+
+    test("keeps long hyphenated user labels redacted while app driver ids stay readable", () => {
+        const label = "private-master-bedroom-presence-sensor";
+        const report = buildDiagnosticsReport({
+            deviceSummary: {
+                drivers: [
+                    { id: "circadian-light-group-collection", count: 2 },
+                    { id: label, count: 1 },
+                ],
+            },
+            systemResources: { crashedMessage: `Crash in ${label}` },
+            collectionErrors: [`Could not inspect ${label}`],
+            events: [{
+                timestamp: "2026-09-29T10:00:00.000Z",
+                level: "ERROR",
+                category: "Device: circadian-light-group-collection",
+                message: `Failed for ${label}`,
+                stack: [
+                    "    at /app/drivers/circadian-light-group-collection/device.js:59:12",
+                    `    at /app/userdata/${label}/cache.js:1:1`,
+                ].join("\n"),
+                source: `drivers/${label}.js:3`,
+            }],
+        });
+
+        expect(redactDiagnosticText(label)).toBe("<redacted-value>");
+        expect(redactDiagnosticText("circadian-light-group-collection")).toBe("<redacted-value>");
+        expect(formatDriverId(label)).toBe("<redacted-value>");
+        expect(report).not.toContain(label);
+        expect(report).toContain("- Driver circadian-light-group-collection: 2");
+        expect(report).toContain("- Driver <redacted-value>: 1");
+        expect(report).toContain("[Device: circadian-light-group-collection]");
+        expect(report).toContain("/app/drivers/circadian-light-group-collection/device.js:59:12");
+    });
+
+    test("renders the caller location of label-free warnings", () => {
+        const event = sanitizeEvent({
+            timestamp: "2026-09-29T10:00:00.000Z",
+            level: "WARN",
+            category: "Device: logic-device",
+            message: "Warning recorded.",
+            source: "drivers/logic-device/device.js:603",
+        });
+        const report = buildDiagnosticsReport({ events: [event] });
+
+        expect(event.source).toBe("drivers/logic-device/device.js:603");
+        expect(report).toContain(
+            "[WARN] [Device: logic-device] Warning recorded. (at drivers/logic-device/device.js:603)",
+        );
+        expect(sanitizeEvent({ level: "WARN", message: "Warning recorded." })).not.toHaveProperty("source");
+    });
+
+    test("renders process hooks and current and previous session memory samples", () => {
+        const report = buildDiagnosticsReport({
+            processHandlers: { unhandledRejection: 1, uncaughtException: 0 },
+            session: {
+                startedAt: "2026-09-29T10:00:00.000Z",
+                memorySamples: [
+                    { at: "2026-09-29T10:00:00.000Z", heapUsed: 40 * 1048576, rss: 80 * 1048576 },
+                    { at: "2026-09-29T10:15:00.000Z", heapUsed: 42 * 1048576, rss: null },
+                ],
+                previous: {
+                    startedAt: "2026-09-29T00:00:00.000Z",
+                    lastSeenAt: "2026-09-29T09:45:00.000Z",
+                    cleanShutdown: false,
+                    memorySamples: [
+                        { at: "2026-09-29T00:00:00.000Z", heapUsed: 40 * 1048576, rss: 85 * 1048576 },
+                        { at: "2026-09-29T09:45:00.000Z", heapUsed: 95 * 1048576, rss: 140 * 1048576 },
+                    ],
+                },
+            },
+        });
+
+        expect(report).toContain("- Process error handlers before app start: unhandledRejection 1, uncaughtException 0");
+        expect(report).toContain("- Memory samples this session (UTC time heap/RSS MB): 10:00 40.0/80.0, 10:15 42.0/?");
+        expect(report).toContain(
+            "- Previous session: started 2026-09-29T00:00:00.000Z, last heartbeat 2026-09-29T09:45:00.000Z, " +
+            "clean shutdown no; heap/RSS MB 00:00 40.0/85.0 -> 09:45 95.0/140.0 (2 samples)",
+        );
+    });
+
+    test("sanitizes persisted sessions to plain label-free values", () => {
+        expect(sanitizeSession(null)).toBeNull();
+        expect(sanitizeSession({ startedAt: "not a date" })).toBeNull();
+        expect(sanitizeSession({
+            startedAt: "2026-09-29T00:00:00.000Z",
+            appVersion: "1.10.29 <script>",
+            cleanShutdown: "yes",
+            memorySamples: [{ at: "2026-09-29T00:15:00.000Z", heapUsed: "12", rss: "x", name: "Kitchen" }, null],
+            previous: { startedAt: "2026-09-28T00:00:00.000Z" },
+        })).toEqual({
+            startedAt: "2026-09-29T00:00:00.000Z",
+            appVersion: "1.10.29script",
+            lastSeenAt: null,
+            stoppedAt: null,
+            cleanShutdown: false,
+            memorySamples: [{ at: "2026-09-29T00:15:00.000Z", heapUsed: 12, heapTotal: null, rss: null }],
+        });
     });
 });

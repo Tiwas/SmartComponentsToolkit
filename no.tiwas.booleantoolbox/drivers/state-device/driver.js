@@ -92,8 +92,10 @@ class StateDriver extends Homey.Driver {
                         continue;
                     }
                     
-                    // Skip our own State Devices to avoid recursion loops
-                    if (device.driverUri && device.driverUri.includes('state-device')) {
+                    // Skip our own State Devices to avoid recursion loops. Homey
+                    // API devices expose driverId; the deprecated driverUri
+                    // getter only warns and returns undefined.
+                    if (String(device.driverId || '').includes('state-device')) {
                         continue;
                     }
 

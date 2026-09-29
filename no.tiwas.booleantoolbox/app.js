@@ -1037,6 +1037,13 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 };
                 const timeoutMs = timeoutValue * (multipliers[timeoutUnit] || 1000);
 
+                // Homey stops app Flow cards after ~60 s, so a longer wait can never
+                // complete here. Fail fast with guidance instead of a generic timeout.
+                if (timeoutMs > WaiterManager.FLOW_CARD_SAFE_WAIT_MS) {
+                    this.logger.warn(`⚠️  Wait of ${timeoutValue} ${timeoutUnit} (${timeoutMs}ms) exceeds the ${WaiterManager.FLOW_CARD_SAFE_WAIT_MS}ms Flow card limit`);
+                    throw new Error(this.getFlowCardWaitLimitMessage('wait'));
+                }
+
                 this.logger.debug(`⏸️  Waiting ${timeoutValue} ${timeoutUnit} (${timeoutMs}ms)...`);
 
                 // Simple promise-based wait
@@ -1053,107 +1060,114 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
         // --- Waiter Gates ---
 
+        // Autocomplete listeners shared by the in-card condition 'wait_until_becomes_true'
+        // and the background action 'wait_until_start'.
+
+        // Autocomplete for capability argument
+        const waiterCapabilityAutocomplete = async (query, args) => {
+            try {
+                const device = args.device; // Get selected device
+                if (!device) return [];
+
+                const capabilities = device.capabilities || [];
+                const results = capabilities.map(capId => {
+                    return {
+                        name: capId,
+                        description: `Capability: ${capId}`,
+                        id: capId
+                    };
+                });
+
+                // Filter by query if provided
+                if (query) {
+                    return results.filter(r =>
+                        r.name.toLowerCase().includes(query.toLowerCase())
+                    );
+                }
+
+                return results;
+            } catch (error) {
+                this.logger.error('Capability autocomplete error:', error);
+                return [];
+            }
+        };
+
+        // Autocomplete for device argument
+        const waiterDeviceAutocomplete = async (query, args) => {
+            try {
+                const allDevices = await this.getApiDevices();
+
+                return Object.values(allDevices)
+                    .filter(device => {
+                        const capabilities = device.capabilities || [];
+                        if (capabilities.length === 0) return false;
+                        if (query) {
+                            return device.name.toLowerCase().includes(query.toLowerCase());
+                        }
+                        return true;
+                    })
+                    .map(device => ({
+                        name: device.name,
+                        description: `${device.capabilities.length} capabilities`,
+                        id: device.id,
+                        capabilities: device.capabilities
+                    }));
+            } catch (error) {
+                this.logger.error('Device autocomplete error:', error);
+                return [];
+            }
+        };
+
+        // Autocomplete for waiter_id argument - generates unique ID
+        const waiterIdAutocomplete = async (query, args) => {
+            try {
+                const results = [];
+
+                // Generate a new unique ID as first option
+                const newId = `wait_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+                results.push({
+                    name: newId,
+                    description: 'New auto-generated ID',
+                    id: newId
+                });
+
+                // Get existing waiter IDs from flows
+                const definedIds = await this.getAllDefinedWaiterIds();
+                for (const id of definedIds) {
+                    if (!query || id.toLowerCase().includes(query.toLowerCase())) {
+                        results.push({
+                            name: id,
+                            description: 'Existing ID from flows',
+                            id: id
+                        });
+                    }
+                }
+
+                // If user typed a custom query, add it as an option
+                if (query && query.trim() && !results.some(r => r.id === query.trim())) {
+                    results.push({
+                        name: query.trim(),
+                        description: 'Custom ID',
+                        id: query.trim()
+                    });
+                }
+
+                return results;
+            } catch (error) {
+                this.logger.error('Waiter ID autocomplete error:', error);
+                // Return a generated ID even on error
+                const fallbackId = `wait_${Date.now().toString(36)}`;
+                return [{ name: fallbackId, description: 'Auto-generated ID', id: fallbackId }];
+            }
+        };
+
         // Condition: Wait until becomes true
         try {
             const waitUntilCard = this.homey.flow.getConditionCard("wait_until_becomes_true");
 
-            // Register autocomplete for capability argument
-            waitUntilCard.registerArgumentAutocompleteListener('capability', async (query, args) => {
-                try {
-                    const device = args.device; // Get selected device
-                    if (!device) return [];
-
-                    const capabilities = device.capabilities || [];
-                    const results = capabilities.map(capId => {
-                        return {
-                            name: capId,
-                            description: `Capability: ${capId}`,
-                            id: capId
-                        };
-                    });
-
-                    // Filter by query if provided
-                    if (query) {
-                        return results.filter(r =>
-                            r.name.toLowerCase().includes(query.toLowerCase())
-                        );
-                    }
-
-                    return results;
-                } catch (error) {
-                    this.logger.error('Capability autocomplete error:', error);
-                    return [];
-                }
-            });
-
-            // Register autocomplete for device argument
-            waitUntilCard.registerArgumentAutocompleteListener('device', async (query, args) => {
-                try {
-                    const allDevices = await this.getApiDevices();
-
-                    return Object.values(allDevices)
-                        .filter(device => {
-                            const capabilities = device.capabilities || [];
-                            if (capabilities.length === 0) return false;
-                            if (query) {
-                                return device.name.toLowerCase().includes(query.toLowerCase());
-                            }
-                            return true;
-                        })
-                        .map(device => ({
-                            name: device.name,
-                            description: `${device.capabilities.length} capabilities`,
-                            id: device.id,
-                            capabilities: device.capabilities
-                        }));
-                } catch (error) {
-                    this.logger.error('Device autocomplete error:', error);
-                    return [];
-                }
-            });
-
-            // Register autocomplete for waiter_id argument - generates unique ID
-            waitUntilCard.registerArgumentAutocompleteListener('waiter_id', async (query, args) => {
-                try {
-                    const results = [];
-
-                    // Generate a new unique ID as first option
-                    const newId = `wait_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
-                    results.push({
-                        name: newId,
-                        description: 'New auto-generated ID',
-                        id: newId
-                    });
-
-                    // Get existing waiter IDs from flows
-                    const definedIds = await this.getAllDefinedWaiterIds();
-                    for (const id of definedIds) {
-                        if (!query || id.toLowerCase().includes(query.toLowerCase())) {
-                            results.push({
-                                name: id,
-                                description: 'Existing ID from flows',
-                                id: id
-                            });
-                        }
-                    }
-
-                    // If user typed a custom query, add it as an option
-                    if (query && query.trim() && !results.some(r => r.id === query.trim())) {
-                        results.push({
-                            name: query.trim(),
-                            description: 'Custom ID',
-                            id: query.trim()
-                        });
-                    }
-
-                    return results;
-                } catch (error) {
-                    this.logger.error('Waiter ID autocomplete error:', error);
-                    // Return a generated ID even on error
-                    const fallbackId = `wait_${Date.now().toString(36)}`;
-                    return [{ name: fallbackId, description: 'Auto-generated ID', id: fallbackId }];
-                }
-            });
+            waitUntilCard.registerArgumentAutocompleteListener('capability', waiterCapabilityAutocomplete);
+            waitUntilCard.registerArgumentAutocompleteListener('device', waiterDeviceAutocomplete);
+            waitUntilCard.registerArgumentAutocompleteListener('waiter_id', waiterIdAutocomplete);
 
             waitUntilCard.registerRunListener(async (args, state) => {
                 try {
@@ -1186,6 +1200,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                     // Create a promise that will be resolved when the waiter is triggered
                     return new Promise((resolve, reject) => {
+                        // Settle this card run exactly once, whichever path finishes first
+                        // (match, timeout, re-initialization, guard or error).
+                        let settled = false;
+                        let disarmGuard = null;
+                        const settle = (callback, value) => {
+                            if (settled) return;
+                            settled = true;
+                            if (disarmGuard) disarmGuard();
+                            callback(value);
+                        };
+
                         // Use IIFE to allow async/await inside Promise constructor
                         (async () => {
                             try {
@@ -1197,7 +1222,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     if (this.waiterManager.valueMatches(currentValue, targetValue)) {
                                         this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} (target: ${targetValue})`);
                                         this.logger.info(`🎯 Resolving immediately to YES-output (no wait needed)`);
-                                        resolve(true);
+                                        settle(resolve, true);
                                         return;
                                     }
 
@@ -1234,7 +1259,14 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                 // Store resolver in waiter data so it can be called later
                                 const waiterData = this.waiterManager.waiters.get(actualWaiterId);
                                 if (waiterData) {
-                                    waiterData.resolver = resolve;
+                                    waiterData.resolver = (result) => settle(resolve, result);
+
+                                    // Homey stops app Flow cards after ~60 s. End this run with a clear
+                                    // error before that; only this run's own waiter is removed.
+                                    disarmGuard = this.armFlowCardWaitGuard(actualWaiterId, waiterData, () => {
+                                        this.logger.warn(`⏱️  Waiter ${actualWaiterId} still pending after ${WaiterManager.FLOW_CARD_SAFE_WAIT_MS}ms - ending card before Homey's Flow card limit`);
+                                        settle(reject, new Error(this.getFlowCardWaitLimitMessage('capability')));
+                                    });
                                 }
 
                                 // NEW: Register capability listener (pass Homey API, not SDK)
@@ -1249,7 +1281,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                             } catch (error) {
                                 this.logger.error(`❌ Failed to create waiter:`, error);
-                                reject(error);
+                                settle(reject, error);
                             }
                         })();
                     });
@@ -1321,6 +1353,16 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
                 // Wait for gate to become GO
                 return new Promise((resolve, reject) => {
+                    // Settle this card run exactly once (GO, timeout, guard or error).
+                    let settled = false;
+                    let disarmGuard = null;
+                    const settle = (callback, value) => {
+                        if (settled) return;
+                        settled = true;
+                        if (disarmGuard) disarmGuard();
+                        callback(value);
+                    };
+
                     (async () => {
                         try {
                             const uniqueWaiterId = `gate_${gateName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -1343,10 +1385,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     // If result is false (timeout), keep as false
                                     const boolResult = result === false ? false : true;
                                     this.logger.debug(`🎯 conditional_gate_start: waiter resolved with ${JSON.stringify(result)} -> ${boolResult}`);
-                                    resolve(boolResult);
+                                    settle(resolve, boolResult);
                                 };
+
+                                // Homey stops app Flow cards after ~60 s. End this run with a clear
+                                // error before that; only this run's own waiter is removed.
+                                disarmGuard = this.armFlowCardWaitGuard(actualId, waiterData, () => {
+                                    this.logger.warn(`⏱️  conditional_gate_start: gate "${gateName}" still NO GO after ${WaiterManager.FLOW_CARD_SAFE_WAIT_MS}ms - ending card before Homey's Flow card limit`);
+                                    settle(reject, new Error(this.getFlowCardWaitLimitMessage('gate')));
+                                });
                             }
-                        } catch (err) { reject(err); }
+                        } catch (err) { settle(reject, err); }
                     })();
                 });
             });
@@ -1459,6 +1508,48 @@ module.exports = class BooleanToolboxApp extends Homey.App {
              this.logger.debug(` -> OK: ACTION registered: 'conditional_gate_modify'`);
         } catch (e) { this.logger.error(` -> FAILED: 'conditional_gate_modify'`, e); }
 
+        // Autocomplete for waiter_id argument (active waiters + IDs defined in flows).
+        // Shared by 'control_waiter' and the 'wait_until_finished' trigger.
+        const controlWaiterIdAutocomplete = async (query, args) => {
+            try {
+                const results = [];
+                const seenIds = new Set();
+
+                // Get all defined waiter IDs from flows
+                const definedIds = await this.getAllDefinedWaiterIds();
+
+                // Get active waiters from WaiterManager
+                const activeWaiters = this.waiterManager.getWaitersForAutocomplete(query);
+
+                // Add active waiters first (with status info)
+                for (const waiter of activeWaiters) {
+                    if (!query || waiter.id.toLowerCase().includes(query.toLowerCase())) {
+                        results.push(waiter);
+                        seenIds.add(waiter.id);
+                    }
+                }
+
+                // Add defined waiters that aren't currently active
+                for (const id of definedIds) {
+                    if (!seenIds.has(id)) {
+                        if (!query || id.toLowerCase().includes(query.toLowerCase())) {
+                            results.push({
+                                name: id,
+                                description: 'Defined in flow (not active)',
+                                id: id
+                            });
+                            seenIds.add(id);
+                        }
+                    }
+                }
+
+                return results;
+            } catch (error) {
+                this.logger.error('Waiter autocomplete error:', error);
+                return [];
+            }
+        };
+
         // Action: Control waiter
         try {
             const controlWaiterCard = this.homey.flow.getActionCard("control_waiter");
@@ -1505,57 +1596,177 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 }
             });
 
-            // Register autocomplete for waiter_id argument
-            controlWaiterCard.registerArgumentAutocompleteListener('waiter_id', async (query, args) => {
-                try {
-                    const results = [];
-                    const seenIds = new Set();
-
-                    // Get all defined waiter IDs from flows
-                    const definedIds = await this.getAllDefinedWaiterIds();
-
-                    // Get active waiters from WaiterManager
-                    const activeWaiters = this.waiterManager.getWaitersForAutocomplete(query);
-
-                    // Add active waiters first (with status info)
-                    for (const waiter of activeWaiters) {
-                        if (!query || waiter.id.toLowerCase().includes(query.toLowerCase())) {
-                            results.push(waiter);
-                            seenIds.add(waiter.id);
-                        }
-                    }
-
-                    // Add defined waiters that aren't currently active
-                    for (const id of definedIds) {
-                        if (!seenIds.has(id)) {
-                            if (!query || id.toLowerCase().includes(query.toLowerCase())) {
-                                results.push({
-                                    name: id,
-                                    description: 'Defined in flow (not active)',
-                                    id: id
-                                });
-                                seenIds.add(id);
-                            }
-                        }
-                    }
-
-                    return results;
-                } catch (error) {
-                    this.logger.error('Waiter autocomplete error:', error);
-                    return [];
-                }
-            });
+            controlWaiterCard.registerArgumentAutocompleteListener('waiter_id', controlWaiterIdAutocomplete);
 
             this.logger.debug(` -> OK: ACTION registered: 'control_waiter'`);
         } catch (e) {
             this.logger.error(` -> FAILED: Registering ACTION 'control_waiter'`, e);
         }
 
+        // --- Background waits ---
+        // Homey stops every app Flow card after ~60 s. These actions return immediately
+        // and the app waits in the background, then fires a "wait finished" trigger.
+
+        // Action: Start waiting for Conditional Gate GO
+        try {
+            const startGateWaitCard = this.homey.flow.getActionCard("conditional_gate_start_wait");
+
+            startGateWaitCard.registerArgumentAutocompleteListener('gate_name', (query, args) =>
+                this.getGateNameAutocompleteResults(query, { suggestNew: true }));
+
+            startGateWaitCard.registerRunListener(async (args, state) => {
+                const gateName = args.gate_name?.name || args.gate_name;
+                const defaultState = args.default_state?.id || args.default_state || 'NO_GO';
+                const timeoutValue = Number(args.timeout_value) || 0;
+                const timeoutUnit = args.timeout_unit || 's';
+
+                this.logger.debug(`🎯 conditional_gate_start_wait: gateName="${gateName}", defaultState="${defaultState}", timeout=${timeoutValue}${timeoutUnit}`);
+
+                if (!gateName) throw new Error('Gate Name is required');
+
+                const waiterId = this.waiterManager.getBackgroundGateWaiterId(gateName);
+                const currentState = this.waiterManager.getGateState(gateName, defaultState);
+
+                if (currentState === 'GO') {
+                    // Restart semantics: a pending background wait for this gate is replaced without firing.
+                    const existing = this.waiterManager.waiters.get(waiterId);
+                    if (existing && existing.background) this.waiterManager.removeWaiterIfCurrent(waiterId, existing);
+
+                    this.logger.info(`✅ Gate "${gateName}" is already GO - firing 'conditional_gate_wait_finished' now`);
+                    this.triggerGateWaitFinished(gateName, true, 0);
+                    return true;
+                }
+
+                await this.waiterManager.startBackgroundWaiter(
+                    waiterId,
+                    { timeoutValue, timeoutUnit },
+                    null,
+                    { gateName, targetState: 'GO' },
+                    ({ success, waitedMs }) => this.triggerGateWaitFinished(gateName, success, waitedMs),
+                );
+
+                this.logger.info(`🕓 Background wait started for gate "${gateName}" (timeout: ${timeoutValue}${timeoutUnit})`);
+                return true;
+            });
+            this.logger.debug(` -> OK: ACTION registered: 'conditional_gate_start_wait'`);
+        } catch (e) {
+            this.logger.error(` -> FAILED: Registering ACTION 'conditional_gate_start_wait'`, e);
+        }
+
+        // Trigger: Conditional Gate wait finished
+        try {
+            const gateWaitFinishedCard = this.homey.flow.getTriggerCard("conditional_gate_wait_finished");
+
+            gateWaitFinishedCard.registerArgumentAutocompleteListener('gate_name', (query, args) =>
+                this.getGateNameAutocompleteResults(query));
+
+            gateWaitFinishedCard.registerRunListener(async (args, state) => {
+                const gateName = args.gate_name?.name || args.gate_name;
+                return !!gateName && gateName === state?.gate_name;
+            });
+            this.logger.debug(` -> OK: APP TRIGGER registered: 'conditional_gate_wait_finished'`);
+        } catch (e) {
+            this.logger.error(` -> FAILED: Registering APP TRIGGER 'conditional_gate_wait_finished'`, e);
+        }
+
+        // Action: Start waiting until device capability becomes value
+        try {
+            const waitUntilStartCard = this.homey.flow.getActionCard("wait_until_start");
+
+            waitUntilStartCard.registerArgumentAutocompleteListener('capability', waiterCapabilityAutocomplete);
+            waitUntilStartCard.registerArgumentAutocompleteListener('device', waiterDeviceAutocomplete);
+            waitUntilStartCard.registerArgumentAutocompleteListener('waiter_id', waiterIdAutocomplete);
+
+            waitUntilStartCard.registerRunListener(async (args, state) => {
+                let waiterId = this.extractWaiterId(args.waiter_id);
+                if (!waiterId) {
+                    waiterId = `waiter_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                    this.logger.debug(`🆔 Auto-generated waiter id: ${waiterId}`);
+                }
+
+                const timeoutValue = Number(args.timeout_value) || 0;
+                const timeoutUnit = args.timeout_unit || 's';
+                const device = args.device;
+                const capability = args.capability?.id || args.capability;
+                const targetValue = args.target_value;
+
+                if (!device || !device.capabilities || !device.capabilities.includes(capability)) {
+                    const availableCaps = device?.capabilities ? device.capabilities.join(', ') : 'none';
+                    throw new Error(`Capability "${capability}" not found on device "${device?.name}". Available capabilities: ${availableCaps}`);
+                }
+
+                // Restart semantics: a pending background wait with the same ID is replaced without firing.
+                const existing = this.waiterManager.waiters.get(waiterId);
+                if (existing && existing.background) this.waiterManager.removeWaiterIfCurrent(waiterId, existing);
+
+                let currentValue;
+                try {
+                    const apiDevice = await this.getApiDevice(device.id, { maxAgeMs: 0 });
+                    currentValue = apiDevice?.capabilitiesObj?.[capability]?.value;
+
+                    if (this.waiterManager.valueMatches(currentValue, targetValue)) {
+                        this.logger.info(`✅ Value already matches! ${device.name}.${capability} = ${currentValue} - firing 'wait_until_finished' now`);
+                        this.triggerCapabilityWaitFinished(waiterId, true, currentValue, 0);
+                        return true;
+                    }
+                } catch (error) {
+                    this.logger.warn(`⚠️  Could not check current value, will wait for change: ${error.message}`);
+                }
+
+                const waiterData = await this.waiterManager.startBackgroundWaiter(
+                    waiterId,
+                    { timeoutValue, timeoutUnit },
+                    { deviceId: device.id, capability, targetValue },
+                    null,
+                    ({ id, success, waitedMs, lastValue }) =>
+                        this.triggerCapabilityWaitFinished(id, success, lastValue, waitedMs),
+                );
+                waiterData.lastValue = currentValue;
+
+                try {
+                    const api = await this.ensureHomeyApi();
+                    await this.waiterManager.registerCapabilityListener(waiterData.id, api);
+                } catch (error) {
+                    this.waiterManager.removeWaiterIfCurrent(waiterData.id, waiterData);
+                    throw error;
+                }
+
+                this.logger.info(`🕓 Background waiter ${waiterData.id} listening for ${device.name}.${capability} = ${targetValue} (timeout: ${timeoutValue}${timeoutUnit})`);
+                return true;
+            });
+            this.logger.debug(` -> OK: ACTION registered: 'wait_until_start'`);
+        } catch (e) {
+            this.logger.error(` -> FAILED: Registering ACTION 'wait_until_start'`, e);
+        }
+
+        // Trigger: Capability wait finished
+        try {
+            const waitUntilFinishedCard = this.homey.flow.getTriggerCard("wait_until_finished");
+
+            waitUntilFinishedCard.registerArgumentAutocompleteListener('waiter_id', async (query, args) => {
+                const results = await controlWaiterIdAutocomplete(query, args);
+                const customId = typeof query === 'string' ? query.trim() : '';
+                if (customId && !results.some(r => r.id === customId)) {
+                    results.push({ name: customId, description: 'Custom ID', id: customId });
+                }
+                return results;
+            });
+
+            waitUntilFinishedCard.registerRunListener(async (args, state) => {
+                const waiterId = this.extractWaiterId(args.waiter_id);
+                return !!waiterId && waiterId === state?.waiter_id;
+            });
+            this.logger.debug(` -> OK: APP TRIGGER registered: 'wait_until_finished'`);
+        } catch (e) {
+            this.logger.error(` -> FAILED: Registering APP TRIGGER 'wait_until_finished'`, e);
+        }
+
         this.logger.info("app.flow_cards_registered", {});
     }
 
     /**
-     * Get all waiter IDs defined in flows (from wait_until_becomes_true cards)
+     * Get all waiter IDs defined in flows (from wait_until_becomes_true,
+     * wait_until_start and wait_until_finished cards)
      * @returns {Promise<Array>} Array of waiter IDs found in flows
      */
     async getAllDefinedWaiterIds() {
@@ -1563,6 +1774,11 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             await this.ensureHomeyApi();
 
             const waiterIds = new Set();
+
+            // Cards that carry a waiter_id argument (in-card wait, background wait and its trigger)
+            const waiterCardIds = ['wait_until_becomes_true', 'wait_until_start', 'wait_until_finished'];
+            const isWaiterCardId = (value) => typeof value === 'string' &&
+                waiterCardIds.some(cardId => value === cardId || value.endsWith(`:${cardId}`) || value.includes(cardId));
 
             // Search regular flows
             const flows = await this.api.flow.getFlows();
@@ -1579,17 +1795,20 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 // Advanced flows not available - ignore
             }
 
-            // Search through all flows for wait_until_becomes_true cards
+            // Search through all flows for waiter cards
             for (const flowId in flows) {
                 const flow = flows[flowId];
+
+                // Check trigger (WHEN card) - e.g. 'wait_until_finished'
+                if (flow.trigger && (isWaiterCardId(flow.trigger.id) || isWaiterCardId(flow.trigger.uri))) {
+                    const waiterId = this.extractWaiterId(flow.trigger.args?.waiter_id);
+                    if (waiterId) waiterIds.add(waiterId);
+                }
 
                 // Check conditions (AND cards)
                 if (flow.conditions && Array.isArray(flow.conditions)) {
                     for (const condition of flow.conditions) {
-                        const isWaiterCard =
-                            condition.id === 'wait_until_becomes_true' ||
-                            condition.id?.endsWith(':wait_until_becomes_true') ||
-                            condition.id?.includes('wait_until_becomes_true');
+                        const isWaiterCard = isWaiterCardId(condition.id) || isWaiterCardId(condition.uri);
 
                         if (isWaiterCard) {
                             const waiterId = this.extractWaiterId(condition.args?.waiter_id);
@@ -1601,7 +1820,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 // Check actions (THEN cards)
                 if (flow.actions && Array.isArray(flow.actions)) {
                     for (const action of flow.actions) {
-                        if (action.uri?.includes('wait_until_becomes_true') || action.id === 'wait_until_becomes_true') {
+                        if (isWaiterCardId(action.uri) || isWaiterCardId(action.id)) {
                             const waiterIdArg = action.args?.waiter_id;
                             const waiterId = this.extractWaiterId(waiterIdArg);
                             if (waiterId) waiterIds.add(waiterId);
@@ -1612,7 +1831,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 // Also check legacy 'cards' array if it exists
                 if (flow.cards && Array.isArray(flow.cards)) {
                     for (const card of flow.cards) {
-                        if (card.uri?.includes('wait_until_becomes_true') || card.id === 'wait_until_becomes_true') {
+                        if (isWaiterCardId(card.uri) || isWaiterCardId(card.id)) {
                             const waiterIdArg = card.args?.waiter_id;
                             const waiterId = this.extractWaiterId(waiterIdArg);
                             if (waiterId) waiterIds.add(waiterId);
@@ -1631,10 +1850,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                         const card = flow.cards[cardId];
 
                         // In advanced flows, card.id is the full URI like "homey:app:no.tiwas.booleantoolbox:wait_until_becomes_true"
-                        const isWaiterCard =
-                            card.id === 'wait_until_becomes_true' ||
-                            card.id?.endsWith(':wait_until_becomes_true') ||
-                            card.id?.includes('wait_until_becomes_true');
+                        const isWaiterCard = isWaiterCardId(card.id);
 
                         if (isWaiterCard) {
                             const waiterId = this.extractWaiterId(card.args?.waiter_id);
@@ -1745,12 +1961,17 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                 return cardId === 'conditional_gate_start' ||
                        cardId === 'conditional_gate_modify' ||
                        cardId === 'conditional_gate_check' ||
+                       cardId === 'conditional_gate_start_wait' ||
+                       cardId === 'conditional_gate_wait_finished' ||
                        cardId.endsWith(':conditional_gate_start') ||
                        cardId.endsWith(':conditional_gate_modify') ||
                        cardId.endsWith(':conditional_gate_check') ||
+                       cardId.endsWith(':conditional_gate_start_wait') ||
+                       cardId.endsWith(':conditional_gate_wait_finished') ||
                        cardId.includes('conditional_gate_start') ||
                        cardId.includes('conditional_gate_modify') ||
-                       cardId.includes('conditional_gate_check');
+                       cardId.includes('conditional_gate_check') ||
+                       cardId.includes('conditional_gate_wait_finished');
             };
 
             const processCard = (card) => {
@@ -1762,6 +1983,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
             // Regular flows
             for (const flow of Object.values(flows)) {
+                if (flow.trigger) processCard(flow.trigger); // e.g. 'conditional_gate_wait_finished'
                 if (flow.conditions) flow.conditions.forEach(processCard);
                 if (flow.actions) flow.actions.forEach(processCard);
                 if (flow.cards) flow.cards.forEach(processCard); // Legacy format
@@ -1776,6 +1998,122 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         } catch (error) {
             this.logger.error('Failed to get defined gate names:', error);
             return [];
+        }
+    }
+
+    /**
+     * Autocomplete results for gate_name arguments of the background gate cards.
+     * Mirrors the gate autocomplete used by the existing Conditional Gate cards.
+     *
+     * @param {string} query - Text typed by the user
+     * @param {Object} options - { suggestNew: true } adds a generated gate name when the query is empty
+     * @returns {Promise<Array>} Autocomplete results
+     */
+    async getGateNameAutocompleteResults(query, options = {}) {
+        const results = [];
+        if (options.suggestNew && !query) {
+            const generated = `Gate_${Date.now().toString(36).substr(-4).toUpperCase()}`;
+            results.push({ name: generated, description: 'Suggested Name', id: generated });
+        }
+        try {
+            const definedGates = await this.getAllDefinedGateNames();
+            for (const gate of definedGates) {
+                if (!query || gate.toLowerCase().includes(query.toLowerCase())) {
+                    results.push({ name: gate, id: gate });
+                }
+            }
+        } catch (e) { this.logger.error(e); }
+
+        if (query && !results.some(r => r.name === query)) results.push({ name: query, id: query });
+        return results;
+    }
+
+    /**
+     * Arms the guard that ends an in-card wait (condition card run listener) just
+     * before Homey's hard ~60 second Flow card limit. When it fires, only the waiter
+     * created by this card run is removed - a successor that reuses the same waiter
+     * ID is left untouched.
+     *
+     * @param {string} waiterId - ID of the waiter created by this card run
+     * @param {Object} waiterData - The waiter object created by this card run
+     * @param {Function} onExpire - Called when the guard fires (should reject the run)
+     * @returns {Function} Function that disarms the guard
+     */
+    armFlowCardWaitGuard(waiterId, waiterData, onExpire) {
+        const timer = setTimeout(() => {
+            if (this.waiterManager) this.waiterManager.removeWaiterIfCurrent(waiterId, waiterData);
+            onExpire();
+        }, WaiterManager.FLOW_CARD_SAFE_WAIT_MS);
+        return () => clearTimeout(timer);
+    }
+
+    /**
+     * Returns the translated error message for waits that exceed the Flow card limit.
+     *
+     * @param {'gate'|'capability'|'wait'} kind - Which card hit the limit
+     * @returns {string} Error message
+     */
+    getFlowCardWaitLimitMessage(kind) {
+        const messages = {
+            gate: {
+                key: 'errors.flow_card_wait_limit_gate',
+                fallback: 'Homey stops app Flow cards after 60 seconds. For waits longer than 55 seconds, use "Start waiting for Conditional Gate GO" together with the "Conditional Gate wait finished" trigger.',
+            },
+            capability: {
+                key: 'errors.flow_card_wait_limit_capability',
+                fallback: 'Homey stops app Flow cards after 60 seconds. For waits longer than 55 seconds, use "Start waiting until device capability becomes value" together with the "Capability wait finished" trigger.',
+            },
+            wait: {
+                key: 'errors.flow_card_wait_limit_wait',
+                fallback: 'The Wait card is limited to 55 seconds because Homey stops app Flow cards after 60 seconds. Use Homey\'s built-in Flow delay for longer waits.',
+            },
+        };
+        const message = messages[kind] || messages.wait;
+        try {
+            const translated = this.homey.__(message.key);
+            if (typeof translated === 'string' && translated && translated !== message.key) return translated;
+        } catch (error) {
+            // Fall back to English below
+        }
+        return message.fallback;
+    }
+
+    /**
+     * Fires the 'conditional_gate_wait_finished' trigger for a background gate wait.
+     */
+    triggerGateWaitFinished(gateName, opened, waitedMs) {
+        const tokens = {
+            opened: opened === true,
+            result: opened === true ? 'GO' : 'TIMEOUT',
+            waited_seconds: this.toWaitedSeconds(waitedMs),
+        };
+        return this.fireWaitFinishedTrigger('conditional_gate_wait_finished', tokens, { gate_name: gateName });
+    }
+
+    /**
+     * Fires the 'wait_until_finished' trigger for a background capability wait.
+     */
+    triggerCapabilityWaitFinished(waiterId, matched, value, waitedMs) {
+        const tokens = {
+            matched: matched === true,
+            result: matched === true ? 'MATCHED' : 'TIMEOUT',
+            value: value === undefined || value === null ? '' : String(value),
+            waited_seconds: this.toWaitedSeconds(waitedMs),
+        };
+        return this.fireWaitFinishedTrigger('wait_until_finished', tokens, { waiter_id: waiterId });
+    }
+
+    toWaitedSeconds(waitedMs) {
+        const ms = Math.max(0, Number(waitedMs) || 0);
+        return Math.round(ms / 100) / 10;
+    }
+
+    async fireWaitFinishedTrigger(cardId, tokens, state) {
+        try {
+            this.logger.info(`🏁 Firing '${cardId}' ${JSON.stringify(state)} -> ${JSON.stringify(tokens)}`);
+            await this.homey.flow.getTriggerCard(cardId).trigger(tokens, state);
+        } catch (error) {
+            this.logger.error(`❌ Failed to fire trigger '${cardId}':`, error);
         }
     }
 };

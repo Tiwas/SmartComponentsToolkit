@@ -112,7 +112,10 @@
     "import_failed": "Error al importar estados",
     "invalid_import_data": "Datos de importación no válidos",
     "invalid_json_format": "Formato JSON no válido",
-    "import_would_exceed_limit": "La importación superaría el límite máximo de estados"
+    "import_would_exceed_limit": "La importación superaría el límite máximo de estados",
+    "flow_card_wait_limit_gate": "Homey detiene las tarjetas de flujo de apps tras 60 segundos. Para esperas de más de 55 segundos, use \"Empezar a esperar GO de Puerta Condicional\" junto con el disparador \"Espera de Puerta Condicional finalizada\".",
+    "flow_card_wait_limit_capability": "Homey detiene las tarjetas de flujo de apps tras 60 segundos. Para esperas de más de 55 segundos, use \"Empezar a esperar hasta que la capability del dispositivo sea valor\" junto con el disparador \"Espera de capability finalizada\".",
+    "flow_card_wait_limit_wait": "La tarjeta Esperar está limitada a 55 segundos porque Homey detiene las tarjetas de flujo de apps tras 60 segundos. Para esperas más largas use el retardo integrado de los flujos de Homey."
   },
   "evaluation": {
     "initial_complete": "Evaluación inicial de todas las fórmulas...",

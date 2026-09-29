@@ -1,5 +1,31 @@
 # Worklog
 
+## 2026-09-29 — Long waits beyond Homey's Flow card limit (issue #46)
+
+### Requested
+- Fix GitHub issue #46: `Conditional Gate: Wait for GO` with a 2 minute timeout failed with `Error: Timeout after 60000ms` after one minute.
+- Root cause: Homey stops every app Flow card run listener after ~60 seconds, but the gate/capability wait conditions and the `wait` action held the card open for the whole configured timeout.
+- Approved design: keep in-card waiting for short waits and add a "start + finished trigger" pattern where the app waits in the background.
+
+### Implemented
+- Added `WaiterManager.FLOW_CARD_SAFE_WAIT_MS` (55 s). `conditional_gate_start` and `wait_until_becomes_true` now arm a guard when they start waiting; if the card is still pending at 55 s, only that run's own waiter is removed (identity check, so reused waiter IDs are never touched) and the card fails with a translated message pointing to the new cards. Waits that resolve within 55 s, timeouts of 55 s or less, `conditional_gate_start` with timeout 0, and Modify Conditional Gate timeout/state changes behave as before.
+- Re-initializing a waiter ID that is still waiting (same Flow run repeating, e.g. `Wait_OSB_Motion`) now settles the superseded card run once through its NO/false path instead of leaving it to Homey's 60 s kill. WaiterManager timers, capability listeners and gate releases only remove the waiter object they belong to.
+- The `wait` action rejects durations above 55 s immediately with a message recommending Homey's built-in Flow delay.
+- New action `conditional_gate_start_wait` (gate name, default state, timeout 0 = none, max 24 h) and trigger `conditional_gate_wait_finished` (tokens `opened`, `result` GO/TIMEOUT, `waited_seconds`). Already-GO gates fire immediately; starting again for the same gate restarts the wait (`gate_<name>_background`) without firing the replaced one; Modify Conditional Gate state/timeout changes apply to background waits.
+- New action `wait_until_start` (same args as the capability condition) and trigger `wait_until_finished` (tokens `matched`, `result` MATCHED/TIMEOUT, `value`, `waited_seconds`), with per-Waiter-ID restart semantics. `control_waiter` enable/disable/stop works on background waits; stopping never fires the trigger.
+- Gate/waiter autocomplete discovery now includes the new card IDs and standard-flow triggers. The existing capability/device/waiter-ID and control-waiter autocomplete listeners are shared with the new cards.
+- Flow card hints (12 languages) mention the 60 s limit; new `errors.flow_card_wait_limit_*` locale strings (11 locales). New `conditional_gate_start` cards default to a 30 s timeout instead of 60 s.
+- Updated README, store README, Homey Community listing, project documentation, and the Conditional Gates, Waiter Gates, Flow Cards, State Capture Device and index pages, including the reporter's scenario as an Advanced Flow example and the in-memory/app-restart limitation. `docs/tools/*.html` contain no hard-coded card ID lists (Flow Doctor reads card definitions from the Homey API), so no tool changes were needed.
+
+### Verification
+- `npm test -- --runInBand`: 20 suites and 251 tests passed (new `LongWaitFlowCards.test.js` plus WaiterManager re-initialization, identity and background-waiter tests).
+- `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.60 MB) and all 17 manifest assets were verified.
+
+### Follow-ups
+- Not verified on a real Homey yet: the guard timing against Homey's own 60 s limit and trigger delivery from the background waits.
+- Known limitation: gate states and pending waits are in memory and are lost on app restart; a pending background wait then never fires its trigger.
+- CHANGELOG / `.homeychangelog.json` / version bump left for the release step.
+
 ## 2026-09-07 — Diagnostic resource fallback v1.10.29
 
 ### Requested

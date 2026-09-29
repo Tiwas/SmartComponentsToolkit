@@ -1,0 +1,279 @@
+{
+  "title": {
+    "en": "Start waiting until device capability becomes value",
+    "no": "Start venting til enhetens capability blir verdi",
+    "da": "Start venten indtil enhedens capability bliver værdi",
+    "de": "Warten starten, bis Geräte-Capability Wert wird",
+    "es": "Empezar a esperar hasta que la capability del dispositivo sea valor",
+    "fr": "Commencer à attendre que la capability de l'appareil devienne valeur",
+    "it": "Inizia ad aspettare che la capability del dispositivo diventi valore",
+    "nl": "Start wachten tot apparaat capability waarde wordt",
+    "sv": "Börja vänta tills enhetens capability blir värde",
+    "pl": "Rozpocznij czekanie aż capability urządzenia stanie się wartością",
+    "fi": "Aloita odotus kunnes laitteen capability on arvo",
+    "ru": "Начать ожидание, пока capability устройства станет значением"
+  },
+  "titleFormatted": {
+    "en": "Start waiting until [[device]] [[capability]] becomes [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "no": "Start venting til [[device]] [[capability]] blir [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "da": "Start venten indtil [[device]] [[capability]] bliver [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "de": "Warten starten, bis [[device]] [[capability]] [[target_value]] wird (Timeout: [[timeout_value]] [[timeout_unit]], ID: [[waiter_id]])",
+    "es": "Empezar a esperar hasta que [[device]] [[capability]] sea [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "fr": "Commencer à attendre que [[device]] [[capability]] devienne [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "it": "Inizia ad aspettare che [[device]] [[capability]] diventi [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "nl": "Start wachten tot [[device]] [[capability]] [[target_value]] wordt (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "sv": "Börja vänta tills [[device]] [[capability]] blir [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "pl": "Rozpocznij czekanie aż [[device]] [[capability]] stanie się [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "fi": "Aloita odotus kunnes [[device]] [[capability]] on [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])",
+    "ru": "Начать ожидание, пока [[device]] [[capability]] станет [[target_value]] (timeout: [[timeout_value]] [[timeout_unit]], id: [[waiter_id]])"
+  },
+  "hint": {
+    "en": "Starts a background wait and continues immediately, so it works for waits longer than 55 seconds. When the capability reaches the target value or the timeout expires, the 'Capability wait finished' trigger fires for this Waiter ID. 0 = no timeout (maximum 24 hours). Starting again with the same Waiter ID restarts the wait. Pending waits are lost if the app restarts.",
+    "no": "Starter en venting i bakgrunnen og fortsetter umiddelbart, så den fungerer for venting lengre enn 55 sekunder. Når capability når målverdien eller timeout utløper, utløses 'Capability-venting fullført' for denne Waiter ID-en. 0 = ingen timeout (maks 24 timer). Å starte på nytt med samme Waiter ID starter ventingen på nytt. Ventinger som pågår går tapt hvis appen startes på nytt.",
+    "da": "Starter en venten i baggrunden og fortsætter straks, så den virker til ventetid længere end 55 sekunder. Når capability når målværdien eller timeout udløber, udløses 'Capability-venten afsluttet' for dette Waiter ID. 0 = ingen timeout (højst 24 timer). At starte igen med samme Waiter ID genstarter ventetiden. Igangværende ventetider går tabt, hvis appen genstartes.",
+    "de": "Startet ein Warten im Hintergrund und fährt sofort fort, funktioniert also auch für Wartezeiten über 55 Sekunden. Wenn die Capability den Zielwert erreicht oder der Timeout abläuft, wird 'Capability-Warten beendet' für diese Waiter ID ausgelöst. 0 = kein Timeout (maximal 24 Stunden). Erneutes Starten mit derselben Waiter ID startet das Warten neu. Laufende Wartevorgänge gehen bei einem App-Neustart verloren.",
+    "es": "Inicia una espera en segundo plano y continúa de inmediato, por lo que sirve para esperas de más de 55 segundos. Cuando la capability alcanza el valor objetivo o el timeout expira, se activa 'Espera de capability finalizada' para este ID de Waiter. 0 = sin timeout (máximo 24 horas). Volver a iniciar con el mismo ID de Waiter reinicia la espera. Las esperas pendientes se pierden si la app se reinicia.",
+    "fr": "Démarre une attente en arrière-plan et continue immédiatement, ce qui fonctionne pour des attentes de plus de 55 secondes. Quand la capability atteint la valeur cible ou que le timeout expire, 'Attente de capability terminée' se déclenche pour cet ID Waiter. 0 = pas de timeout (24 heures maximum). Redémarrer avec le même ID Waiter relance l'attente. Les attentes en cours sont perdues si l'app redémarre.",
+    "it": "Avvia un'attesa in background e prosegue subito, quindi funziona per attese più lunghe di 55 secondi. Quando la capability raggiunge il valore target o il timeout scade, si attiva 'Attesa capability terminata' per questo ID Waiter. 0 = nessun timeout (massimo 24 ore). Riavviare con lo stesso ID Waiter fa ripartire l'attesa. Le attese in corso vanno perse se l'app si riavvia.",
+    "nl": "Start een wachttijd op de achtergrond en gaat direct verder, zodat het werkt voor wachttijden langer dan 55 seconden. Wanneer de capability de doelwaarde bereikt of de timeout verloopt, wordt 'Capability-wachten voltooid' geactiveerd voor deze Waiter ID. 0 = geen timeout (maximaal 24 uur). Opnieuw starten met dezelfde Waiter ID herstart het wachten. Lopende wachttijden gaan verloren als de app herstart.",
+    "sv": "Startar en väntan i bakgrunden och fortsätter direkt, så den fungerar för väntan längre än 55 sekunder. När capability når målvärdet eller timeout löper ut utlöses 'Capability-väntan avslutad' för detta Waiter ID. 0 = ingen timeout (högst 24 timmar). Att starta igen med samma Waiter ID startar om väntan. Pågående väntan går förlorad om appen startas om.",
+    "pl": "Rozpoczyna oczekiwanie w tle i od razu kontynuuje, więc działa dla oczekiwania dłuższego niż 55 sekund. Gdy capability osiągnie wartość docelową lub timeout wygaśnie, uruchamia się 'Oczekiwanie na capability zakończone' dla tego ID Waiter. 0 = bez timeout (maksymalnie 24 godziny). Ponowne uruchomienie z tym samym ID Waiter restartuje oczekiwanie. Trwające oczekiwania są tracone po restarcie aplikacji.",
+    "fi": "Aloittaa odotuksen taustalla ja jatkaa heti, joten se toimii yli 55 sekunnin odotuksiin. Kun capability saavuttaa tavoitearvon tai timeout vanhenee, 'Capability-odotus päättyi' laukeaa tälle Waiter ID:lle. 0 = ei timeoutia (enintään 24 tuntia). Uudelleenaloitus samalla Waiter ID:llä käynnistää odotuksen alusta. Käynnissä olevat odotukset menetetään, jos sovellus käynnistyy uudelleen.",
+    "ru": "Запускает ожидание в фоне и сразу продолжает, поэтому подходит для ожидания дольше 55 секунд. Когда capability достигает целевого значения или истекает timeout, для этого ID Waiter срабатывает 'Ожидание capability завершено'. 0 = без timeout (максимум 24 часа). Повторный запуск с тем же ID Waiter перезапускает ожидание. Текущие ожидания теряются при перезапуске приложения."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "device",
+      "title": {
+        "en": "Device",
+        "no": "Enhet",
+        "da": "Enhed",
+        "de": "Gerät",
+        "es": "Dispositivo",
+        "fr": "Appareil",
+        "it": "Dispositivo",
+        "nl": "Apparaat",
+        "sv": "Enhet",
+        "pl": "Urządzenie",
+        "fi": "Laite",
+        "ru": "Устройство"
+      },
+      "placeholder": {
+        "en": "Select device",
+        "no": "Velg enhet",
+        "da": "Vælg enhed",
+        "de": "Gerät wählen",
+        "es": "Seleccionar dispositivo",
+        "fr": "Sélectionner l'appareil",
+        "it": "Seleziona dispositivo",
+        "nl": "Selecteer apparaat",
+        "sv": "Välj enhet",
+        "pl": "Wybierz urządzenie",
+        "fi": "Valitse laite",
+        "ru": "Выбрать устройство"
+      }
+    },
+    {
+      "type": "autocomplete",
+      "name": "capability",
+      "title": {
+        "en": "Capability",
+        "no": "Capability",
+        "da": "Capability",
+        "de": "Capability",
+        "es": "Capability",
+        "fr": "Capability",
+        "it": "Capability",
+        "nl": "Capability",
+        "sv": "Capability",
+        "pl": "Capability",
+        "fi": "Capability",
+        "ru": "Capability"
+      },
+      "placeholder": {
+        "en": "Select capability",
+        "no": "Velg capability",
+        "da": "Vælg capability",
+        "de": "Capability wählen",
+        "es": "Seleccionar capability",
+        "fr": "Sélectionner capability",
+        "it": "Seleziona capability",
+        "nl": "Selecteer capability",
+        "sv": "Välj capability",
+        "pl": "Wybierz capability",
+        "fi": "Valitse capability",
+        "ru": "Выбрать capability"
+      }
+    },
+    {
+      "type": "text",
+      "name": "target_value",
+      "title": {
+        "en": "Target value",
+        "no": "Målverdi",
+        "da": "Målværdi",
+        "de": "Zielwert",
+        "es": "Valor objetivo",
+        "fr": "Valeur cible",
+        "it": "Valore target",
+        "nl": "Doelwaarde",
+        "sv": "Målvärde",
+        "pl": "Wartość docelowa",
+        "fi": "Tavoitearvo",
+        "ru": "Целевое значение"
+      },
+      "placeholder": {
+        "en": "true, false, 25, etc.",
+        "no": "true, false, 25, osv.",
+        "da": "true, false, 25, osv.",
+        "de": "true, false, 25, usw.",
+        "es": "true, false, 25, etc.",
+        "fr": "true, false, 25, etc.",
+        "it": "true, false, 25, ecc.",
+        "nl": "true, false, 25, enz.",
+        "sv": "true, false, 25, osv.",
+        "pl": "true, false, 25, itd.",
+        "fi": "true, false, 25, jne.",
+        "ru": "true, false, 25, и т.д."
+      }
+    },
+    {
+      "type": "number",
+      "name": "timeout_value",
+      "title": {
+        "en": "Timeout duration",
+        "no": "Timeout varighet",
+        "da": "Timeout varighed",
+        "de": "Timeout Dauer",
+        "es": "Duración del timeout",
+        "fr": "Durée du timeout",
+        "it": "Durata timeout",
+        "nl": "Timeout duur",
+        "sv": "Timeout varaktighet",
+        "pl": "Czas trwania timeout",
+        "fi": "Timeout kesto",
+        "ru": "Продолжительность timeout"
+      },
+      "min": 0,
+      "step": 1,
+      "placeholder": {
+        "en": "e.g. 5",
+        "no": "f.eks. 5",
+        "da": "f.eks. 5",
+        "de": "z.B. 5",
+        "es": "p.ej. 5",
+        "fr": "p.ex. 5",
+        "it": "es. 5",
+        "nl": "bijv. 5",
+        "sv": "t.ex. 5",
+        "pl": "np. 5",
+        "fi": "esim. 5",
+        "ru": "напр. 5"
+      }
+    },
+    {
+      "type": "dropdown",
+      "name": "timeout_unit",
+      "title": {
+        "en": "Timeout unit",
+        "no": "Timeout enhet",
+        "da": "Timeout enhed",
+        "de": "Timeout Einheit",
+        "es": "Unidad de timeout",
+        "fr": "Unité de timeout",
+        "it": "Unità timeout",
+        "nl": "Timeout eenheid",
+        "sv": "Timeout enhet",
+        "pl": "Jednostka timeout",
+        "fi": "Timeout yksikkö",
+        "ru": "Единица timeout"
+      },
+      "values": [
+        {
+          "id": "s",
+          "title": {
+            "en": "Seconds",
+            "no": "Sekunder",
+            "da": "Sekunder",
+            "de": "Sekunden",
+            "es": "Segundos",
+            "fr": "Secondes",
+            "it": "Secondi",
+            "nl": "Seconden",
+            "sv": "Sekunder",
+            "pl": "Sekundy",
+            "fi": "Sekuntia",
+            "ru": "Секунды"
+          }
+        },
+        {
+          "id": "m",
+          "title": {
+            "en": "Minutes",
+            "no": "Minutter",
+            "da": "Minutter",
+            "de": "Minuten",
+            "es": "Minutos",
+            "fr": "Minutes",
+            "it": "Minuti",
+            "nl": "Minuten",
+            "sv": "Minuter",
+            "pl": "Minuty",
+            "fi": "Minuuttia",
+            "ru": "Минуты"
+          }
+        },
+        {
+          "id": "h",
+          "title": {
+            "en": "Hours",
+            "no": "Timer",
+            "da": "Timer",
+            "de": "Stunden",
+            "es": "Horas",
+            "fr": "Heures",
+            "it": "Ore",
+            "nl": "Uren",
+            "sv": "Timmar",
+            "pl": "Godziny",
+            "fi": "Tuntia",
+            "ru": "Часы"
+          }
+        }
+      ]
+    },
+    {
+      "type": "autocomplete",
+      "name": "waiter_id",
+      "title": {
+        "en": "Waiter ID",
+        "no": "Waiter ID",
+        "da": "Waiter ID",
+        "de": "Waiter ID",
+        "es": "ID del Waiter",
+        "fr": "ID du Waiter",
+        "it": "ID Waiter",
+        "nl": "Waiter ID",
+        "sv": "Waiter ID",
+        "pl": "ID Waiter",
+        "fi": "Waiter ID",
+        "ru": "ID Waiter"
+      },
+      "placeholder": {
+        "en": "Select or type custom ID",
+        "no": "Velg eller skriv egen ID",
+        "da": "Vælg eller skriv brugerdefineret ID",
+        "de": "Auswählen oder eigene ID eingeben",
+        "es": "Seleccionar o escribir ID personalizado",
+        "fr": "Sélectionner ou saisir un ID personnalisé",
+        "it": "Seleziona o digita ID personalizzato",
+        "nl": "Selecteer of typ aangepaste ID",
+        "sv": "Välj eller skriv anpassat ID",
+        "pl": "Wybierz lub wpisz własne ID",
+        "fi": "Valitse tai kirjoita mukautettu ID",
+        "ru": "Выберите или введите пользовательский ID"
+      }
+    }
+  ]
+}

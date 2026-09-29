@@ -1,0 +1,135 @@
+{
+  "id": "conditional_gate_wait_finished",
+  "title": {
+    "en": "Conditional Gate wait finished",
+    "no": "Venting på Betinget Port fullført",
+    "da": "Venten på Betinget Port afsluttet",
+    "nl": "Wachten op Voorwaardelijke Poort voltooid",
+    "de": "Warten auf Bedingtes Tor beendet",
+    "es": "Espera de Puerta Condicional finalizada",
+    "fr": "Attente de la Porte Conditionnelle terminée",
+    "it": "Attesa della Porta Condizionale terminata",
+    "sv": "Väntan på Villkorlig Port avslutad",
+    "pl": "Oczekiwanie na Bramę Warunkową zakończone",
+    "fi": "Ehdollisen Portin odotus päättyi",
+    "ru": "Ожидание Условного Шлюза завершено"
+  },
+  "titleFormatted": {
+    "en": "Wait for gate [[gate_name]] finished",
+    "no": "Venting på port [[gate_name]] fullført",
+    "da": "Venten på port [[gate_name]] afsluttet",
+    "nl": "Wachten op poort [[gate_name]] voltooid",
+    "de": "Warten auf Tor [[gate_name]] beendet",
+    "es": "Espera de la puerta [[gate_name]] finalizada",
+    "fr": "Attente de la porte [[gate_name]] terminée",
+    "it": "Attesa della porta [[gate_name]] terminata",
+    "sv": "Väntan på port [[gate_name]] avslutad",
+    "pl": "Oczekiwanie na bramę [[gate_name]] zakończone",
+    "fi": "Portin [[gate_name]] odotus päättyi",
+    "ru": "Ожидание шлюза [[gate_name]] завершено"
+  },
+  "hint": {
+    "en": "Fires when a wait started with 'Start waiting for Conditional Gate GO' ends: result GO when the gate opened, TIMEOUT when the timeout expired. Not fired when the wait is stopped or restarted.",
+    "no": "Utløses når en venting startet med 'Start venting på Betinget Port GO' avsluttes: resultat GO når porten åpnet, TIMEOUT når timeout utløp. Utløses ikke når ventingen stoppes eller startes på nytt.",
+    "da": "Udløses når en venten startet med 'Start venten på Betinget Port GO' slutter: resultat GO når porten åbnede, TIMEOUT når timeout udløb. Udløses ikke når ventetiden stoppes eller genstartes.",
+    "nl": "Wordt geactiveerd wanneer een wachttijd gestart met 'Start wachten op Voorwaardelijke Poort GO' eindigt: resultaat GO als de poort openging, TIMEOUT als de timeout verliep. Niet geactiveerd als het wachten wordt gestopt of herstart.",
+    "de": "Wird ausgelöst, wenn ein mit 'Warten auf Bedingtes Tor GO starten' begonnenes Warten endet: Ergebnis GO, wenn das Tor geöffnet wurde, TIMEOUT, wenn der Timeout abgelaufen ist. Nicht ausgelöst, wenn das Warten gestoppt oder neu gestartet wird.",
+    "es": "Se activa cuando termina una espera iniciada con 'Empezar a esperar GO de Puerta Condicional': resultado GO si la puerta se abrió, TIMEOUT si expiró el timeout. No se activa si la espera se detiene o se reinicia.",
+    "fr": "Se déclenche quand une attente démarrée avec 'Commencer l'attente du GO de la Porte Conditionnelle' se termine : résultat GO si la porte s'est ouverte, TIMEOUT si le timeout a expiré. Pas déclenché si l'attente est arrêtée ou redémarrée.",
+    "it": "Si attiva quando termina un'attesa avviata con 'Inizia ad attendere GO della Porta Condizionale': risultato GO se la porta si è aperta, TIMEOUT se il timeout è scaduto. Non si attiva se l'attesa viene fermata o riavviata.",
+    "sv": "Utlöses när en väntan som startats med 'Börja vänta på Villkorlig Port GO' avslutas: resultat GO när porten öppnades, TIMEOUT när timeout löpte ut. Utlöses inte när väntan stoppas eller startas om.",
+    "pl": "Uruchamia się, gdy kończy się oczekiwanie rozpoczęte kartą 'Rozpocznij oczekiwanie na GO Bramy Warunkowej': wynik GO, gdy brama się otworzyła, TIMEOUT, gdy timeout wygasł. Nie uruchamia się, gdy oczekiwanie zostanie zatrzymane lub zrestartowane.",
+    "fi": "Laukeaa kun kortilla 'Aloita Ehdollisen Portin GO-odotus' aloitettu odotus päättyy: tulos GO kun portti avautui, TIMEOUT kun timeout vanheni. Ei laukea, jos odotus pysäytetään tai aloitetaan uudelleen.",
+    "ru": "Срабатывает, когда завершается ожидание, начатое карточкой 'Начать ожидание GO Условного Шлюза': результат GO, если шлюз открылся, TIMEOUT, если истёк timeout. Не срабатывает, если ожидание остановлено или перезапущено."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "gate_name",
+      "title": {
+        "en": "Gate Name / ID",
+        "no": "Port Navn / ID",
+        "da": "Port Navn / ID",
+        "nl": "Poort Naam / ID",
+        "de": "Tor Name / ID",
+        "es": "Nombre / ID de Puerta",
+        "fr": "Nom / ID de Porte",
+        "it": "Nome / ID Porta",
+        "sv": "Port Namn / ID",
+        "pl": "Nazwa / ID Bramy",
+        "fi": "Portin Nimi / ID",
+        "ru": "Имя / ID Шлюза"
+      },
+      "placeholder": {
+        "en": "Select Gate Name",
+        "no": "Velg Port Navn",
+        "da": "Vælg Port Navn",
+        "nl": "Selecteer Poort Naam",
+        "de": "Wähle Tor Name",
+        "es": "Seleccionar Nombre de Puerta",
+        "fr": "Sélectionner Nom de Porte",
+        "it": "Seleziona Nome Porta",
+        "sv": "Välj Port Namn",
+        "pl": "Wybierz Nazwę Bramy",
+        "fi": "Valitse Portin Nimi",
+        "ru": "Выберите Имя Шлюза"
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "name": "opened",
+      "type": "boolean",
+      "title": {
+        "en": "Gate opened (GO)",
+        "no": "Port åpnet (GO)",
+        "da": "Port åbnet (GO)",
+        "nl": "Poort geopend (GO)",
+        "de": "Tor geöffnet (GO)",
+        "es": "Puerta abierta (GO)",
+        "fr": "Porte ouverte (GO)",
+        "it": "Porta aperta (GO)",
+        "sv": "Port öppnad (GO)",
+        "pl": "Brama otwarta (GO)",
+        "fi": "Portti avautui (GO)",
+        "ru": "Шлюз открыт (GO)"
+      }
+    },
+    {
+      "name": "result",
+      "type": "string",
+      "title": {
+        "en": "Result (GO/TIMEOUT)",
+        "no": "Resultat (GO/TIMEOUT)",
+        "da": "Resultat (GO/TIMEOUT)",
+        "nl": "Resultaat (GO/TIMEOUT)",
+        "de": "Ergebnis (GO/TIMEOUT)",
+        "es": "Resultado (GO/TIMEOUT)",
+        "fr": "Résultat (GO/TIMEOUT)",
+        "it": "Risultato (GO/TIMEOUT)",
+        "sv": "Resultat (GO/TIMEOUT)",
+        "pl": "Wynik (GO/TIMEOUT)",
+        "fi": "Tulos (GO/TIMEOUT)",
+        "ru": "Результат (GO/TIMEOUT)"
+      }
+    },
+    {
+      "name": "waited_seconds",
+      "type": "number",
+      "title": {
+        "en": "Waited (seconds)",
+        "no": "Ventet (sekunder)",
+        "da": "Ventet (sekunder)",
+        "nl": "Gewacht (seconden)",
+        "de": "Gewartet (Sekunden)",
+        "es": "Tiempo esperado (segundos)",
+        "fr": "Temps d'attente (secondes)",
+        "it": "Tempo di attesa (secondi)",
+        "sv": "Väntade (sekunder)",
+        "pl": "Czas oczekiwania (sekundy)",
+        "fi": "Odotettu (sekuntia)",
+        "ru": "Ожидание (секунды)"
+      }
+    }
+  ]
+}

@@ -130,9 +130,10 @@ Dynamic state capture with templates, named slots, and push/pop stack operations
 WHEN: Doorbell rings
 THEN: Push current state to stack
 THEN: Set all lights to 100%
-THEN: Wait 5 minutes
-THEN: Pop state (restore previous)
+THEN: Pop state (restore previous) [Homey Flow delay: 5 minutes]
 ```
+
+> Use Homey's built-in Flow delay for pauses like this. Homey stops app Flow cards after 60 seconds, so the app's own **Wait** card is limited to 55 seconds.
 
 [📚 Read State Capture Device guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/state-capture-device.html)
 
@@ -179,13 +180,18 @@ Simple GO/NO GO flow control without needing variables or devices. Gates persist
 | Feature | Description |
 |---------|-------------|
 | **States** | GO (open) or NO GO (closed) |
-| **Wait condition** | Pause flow until gate becomes GO (with timeout) |
+| **Wait condition** | Pause flow until gate becomes GO (with timeout, max 55 seconds) |
+| **Background wait** | Wait minutes or hours for GO, then fire a trigger |
 | **Control** | Open/close gates from any flow |
 
 **Flow Cards:**
 - **Gate is GO/NO GO** *(condition)* - Check gate state instantly
-- **Conditional Gate: Wait for GO** *(condition)* - Pause until gate opens or timeout
-- **Modify Conditional Gate** *(action)* - Set gate to GO, NO GO, or Toggle
+- **Conditional Gate: Wait for GO** *(condition)* - Pause until gate opens or timeout (up to 55 seconds)
+- **Modify Conditional Gate** *(action)* - Set gate to GO, NO GO, or Toggle, and/or change the timeout of waiting flows
+- **Start waiting for Conditional Gate GO** *(action)* - Start a background wait and continue immediately
+- **Conditional Gate wait finished** *(trigger)* - Fires when a background wait ends; tags `opened`, `result` (`GO`/`TIMEOUT`), `waited_seconds`
+
+> **Homey's 60-second Flow card limit:** Homey stops every app Flow card after 60 seconds. The *Wait for GO* condition therefore ends with an error after 55 seconds if the gate is still NO GO, even if its timeout is longer. For longer waits, use **Start waiting for Conditional Gate GO** together with the **Conditional Gate wait finished** trigger. In an Advanced Flow both cards can sit on the same canvas.
 
 **Example:**
 ```
@@ -203,6 +209,23 @@ WHEN: Time is 23:00
 THEN: Modify Conditional Gate "allow_lights" → NO GO
 ```
 
+**Long wait example (turn the razor off after 2 minutes, or earlier on GO):**
+```
+WHEN: Razor turned on
+THEN: Modify Conditional Gate "Razor" → NO GO   (re-arm the gate)
+THEN: Start waiting for Conditional Gate GO "Razor" (default: NO GO, timeout: 2 minutes)
+
+WHEN: Conditional Gate wait finished "Razor"
+THEN: Turn off Razor
+      (optional: use the Result tag — GO = released early, TIMEOUT = 2 minutes passed)
+
+WHEN: <something should end the wait early>
+THEN: Modify Conditional Gate "Razor" → GO
+```
+Starting the wait again for the same gate (for example when the razor is turned on again) restarts the countdown; the replaced wait does not fire the trigger.
+
+> **Limitations:** Gate states and pending waits live in memory. They are lost when the app restarts (update, Homey reboot, crash); a pending background wait then never fires its trigger.
+
 [📚 Read Conditional Gates guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html)
 
 ---
@@ -213,14 +236,29 @@ Waiter Gates let your flows pause and wait for device states to change, with YES
 
 | Feature | Description |
 |---------|-------------|
-| **Wait condition** | Pause flow until device capability reaches target value |
+| **Wait condition** | Pause flow until device capability reaches target value (max 55 seconds) |
 | **YES path** | Value matches (or already matched) |
-| **NO path** | Timeout expired before match |
+| **NO path** | Timeout expired before match, or a newer run with the same Waiter ID took over |
+| **Background wait** | Wait minutes or hours for a value, then fire a trigger |
 
 **Flow Cards:**
-- **Wait until device capability becomes value** *(condition)* - Waits with timeout
-- **Control waiter gate** *(action)* - Enable/disable/stop a waiter by ID
-- **Wait** *(action)* - Simple delay (basic pause without device monitoring)
+- **Wait until device capability becomes value** *(condition)* - Waits with timeout (up to 55 seconds)
+- **Start waiting until device capability becomes value** *(action)* - Start a background wait and continue immediately
+- **Capability wait finished** *(trigger)* - Fires for a Waiter ID when a background wait ends; tags `matched`, `result` (`MATCHED`/`TIMEOUT`), `value`, `waited_seconds`
+- **Control waiter gate** *(action)* - Enable/disable/stop a waiter by ID (also background waits; stopping never fires the trigger)
+- **Wait** *(action)* - Simple delay up to 55 seconds (use Homey's built-in Flow delay for longer pauses)
+
+> **Homey's 60-second Flow card limit:** Homey stops every app Flow card after 60 seconds. The *Wait until…* condition therefore ends with an error after 55 seconds if the value has not arrived, even with a longer or no timeout. For longer waits, use **Start waiting until device capability becomes value** with a fixed Waiter ID plus the **Capability wait finished** trigger for that ID. Starting again with the same Waiter ID restarts the wait. Pending waits are in memory and are lost when the app restarts.
+
+**Long wait example:**
+```
+WHEN: Kettle turned on
+THEN: Start waiting until Kettle onoff becomes false (timeout: 10 minutes, id: kettle_boil)
+
+WHEN: Capability wait finished "kettle_boil"
+AND:  the "Value matched" tag is Yes   (Homey Logic card; No = timeout)
+THEN: Send notification "Water is ready"
+```
 
 [📚 Read Waiter Gates guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html)
 
@@ -289,15 +327,17 @@ THEN: Turn on lights
 - Formula timed out
 - State changed *(Logic Device only)*
 - State was captured/applied *(State Capture Device)*
+- Conditional Gate wait finished *(Conditional Gates)*
+- Capability wait finished *(Waiter Gates)*
 
 ### Conditions (AND)
 - Formula result is...
 - Formula has timed out
 - Gate is GO / NO GO *(Conditional Gates)*
-- Conditional Gate: Wait for GO *(Conditional Gates)*
+- Conditional Gate: Wait for GO *(Conditional Gates, max 55 seconds)*
 - Captured state exists *(State Capture Device)*
 - Stack is empty / Stack depth is... *(State Capture Device)*
-- Wait until device capability becomes value *(Waiter Gates)*
+- Wait until device capability becomes value *(Waiter Gates, max 55 seconds)*
 
 ### Actions (THEN)
 - Set input value for formula
@@ -306,8 +346,10 @@ THEN: Turn on lights
 - Apply state *(State Device)*
 - Capture/Apply/Delete state, Push/Pop/Peek/Clear stack *(State Capture Device)*
 - Modify Conditional Gate *(Conditional Gates)*
+- Start waiting for Conditional Gate GO *(Conditional Gates, background wait)*
+- Start waiting until device capability becomes value *(Waiter Gates, background wait)*
 - Control waiter gate *(Waiter Gates)*
-- Wait *(Simple delay)*
+- Wait *(Simple delay, max 55 seconds)*
 
 [📚 See all flow cards →](https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html)
 

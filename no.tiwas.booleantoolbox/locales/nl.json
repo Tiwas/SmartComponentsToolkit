@@ -112,7 +112,10 @@
     "import_failed": "Importeren van statussen mislukt",
     "invalid_import_data": "Ongeldige importgegevens",
     "invalid_json_format": "Ongeldig JSON-formaat",
-    "import_would_exceed_limit": "Import zou het maximale aantal statussen overschrijden"
+    "import_would_exceed_limit": "Import zou het maximale aantal statussen overschrijden",
+    "flow_card_wait_limit_gate": "Homey stopt app-flowkaarten na 60 seconden. Gebruik voor wachttijden langer dan 55 seconden \"Start wachten op Voorwaardelijke Poort GO\" samen met de trigger \"Wachten op Voorwaardelijke Poort voltooid\".",
+    "flow_card_wait_limit_capability": "Homey stopt app-flowkaarten na 60 seconden. Gebruik voor wachttijden langer dan 55 seconden \"Start wachten tot apparaat capability waarde wordt\" samen met de trigger \"Capability-wachten voltooid\".",
+    "flow_card_wait_limit_wait": "De Wacht-kaart is beperkt tot 55 seconden omdat Homey app-flowkaarten na 60 seconden stopt. Gebruik voor langer wachten de ingebouwde vertraging van Homey-flows."
   },
   "evaluation": {
     "initial_complete": "Initiële evaluatie van alle formules...",

@@ -87,7 +87,19 @@
                 <li><strong>Doesn't match?</strong> → Register listener and wait for change ⏳</li>
                 <li><strong>Value changes to target?</strong> → YES path ✅</li>
                 <li><strong>Timeout expires?</strong> → NO path ❌</li>
+                <li><strong>Same Waiter ID started again while waiting?</strong> → the previous run takes the NO path ❌ and the new run takes over the ID</li>
             </ol>
+        </section>
+
+        <!-- Homey Flow card limit -->
+        <section class="mb-8 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+            <h2 class="text-xl font-semibold mb-2 text-yellow-700">⏱️ Waiting longer than 55 seconds</h2>
+            <p class="mb-2 text-yellow-800">Homey stops every app Flow card after <strong>60 seconds</strong>. A card that is still waiting at that point fails with <code>Timeout after 60000ms</code>, no matter which timeout you configured.</p>
+            <ul class="list-disc ml-6 space-y-1 text-yellow-800">
+                <li><strong>Short waits (up to 55 seconds):</strong> use the <em>Wait until device capability becomes value</em> condition. If the value has not arrived after 55 seconds, the card ends with a clear error instead of Homey's generic timeout (also when the timeout is 0).</li>
+                <li><strong>Long waits (minutes or hours):</strong> use <em>Start waiting until device capability becomes value</em> (action) with a fixed Waiter ID, and put the follow-up cards behind the <em>Capability wait finished</em> trigger for that ID. The app waits in the background, so Homey's limit does not apply.</li>
+                <li>The simple <em>Wait</em> card accepts at most 55 seconds. Use Homey's built-in Flow delay for longer pauses.</li>
+            </ul>
         </section>
 
         <!-- Flow Cards -->
@@ -105,16 +117,52 @@
                     <ul class="space-y-2 text-sm text-gray-600 mb-4">
                         <li><strong>Device:</strong> The device to monitor</li>
                         <li><strong>Capability:</strong> Which capability to watch (e.g., onoff, dim, alarm_motion)</li>
-                        <li><strong>Target value:</strong> The value to wait for (e.g., true, false, 0.5)</li>
-                        <li><strong>Timeout:</strong> How long to wait before giving up</li>
+                        <li><strong>Target value:</strong> The value to wait for (e.g., true, false, 0.5). Values are compared exactly; comparisons such as <code>&gt;100</code> are not supported.</li>
+                        <li><strong>Timeout:</strong> How long to wait before giving up (the card itself waits at most 55 seconds)</li>
                         <li><strong>Waiter ID (optional):</strong> Unique identifier (auto-generated if empty)</li>
                     </ul>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Example Flow:</h4>
                     <pre class="text-sm"><code>WHEN motion detected
-AND wait until [Living Room Light].onoff becomes true (timeout: 5 minutes)
+AND wait until [Living Room Light].onoff becomes true (timeout: 30 seconds)
 THEN ✅ announce "Light turned on!"
 ELSE ❌ notify "Light didn't turn on - check bulb?"</code></pre>
+                </div>
+
+                <!-- Start Waiting Card (background) -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-green-600">Start waiting until device capability becomes value</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">ACTION</span></p>
+                    <p class="mb-4 text-gray-700">Starts a background wait and lets the flow continue immediately. When the capability reaches the target value or the timeout expires, the <em>Capability wait finished</em> trigger fires for this Waiter ID. Use this for anything longer than 55 seconds.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Device, Capability, Target value:</strong> As for the condition card.</li>
+                        <li><strong>Timeout:</strong> Seconds, minutes or hours (maximum 24 hours). <code>0</code> = no timeout; such a wait is ended as TIMEOUT after 24 hours.</li>
+                        <li><strong>Waiter ID:</strong> Use a fixed ID (e.g. <code>kettle_boil</code>) so the trigger can select it.</li>
+                    </ul>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Behaviour:</h4>
+                    <ul class="list-disc ml-6 space-y-1 text-sm text-gray-600">
+                        <li>Value already matches → the trigger fires right away (result MATCHED).</li>
+                        <li>Starting again with the same Waiter ID while a background wait is pending <strong>restarts</strong> it; the replaced wait does not fire the trigger.</li>
+                        <li>A Waiter ID can be used by a waiting <em>condition</em> card or by a background wait, not both at the same time; the second one fails with "Waiter ID already exists".</li>
+                    </ul>
+                </div>
+
+                <!-- Wait Finished Trigger -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-green-600">Capability wait finished</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-semibold">TRIGGER</span></p>
+                    <p class="mb-4 text-gray-700">Fires when a background wait with the selected Waiter ID ends.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Tags:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li><strong>Value matched:</strong> Yes/No - <code>true</code> if the target value was reached.</li>
+                        <li><strong>Result (MATCHED/TIMEOUT):</strong> Text - <code>MATCHED</code> or <code>TIMEOUT</code>.</li>
+                        <li><strong>Last value:</strong> Text - the last known capability value (empty if unknown).</li>
+                        <li><strong>Waited (seconds):</strong> Number - how long the background wait ran.</li>
+                    </ul>
                 </div>
 
                 <!-- Control Waiter Card -->
@@ -133,8 +181,9 @@ ELSE ❌ notify "Light didn't turn on - check bulb?"</code></pre>
                     <ul class="space-y-1 text-sm text-gray-600">
                         <li><strong>Enable:</strong> Allows waiter to trigger YES/NO paths</li>
                         <li><strong>Disable:</strong> Prevents waiter from triggering (stays in waiting state)</li>
-                        <li><strong>Stop:</strong> Removes waiter completely (no output)</li>
+                        <li><strong>Stop:</strong> Removes waiter completely (no output). A stopped background wait never fires its <em>wait finished</em> trigger.</li>
                     </ul>
+                    <p class="mt-3 text-sm text-gray-600">Works for in-card and background waits. Background Conditional Gate waits use the ID <code>gate_&lt;name&gt;_background</code>.</p>
                 </div>
 
                 <!-- Wait Card (BONUS) -->
@@ -144,12 +193,12 @@ ELSE ❌ notify "Light didn't turn on - check bulb?"</code></pre>
                         <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold">BONUS</span>
                     </div>
                     <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">ACTION</span></p>
-                    <p class="mb-4 text-gray-700">Simple delay without device monitoring. Just pauses the flow for a specified time.</p>
+                    <p class="mb-4 text-gray-700">Simple delay without device monitoring. Just pauses the flow for a specified time - at most 55 seconds, because Homey stops app Flow cards after 60 seconds. Longer values fail immediately with a message; use Homey's built-in Flow delay for those.</p>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
                     <ul class="space-y-2 text-sm text-gray-600 mb-4">
                         <li><strong>Duration:</strong> Number value (e.g., 5)</li>
-                        <li><strong>Unit:</strong> Milliseconds, Seconds, Minutes, or Hours</li>
+                        <li><strong>Unit:</strong> Milliseconds, Seconds, Minutes, or Hours (total at most 55 seconds)</li>
                     </ul>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Example:</h4>
@@ -180,31 +229,34 @@ ELSE ❌ send notification "Bulb failed to turn on"
 
                 <!-- Example 2 -->
                 <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
-                    <h3 class="text-lg font-semibold mb-3 text-blue-600">🚪 Door Security</h3>
-                    <p class="mb-3 text-gray-700">Make sure door closes after opening, with notification if it stays open.</p>
+                    <h3 class="text-lg font-semibold mb-3 text-blue-600">🚪 Door Security (background wait)</h3>
+                    <p class="mb-3 text-gray-700">Make sure door closes after opening, with notification if it stays open for 2 minutes. Two minutes is longer than Homey's 60-second card limit, so the wait runs in the background.</p>
                     <pre class="text-sm"><code>WHEN front door opened
-AND wait until [Front Door].alarm_contact becomes false (timeout: 2 minutes)
-THEN ✅ log "Door closed normally"
-ELSE ❌ send notification "Front door still open!"
+THEN start waiting until [Front Door].alarm_contact becomes false (timeout: 2 minutes, id: front_door)
+
+WHEN capability wait finished "front_door"
+AND "Value matched" tag is No
+THEN ❌ send notification "Front door still open!"
      AND flash lights red</code></pre>
                 </div>
 
                 <!-- Example 3 -->
                 <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
-                    <h3 class="text-lg font-semibold mb-3 text-purple-600">🌡️ Temperature Monitoring</h3>
+                    <h3 class="text-lg font-semibold mb-3 text-purple-600">🌡️ Temperature Monitoring (background wait)</h3>
                     <p class="mb-3 text-gray-700">Wait for heater to reach target temperature, alert if it fails.</p>
                     <pre class="text-sm"><code>WHEN heater turned on
-AND wait until [Heater].measure_temperature becomes 22 (timeout: 30 minutes)
-THEN ✅ log "Target temperature reached"
-ELSE ❌ notify "Heater not reaching temperature - check it!"</code></pre>
+THEN start waiting until [Heater].measure_temperature becomes 22 (timeout: 30 minutes, id: heater_warmup)
+
+WHEN capability wait finished "heater_warmup"
+THEN ✅/❌ notify "Heater: [Result] after [Waited (seconds)] s"   (MATCHED or TIMEOUT)</code></pre>
                 </div>
 
                 <!-- Example 4 -->
                 <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                     <h3 class="text-lg font-semibold mb-3 text-yellow-600">🔌 Device Power State</h3>
-                    <p class="mb-3 text-gray-700">Verify a device actually started consuming power after turning on.</p>
-                    <pre class="text-sm"><code>WHEN washing machine turned on
-AND wait until [Power Meter].measure_power becomes >100 (timeout: 5 minutes)
+                    <p class="mb-3 text-gray-700">Verify a device actually switched on after the command. Target values are compared exactly, so wait for a yes/no capability rather than a threshold like <code>&gt;100</code>.</p>
+                    <pre class="text-sm"><code>WHEN washing machine program started
+AND wait until [Washing Machine].onoff becomes true (timeout: 30 seconds)
 THEN ✅ log "Washing machine started"
 ELSE ❌ notify "Washing machine didn't start - door open?"</code></pre>
                 </div>
@@ -235,8 +287,16 @@ heater-temp-wait</code></pre>
             <h2 class="text-2xl font-semibold mb-4 text-orange-600">⚠️ Known Limitations</h2>
             <ul class="space-y-3 text-gray-700">
                 <li>
+                    <strong>In-card waits end after 55 seconds</strong><br>
+                    <span class="text-sm text-gray-500">Homey stops every app Flow card after 60 seconds. Use <em>Start waiting until device capability becomes value</em> plus the <em>Capability wait finished</em> trigger for longer waits.</span>
+                </li>
+                <li>
+                    <strong>Waits are kept in memory</strong><br>
+                    <span class="text-sm text-gray-500">In-card and background waits are lost when the app restarts (app update, Homey reboot or crash). A background wait that was pending at that moment never fires its trigger.</span>
+                </li>
+                <li>
                     <strong>IDs must be unique across flows</strong><br>
-                    <span class="text-sm text-gray-500">Using the same waiter ID in multiple flows simultaneously will cause conflicts. Use auto-generation to avoid this.</span>
+                    <span class="text-sm text-gray-500">Using the same waiter ID in multiple flows simultaneously will cause conflicts. Use auto-generation to avoid this. When a condition card starts again with an ID that is still waiting, the earlier run continues on its NO path and the new run takes over the ID.</span>
                 </li>
                 <li>
                     <strong>Active waiters consume memory</strong><br>
@@ -274,6 +334,15 @@ heater-temp-wait</code></pre>
                         <li>Check that timeout is reasonable (not too short)</li>
                         <li>Verify the device is actually changing the capability value</li>
                         <li>Use auto-generated IDs to avoid conflicts</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                    <h3 class="font-semibold mb-2 text-gray-900">❌ Error: "Timeout after 60000ms" or "Homey stops app Flow cards after 60 seconds"</h3>
+                    <ul class="list-disc ml-6 text-gray-600 space-y-1 text-sm">
+                        <li>The card waited longer than Homey allows for an app Flow card</li>
+                        <li>Switch to <em>Start waiting until device capability becomes value</em> and the <em>Capability wait finished</em> trigger (or the Conditional Gate equivalents)</li>
+                        <li>For a plain pause, use Homey's built-in Flow delay instead of the <em>Wait</em> card</li>
                     </ul>
                 </div>
 

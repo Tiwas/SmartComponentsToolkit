@@ -81,6 +81,8 @@
                         <li><a href="#trigger-formula-changed-to" class="hover:text-purple-600">→ Formula changed to...</a></li>
                         <li><a href="#trigger-state-changed" class="hover:text-purple-600">→ State changed (LD)</a></li>
                         <li><a href="#trigger-timeout" class="hover:text-purple-600">→ Formula timed out</a></li>
+                        <li><a href="#trigger-gate-wait-finished" class="hover:text-purple-600">→ Conditional Gate wait finished</a></li>
+                        <li><a href="#trigger-wait-until-finished" class="hover:text-purple-600">→ Capability wait finished</a></li>
                     </ul>
                 </div>
                 <div>
@@ -103,7 +105,9 @@
                         <li><a href="#action-evaluate-expression" class="hover:text-purple-600">→ Evaluate expression</a></li>
                         <li><a href="#action-gradient-map" class="hover:text-purple-600">→ Gradient Map</a></li>
                         <li><a href="#action-modify-gate" class="hover:text-purple-600">→ Modify Conditional Gate</a></li>
+                        <li><a href="#action-start-gate-wait" class="hover:text-purple-600">→ Start waiting for Conditional Gate GO</a></li>
                         <li><a href="#action-wait" class="hover:text-purple-600">→ Wait</a></li>
+                        <li><a href="#action-wait-until-start" class="hover:text-purple-600">→ Start waiting until becomes</a></li>
                         <li><a href="#action-control-waiter" class="hover:text-purple-600">→ Control Waiter Gate</a></li>
                     </ul>
                 </div>
@@ -253,6 +257,58 @@
                     <p class="text-yellow-800 text-sm">⚠️ Only triggers if timeout is configured in formula settings (timeout > 0)</p>
                 </div>
             </div>
+
+            <!-- Conditional Gate wait finished -->
+            <div id="trigger-gate-wait-finished" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Wait for gate [gate_name] finished</h3>
+                <p class="text-gray-700 mb-4">Fires when a background wait started with <em>Start waiting for Conditional Gate GO</em> ends. Not fired when the wait is stopped or restarted. No device needed.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">gate_name</span> - Gate to listen for (autocomplete, exact match)</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">opened</span> - Boolean: true if the gate became GO</li>
+                        <li><span class="code-inline">result</span> - Text: <code>GO</code> or <code>TIMEOUT</code></li>
+                        <li><span class="code-inline">waited_seconds</span> - Number: how long the wait ran</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Conditional Gate wait finished "Razor"</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Turn off Razor</p>
+                </div>
+            </div>
+
+            <!-- Capability wait finished -->
+            <div id="trigger-wait-until-finished" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Capability wait [waiter_id] finished</h3>
+                <p class="text-gray-700 mb-4">Fires when a background wait started with <em>Start waiting until device capability becomes value</em> ends for the selected Waiter ID. Not fired when the wait is stopped or restarted.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">waiter_id</span> - Waiter ID to listen for (autocomplete or custom, exact match)</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">matched</span> - Boolean: true if the target value was reached</li>
+                        <li><span class="code-inline">result</span> - Text: <code>MATCHED</code> or <code>TIMEOUT</code></li>
+                        <li><span class="code-inline">value</span> - Text: last known capability value (empty if unknown)</li>
+                        <li><span class="code-inline">waited_seconds</span> - Number: how long the wait ran</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Capability wait finished "front_door"</p>
+                    <p class="text-gray-700"><strong>AND</strong> "Value matched" tag is No</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Notify "Front door still open!"</p>
+                </div>
+            </div>
         </div>
 
         <!-- AND Cards (Conditions) -->
@@ -389,13 +445,17 @@
 
                 <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
                     <p class="font-semibold text-purple-700 mb-2">Example:</p>
-                    <p class="text-gray-700"><strong>WHEN</strong> Washing machine finished</p>
-                    <p class="text-gray-700"><strong>AND</strong> Conditional Gate "EmptyWasher" (Default: NO GO, Timeout: 1 hour)</p>
-                    <p class="text-gray-700"><strong>THEN</strong> Send notification "Washer emptied!"</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Doorbell pressed</p>
+                    <p class="text-gray-700"><strong>AND</strong> Conditional Gate "DoorApproved" (Default: NO GO, Timeout: 30 seconds)</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Unlock the door</p>
                 </div>
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
                     <p class="text-blue-800 text-sm">Timeout 0 acts as an instant filter: if gate is NO GO, flow stops immediately. See <a href="conditional-gates.html" class="text-blue-800 underline">Conditional Gates documentation</a>.</p>
+                </div>
+
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mt-4 rounded">
+                    <p class="text-yellow-800 text-sm">⏱️ Homey stops app Flow cards after 60 seconds, so this card waits at most 55 seconds and then ends with an error. For longer waits use <a href="#action-start-gate-wait" class="text-yellow-800 underline">Start waiting for Conditional Gate GO</a> with the <a href="#trigger-gate-wait-finished" class="text-yellow-800 underline">Conditional Gate wait finished</a> trigger.</p>
                 </div>
             </div>
 
@@ -422,9 +482,13 @@
                 <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
                     <p class="font-semibold text-purple-700 mb-2">Example:</p>
                     <p class="text-gray-700"><strong>WHEN</strong> Motion detected in hallway</p>
-                    <p class="text-gray-700"><strong>AND</strong> Wait until [Hallway Light].onoff becomes [true] (timeout: 5 min)</p>
+                    <p class="text-gray-700"><strong>AND</strong> Wait until [Hallway Light].onoff becomes [true] (timeout: 30 seconds)</p>
                     <p class="text-gray-700"><strong>THEN ✅</strong> Announce "Light confirmed on"</p>
                     <p class="text-gray-700"><strong>ELSE ❌</strong> Notify "Light didn't turn on - check bulb?"</p>
+                </div>
+
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mt-4 rounded">
+                    <p class="text-yellow-800 text-sm">⏱️ Homey stops app Flow cards after 60 seconds, so this card waits at most 55 seconds and then ends with an error (also with timeout 0). For longer waits use <a href="#action-wait-until-start" class="text-yellow-800 underline">Start waiting until device capability becomes value</a> with the <a href="#trigger-wait-until-finished" class="text-yellow-800 underline">Capability wait finished</a> trigger.</p>
                 </div>
 
                 <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mt-4 rounded">
@@ -587,7 +651,33 @@
                 </div>
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
-                    <p class="text-blue-800 text-sm">To read state without changing: use "Don't change" + timeout -1. See <a href="conditional-gates.html" class="text-blue-800 underline">Conditional Gates documentation</a>.</p>
+                    <p class="text-blue-800 text-sm">To read state without changing: use "Don't change" + timeout -1. State and timeout changes apply to in-card and background waits alike. See <a href="conditional-gates.html" class="text-blue-800 underline">Conditional Gates documentation</a>.</p>
+                </div>
+            </div>
+
+            <!-- Start waiting for Conditional Gate GO -->
+            <div id="action-start-gate-wait" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Start waiting for gate [gate_name] to become GO</h3>
+                <p class="text-gray-700 mb-4">Starts a background wait and continues immediately, so it works for waits longer than Homey's 60-second Flow card limit. The <a href="#trigger-gate-wait-finished" class="text-purple-700 underline">Conditional Gate wait finished</a> trigger fires when the gate becomes GO or the timeout expires. No device needed.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">gate_name</span> - Name of the gate to wait for (autocomplete)</li>
+                        <li><span class="code-inline">default_state</span> - Initial state if gate doesn't exist yet (GO or NO GO)</li>
+                        <li><span class="code-inline">timeout_value</span> - Maximum wait time (number, 0 = no timeout, max 24 hours)</li>
+                        <li><span class="code-inline">timeout_unit</span> - s/m/h (dropdown)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Razor turned on</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Start waiting for gate "Razor" to become GO (Default: NO GO, Timeout: 2 minutes)</p>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">Gate already GO → the trigger fires immediately. Starting again for the same gate restarts the wait without firing the replaced one. Pending waits are lost if the app restarts.</p>
                 </div>
             </div>
 
@@ -635,6 +725,41 @@
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
                     <p class="text-blue-800 text-sm">💡 This is a simple delay card, not related to Waiter Gates reactive waiting</p>
                 </div>
+
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mt-4 rounded">
+                    <p class="text-yellow-800 text-sm">⏱️ Maximum 55 seconds: Homey stops app Flow cards after 60 seconds, so longer durations fail immediately with a message. Use Homey's built-in Flow delay for longer pauses.</p>
+                </div>
+            </div>
+
+            <!-- Start waiting until becomes -->
+            <div id="action-wait-until-start" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200 border-l-4 border-l-yellow-500">
+                <div class="flex items-center gap-2 mb-3">
+                    <h3 class="text-xl font-semibold text-purple-700">Start waiting until [device].[capability] becomes [value]</h3>
+                    <span class="text-xs bg-yellow-600 px-2 py-1 rounded font-semibold text-white">BETA</span>
+                </div>
+                <p class="text-gray-700 mb-4">Starts a background wait and continues immediately, so it works for waits longer than Homey's 60-second Flow card limit. The <a href="#trigger-wait-until-finished" class="text-purple-700 underline">Capability wait finished</a> trigger fires for the Waiter ID when the value is reached or the timeout expires.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">device</span> - Device to monitor (autocomplete)</li>
+                        <li><span class="code-inline">capability</span> - Capability to watch (dropdown, dynamic)</li>
+                        <li><span class="code-inline">target_value</span> - Value to wait for (text/number, exact match)</li>
+                        <li><span class="code-inline">timeout_value</span> - Maximum wait time (number, 0 = no timeout, max 24 hours)</li>
+                        <li><span class="code-inline">timeout_unit</span> - s/m/h (dropdown)</li>
+                        <li><span class="code-inline">waiter_id</span> - Use a fixed ID so the trigger can select it</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">Example:</p>
+                    <p class="text-gray-700"><strong>WHEN</strong> Front door opened</p>
+                    <p class="text-gray-700"><strong>THEN</strong> Start waiting until [Front Door].alarm_contact becomes [false] (timeout: 2 minutes, id: front_door)</p>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">Value already matches → the trigger fires immediately. Starting again with the same Waiter ID restarts the wait without firing the replaced one. Pending waits are lost if the app restarts.</p>
+                </div>
             </div>
 
             <!-- Control Waiter Gate -->
@@ -655,8 +780,9 @@
                     <ul class="space-y-2 text-gray-800">
                         <li><span class="code-inline">Enable</span> - Re-enable a disabled waiter</li>
                         <li><span class="code-inline">Disable</span> - Temporarily disable waiter (doesn't stop current wait)</li>
-                        <li><span class="code-inline">Stop</span> - Immediately stop waiter and resolve to NO path</li>
+                        <li><span class="code-inline">Stop</span> - Immediately remove the waiter. A stopped background wait never fires its "wait finished" trigger.</li>
                     </ul>
+                    <p class="text-sm text-gray-600 mt-3">Works for in-card and background waits. Background Conditional Gate waits use the ID <code>gate_&lt;name&gt;_background</code>.</p>
                 </div>
 
                 <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
@@ -759,6 +885,18 @@
                         <p><strong class="text-yellow-400">AND</strong> Wait until [Device].capability becomes [value]</p>
                         <p><strong class="text-blue-400">THEN ✅</strong> Action for success</p>
                         <p><strong class="text-blue-400">ELSE ❌</strong> Action for timeout</p>
+                        <p><em class="text-gray-500">→ Up to 55 seconds; Homey stops app Flow cards after 60 seconds</em></p>
+                    </div>
+                </div>
+
+                <div class="bg-gray-900 rounded-lg p-4">
+                    <h3 class="font-semibold text-purple-300 mb-2">Pattern 7: Long Wait (minutes or hours)</h3>
+                    <div class="space-y-1 text-gray-300 text-sm">
+                        <p><strong class="text-green-400">WHEN</strong> Razor turned on</p>
+                        <p><strong class="text-blue-400">THEN</strong> Start waiting for gate "Razor" to become GO (timeout: 2 minutes)</p>
+                        <p><strong class="text-green-400">WHEN</strong> Conditional Gate wait finished "Razor"</p>
+                        <p><strong class="text-blue-400">THEN</strong> Turn off Razor</p>
+                        <p><em class="text-gray-500">→ The app waits in the background and fires the trigger; both parts can sit on one Advanced Flow canvas</em></p>
                     </div>
                 </div>
             </div>

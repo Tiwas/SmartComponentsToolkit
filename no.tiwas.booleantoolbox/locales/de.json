@@ -112,7 +112,10 @@
     "import_failed": "Zustände konnten nicht importiert werden",
     "invalid_import_data": "Ungültige Importdaten",
     "invalid_json_format": "Ungültiges JSON-Format",
-    "import_would_exceed_limit": "Import würde das Zustandslimit überschreiten"
+    "import_would_exceed_limit": "Import würde das Zustandslimit überschreiten",
+    "flow_card_wait_limit_gate": "Homey beendet App-Flow-Karten nach 60 Sekunden. Für Wartezeiten über 55 Sekunden \"Warten auf Bedingtes Tor GO starten\" zusammen mit dem Auslöser \"Warten auf Bedingtes Tor beendet\" verwenden.",
+    "flow_card_wait_limit_capability": "Homey beendet App-Flow-Karten nach 60 Sekunden. Für Wartezeiten über 55 Sekunden \"Warten starten, bis Geräte-Capability Wert wird\" zusammen mit dem Auslöser \"Capability-Warten beendet\" verwenden.",
+    "flow_card_wait_limit_wait": "Die Warten-Karte ist auf 55 Sekunden begrenzt, da Homey App-Flow-Karten nach 60 Sekunden beendet. Für längere Wartezeiten die eingebaute Verzögerung von Homey-Flows verwenden."
   },
   "evaluation": {
     "initial_complete": "Erste Auswertung aller Formeln...",

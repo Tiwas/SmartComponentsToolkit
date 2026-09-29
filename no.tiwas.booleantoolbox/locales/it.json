@@ -112,7 +112,10 @@
     "import_failed": "Importazione degli stati fallita",
     "invalid_import_data": "Dati di importazione non validi",
     "invalid_json_format": "Formato JSON non valido",
-    "import_would_exceed_limit": "L'importazione supererebbe il limite massimo di stati"
+    "import_would_exceed_limit": "L'importazione supererebbe il limite massimo di stati",
+    "flow_card_wait_limit_gate": "Homey interrompe le schede flusso delle app dopo 60 secondi. Per attese più lunghe di 55 secondi usa \"Inizia ad attendere GO della Porta Condizionale\" insieme al trigger \"Attesa della Porta Condizionale terminata\".",
+    "flow_card_wait_limit_capability": "Homey interrompe le schede flusso delle app dopo 60 secondi. Per attese più lunghe di 55 secondi usa \"Inizia ad aspettare che la capability del dispositivo diventi valore\" insieme al trigger \"Attesa capability terminata\".",
+    "flow_card_wait_limit_wait": "La scheda Aspetta è limitata a 55 secondi perché Homey interrompe le schede flusso delle app dopo 60 secondi. Per attese più lunghe usa il ritardo integrato dei flussi Homey."
   },
   "evaluation": {
     "initial_complete": "Valutazione iniziale di tutte le formule...",

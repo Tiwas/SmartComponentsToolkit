@@ -112,7 +112,10 @@
     "import_failed": "Nie udało się zaimportować stanów",
     "invalid_import_data": "Nieprawidłowe dane importu",
     "invalid_json_format": "Nieprawidłowy format JSON",
-    "import_would_exceed_limit": "Import przekroczyłby maksymalny limit stanów"
+    "import_would_exceed_limit": "Import przekroczyłby maksymalny limit stanów",
+    "flow_card_wait_limit_gate": "Homey zatrzymuje karty przepływu aplikacji po 60 sekundach. Do oczekiwania dłuższego niż 55 sekund użyj \"Rozpocznij oczekiwanie na GO Bramy Warunkowej\" razem z wyzwalaczem \"Oczekiwanie na Bramę Warunkową zakończone\".",
+    "flow_card_wait_limit_capability": "Homey zatrzymuje karty przepływu aplikacji po 60 sekundach. Do oczekiwania dłuższego niż 55 sekund użyj \"Rozpocznij czekanie aż capability urządzenia stanie się wartością\" razem z wyzwalaczem \"Oczekiwanie na capability zakończone\".",
+    "flow_card_wait_limit_wait": "Karta Czekaj jest ograniczona do 55 sekund, ponieważ Homey zatrzymuje karty przepływu aplikacji po 60 sekundach. Do dłuższego oczekiwania użyj wbudowanego opóźnienia przepływów Homey."
   },
   "evaluation": {
     "initial_complete": "Wstępna ocena wszystkich formuł...",

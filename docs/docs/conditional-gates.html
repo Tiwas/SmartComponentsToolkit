@@ -63,6 +63,16 @@
             </ul>
         </section>
 
+        <!-- Homey Flow card limit -->
+        <section class="mb-8 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+            <h2 class="text-xl font-semibold mb-2 text-yellow-700">⏱️ Waiting longer than 55 seconds</h2>
+            <p class="mb-2 text-yellow-800">Homey stops every app Flow card after <strong>60 seconds</strong>. A card that is still waiting at that point fails with <code>Timeout after 60000ms</code>, no matter which timeout you configured.</p>
+            <ul class="list-disc ml-6 space-y-1 text-yellow-800">
+                <li><strong>Short waits (up to 55 seconds):</strong> use the <em>Conditional Gate (Wait for GO)</em> condition. If the gate is still NO GO after 55 seconds, the card ends with a clear error instead of Homey's generic timeout.</li>
+                <li><strong>Long waits (minutes or hours):</strong> use <em>Start waiting for Conditional Gate GO</em> (action) and put the follow-up cards behind the <em>Conditional Gate wait finished</em> trigger. The app waits in the background, so Homey's limit does not apply.</li>
+            </ul>
+        </section>
+
         <!-- Flow Cards -->
         <section class="mb-8">
             <h2 class="text-2xl font-semibold mb-4 text-purple-600">Flow Cards</h2>
@@ -77,13 +87,58 @@
                     <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
                     <ul class="space-y-2 text-sm text-gray-600 mb-4">
                         <li><strong>Default State:</strong> The initial state if this gate hasn't been used before (usually NO GO).</li>
-                        <li><strong>Timeout:</strong> How long to wait for the gate to open. (Set to 0 for instant check without waiting).</li>
+                        <li><strong>Timeout:</strong> How long to wait for the gate to open. (Set to 0 for instant check without waiting). The card waits at most 55 seconds - see below.</li>
                         <li><strong>Gate Name / ID:</strong> The unique name of your circuit (e.g., "KitchenMode", "NightLatch").</li>
                     </ul>
 
-                    <div class="bg-blue-50 p-4 rounded text-sm text-blue-800">
+                    <div class="bg-blue-50 p-4 rounded text-sm text-blue-800 mb-4">
                         <strong>Note:</strong> Gates persist in memory! If you set "Default: GO", the gate will remain GO until you explicitly close it using the Modify card. The "Default" setting only applies the very first time the gate is created.
                     </div>
+
+                    <div class="bg-yellow-50 p-4 rounded text-sm text-yellow-800">
+                        <strong>60-second limit:</strong> If the gate is still NO GO after 55 seconds, the card stops with the error <em>"Homey stops app Flow cards after 60 seconds. For waits longer than 55 seconds, use "Start waiting for Conditional Gate GO" together with the "Conditional Gate wait finished" trigger."</em> Timeouts of 55 seconds or less behave as before (NO path when the timeout expires).
+                    </div>
+                </div>
+
+                <!-- Start Waiting Card (background) -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-green-600">Start waiting for Conditional Gate GO</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">ACTION</span></p>
+                    <p class="mb-4 text-gray-700">Starts a background wait for the gate and lets the flow continue immediately. When the gate becomes <strong>GO</strong> or the timeout expires, the <em>Conditional Gate wait finished</em> trigger fires. Use this for anything longer than 55 seconds.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Gate Name / ID:</strong> The gate to wait for.</li>
+                        <li><strong>Default State:</strong> The initial state if this gate hasn't been used before.</li>
+                        <li><strong>Timeout:</strong> Seconds, minutes or hours (maximum 24 hours). <code>0</code> = wait until GO without a timeout; such a wait is ended as TIMEOUT after 24 hours.</li>
+                    </ul>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Behaviour:</h4>
+                    <ul class="list-disc ml-6 space-y-1 text-sm text-gray-600 mb-4">
+                        <li>Gate already GO → the trigger fires right away (result GO).</li>
+                        <li>Starting again for the same gate while a background wait is pending <strong>restarts</strong> it (new timeout from now). The replaced wait does not fire the trigger.</li>
+                        <li><em>Modify Conditional Gate</em> works exactly as for in-card waits: GO/Toggle releases the wait, and a new timeout replaces the pending one.</li>
+                        <li>The background wait has the waiter ID <code>gate_&lt;name&gt;_background</code> (e.g. <code>gate_Razor_background</code>) and can be enabled, disabled or stopped with <em>Control waiter gate</em>. Stopping it never fires the trigger.</li>
+                    </ul>
+                </div>
+
+                <!-- Wait Finished Trigger -->
+                <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-semibold mb-2 text-green-600">Conditional Gate wait finished</h3>
+                    <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-semibold">TRIGGER</span></p>
+                    <p class="mb-4 text-gray-700">Fires when a wait started with <em>Start waiting for Conditional Gate GO</em> for the selected gate ends.</p>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 mb-4">
+                        <li><strong>Gate Name / ID:</strong> The gate (matched exactly).</li>
+                    </ul>
+
+                    <h4 class="font-semibold mb-2 text-gray-900">Tags:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li><strong>Gate opened (GO):</strong> Yes/No - <code>true</code> if the gate became GO.</li>
+                        <li><strong>Result (GO/TIMEOUT):</strong> Text - <code>GO</code> or <code>TIMEOUT</code>.</li>
+                        <li><strong>Waited (seconds):</strong> Number - how long the background wait ran.</li>
+                    </ul>
                 </div>
 
                 <!-- Check Card -->
@@ -107,13 +162,13 @@
                 <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                     <h3 class="text-xl font-semibold mb-2 text-blue-600">Modify Conditional Gate</h3>
                     <p class="text-sm text-gray-500 mb-3">Type: <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">ACTION</span></p>
-                    <p class="mb-4 text-gray-700">Changes the state of a gate (Open/Close) or updates the timeout of active waiters.</p>
+                    <p class="mb-4 text-gray-700">Changes the state of a gate (Open/Close) or updates the timeout of active waiters (in-card and background waits).</p>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Parameters:</h4>
                     <ul class="space-y-2 text-sm text-gray-600 mb-4">
                         <li><strong>Gate Name / ID:</strong> Select the gate to modify.</li>
-                        <li><strong>New State:</strong> Set to GO (releases waiting flows), NO GO (stops future flows), Toggle, or Don't change.</li>
-                        <li><strong>New Timeout:</strong> Update the timeout for currently waiting flows. Set to -1 to leave unchanged.</li>
+                        <li><strong>New State:</strong> Set to GO (releases waiting flows and background waits), NO GO (stops future flows), Toggle, or Don't change.</li>
+                        <li><strong>New Timeout:</strong> Update the timeout for currently waiting flows and background waits (counted from now). Set to -1 to leave unchanged.</li>
                     </ul>
 
                     <h4 class="font-semibold mb-2 text-gray-900">Output Tag:</h4>
@@ -135,32 +190,72 @@
             <!-- Example 1 -->
             <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm mb-6">
                 <h3 class="text-lg font-semibold mb-3 text-purple-600">1. Manual Approval (The "Ask Permission" Flow)</h3>
-                <p class="mb-3 text-gray-700">Trigger a flow, but wait for manual confirmation (e.g., via a button or app) before proceeding.</p>
-                
+                <p class="mb-3 text-gray-700">Trigger a flow, but wait up to an hour for manual confirmation (e.g., via a button or app) before proceeding. An hour is far beyond Homey's 60-second card limit, so this uses a background wait.</p>
+
                 <div class="mb-4">
                     <h4 class="font-semibold text-gray-900 mb-2">Flow 1: The Request</h4>
                     <pre class="text-sm"><code>WHEN: Washing Machine finished
-AND: Conditional Gate "EmptyWasher" (Default: NO GO, Timeout: 1 hour)
-THEN: Send push notification "Washer emptied!"</code></pre>
+THEN: Start waiting for Conditional Gate GO "EmptyWasher" (Default: NO GO, Timeout: 1 hour)</code></pre>
+                </div>
+
+                <div class="mb-4">
+                    <h4 class="font-semibold text-gray-900 mb-2">Flow 2: The Approval</h4>
+                    <pre class="text-sm"><code>WHEN: Virtual Button "Washer Emptied" pressed
+THEN: Modify Conditional Gate "EmptyWasher" -> Set to GO</code></pre>
                 </div>
 
                 <div>
-                    <h4 class="font-semibold text-gray-900 mb-2">Flow 2: The Approval</h4>
-                    <pre class="text-sm"><code>WHEN: Virtual Button "Washer Emptied" pressed
-THEN: Modify Conditional Gate "EmptyWasher" -> Set to GO
-THEN: Modify Conditional Gate "EmptyWasher" -> Set to NO GO (Reset for next time)</code></pre>
+                    <h4 class="font-semibold text-gray-900 mb-2">Flow 3: The Result</h4>
+                    <pre class="text-sm"><code>WHEN: Conditional Gate wait finished "EmptyWasher"
+THEN: Modify Conditional Gate "EmptyWasher" -> Set to NO GO (Reset for next time)
+THEN: Send push notification "Washer: [Result]"   (GO = emptied, TIMEOUT = still waiting after 1 hour)</code></pre>
                 </div>
+            </div>
+
+            <!-- Example: long wait from issue #46 -->
+            <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm mb-6">
+                <h3 class="text-lg font-semibold mb-3 text-purple-600">2. Turn something off after 2 minutes (Advanced Flow)</h3>
+                <p class="mb-3 text-gray-700">A common pattern: when the razor is turned on, turn it off again after 2 minutes - or earlier if something opens the gate. A <em>Wait for GO</em> condition with a 2 minute timeout fails after 60 seconds (<code>Timeout after 60000ms</code>), because Homey stops app Flow cards after one minute. Split it into a start card and a trigger instead. In an Advanced Flow both parts can live on the same canvas:</p>
+                <pre class="text-sm mb-3"><code>WHEN: Razor turned on
+THEN: Modify Conditional Gate "Razor" -> Set to NO GO   (re-arm the gate)
+THEN: Start waiting for Conditional Gate GO "Razor" (Default: NO GO, Timeout: 2 minutes)
+
+WHEN: Conditional Gate wait finished "Razor"
+THEN: Turn off Razor
+
+WHEN: &lt;whatever should end the wait early&gt;
+THEN: Modify Conditional Gate "Razor" -> Set to GO</code></pre>
+                <ul class="list-disc ml-6 space-y-1 text-sm text-gray-600">
+                    <li>If the razor is turned on again while the wait is running, the start card restarts the 2 minute countdown; the replaced wait does not fire the trigger.</li>
+                    <li>Use the <strong>Result</strong> tag (<code>GO</code> / <code>TIMEOUT</code>) or <strong>Gate opened (GO)</strong> tag if the two outcomes need different actions.</li>
+                    <li><em>Modify Conditional Gate</em> with a new timeout (e.g. 1 second) shortens a running background wait, exactly like it does for in-card waits.</li>
+                </ul>
             </div>
 
             <!-- Example 2 -->
             <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
-                <h3 class="text-lg font-semibold mb-3 text-purple-600">2. "Latch" Logic</h3>
+                <h3 class="text-lg font-semibold mb-3 text-purple-600">3. "Latch" Logic</h3>
                 <p class="mb-3 text-gray-700">Prevent a flow from running until a specific condition (Latch) is set, and queue up requests.</p>
                 <pre class="text-sm"><code>WHEN: Motion Detected
 AND: Conditional Gate "NightModeLatch" (Default: NO GO, Timeout: 0)
 THEN: Turn on hallway lights dimly</code></pre>
                 <p class="text-sm text-gray-600 mt-2">Here, Timeout 0 acts as a filter. If "NightModeLatch" is NO GO, the flow stops immediately. If it is GO, lights turn on.</p>
             </div>
+        </section>
+
+        <!-- Known Limitations -->
+        <section class="mb-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h2 class="text-2xl font-semibold mb-4 text-orange-600">⚠️ Known Limitations</h2>
+            <ul class="space-y-3 text-gray-700">
+                <li>
+                    <strong>In-card waits end after 55 seconds</strong><br>
+                    <span class="text-sm text-gray-500">Homey stops every app Flow card after 60 seconds. Use the background start card plus the <em>wait finished</em> trigger for longer waits.</span>
+                </li>
+                <li>
+                    <strong>Gates and pending waits are kept in memory</strong><br>
+                    <span class="text-sm text-gray-500">Gate states, in-card waits and background waits are lost when the app restarts (app update, Homey reboot or crash). A background wait that was pending at that moment never fires its trigger, and gates start again from their default state.</span>
+                </li>
+            </ul>
         </section>
 
     </div>

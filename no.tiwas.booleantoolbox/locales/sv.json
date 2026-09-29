@@ -112,7 +112,10 @@
     "import_failed": "Kunde inte importera tillstånd",
     "invalid_import_data": "Ogiltiga importdata",
     "invalid_json_format": "Ogiltigt JSON-format",
-    "import_would_exceed_limit": "Import skulle överskrida maxgränsen för tillstånd"
+    "import_would_exceed_limit": "Import skulle överskrida maxgränsen för tillstånd",
+    "flow_card_wait_limit_gate": "Homey stoppar appens flödeskort efter 60 sekunder. För väntan längre än 55 sekunder, använd \"Börja vänta på Villkorlig Port GO\" tillsammans med utlösaren \"Väntan på Villkorlig Port avslutad\".",
+    "flow_card_wait_limit_capability": "Homey stoppar appens flödeskort efter 60 sekunder. För väntan längre än 55 sekunder, använd \"Börja vänta tills enhetens capability blir värde\" tillsammans med utlösaren \"Capability-väntan avslutad\".",
+    "flow_card_wait_limit_wait": "Vänta-kortet är begränsat till 55 sekunder eftersom Homey stoppar appens flödeskort efter 60 sekunder. Använd Homeys inbyggda fördröjning i flöden för längre väntan."
   },
   "evaluation": {
     "initial_complete": "Initial utvärdering av alla formler...",

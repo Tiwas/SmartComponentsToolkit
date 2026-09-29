@@ -28,18 +28,18 @@
     "ru": "Ждать [[timeout_value]] [[timeout_unit]]"
   },
   "hint": {
-    "en": "Pauses the flow for the specified time before continuing.",
-    "no": "Pauser flyten i angitt tid før den fortsetter.",
-    "da": "Pauser flow i den angivne tid før fortsættelse.",
-    "de": "Pausiert den Flow für die angegebene Zeit.",
-    "es": "Pausa el flujo durante el tiempo especificado.",
-    "fr": "Met en pause le flux pendant le temps spécifié.",
-    "it": "Mette in pausa il flusso per il tempo specificato.",
-    "nl": "Pauzeert de flow voor de opgegeven tijd.",
-    "sv": "Pausar flödet under angiven tid.",
-    "pl": "Wstrzymuje przepływ na określony czas.",
-    "fi": "Keskeyttää virtauksen määritetyksi ajaksi.",
-    "ru": "Приостанавливает поток на указанное время."
+    "en": "Pauses the flow for the specified time before continuing. Maximum 55 seconds, because Homey stops app Flow cards after 60 seconds. Use Homey's built-in Flow delay for longer waits.",
+    "no": "Pauser flyten i angitt tid før den fortsetter. Maks 55 sekunder, fordi Homey stopper app-flytkort etter 60 sekunder. Bruk Homeys innebygde forsinkelse i flyten for lengre venting.",
+    "da": "Pauser flow i den angivne tid før fortsættelse. Højst 55 sekunder, fordi Homey stopper app-flowkort efter 60 sekunder. Brug Homeys indbyggede forsinkelse i flowet til længere ventetid.",
+    "de": "Pausiert den Flow für die angegebene Zeit. Höchstens 55 Sekunden, da Homey App-Flow-Karten nach 60 Sekunden beendet. Für längere Wartezeiten die eingebaute Verzögerung von Homey-Flows verwenden.",
+    "es": "Pausa el flujo durante el tiempo especificado. Máximo 55 segundos, porque Homey detiene las tarjetas de flujo de apps tras 60 segundos. Para esperas más largas use el retardo integrado de los flujos de Homey.",
+    "fr": "Met en pause le flux pendant le temps spécifié. Maximum 55 secondes, car Homey arrête les cartes de flux des apps après 60 secondes. Pour des attentes plus longues, utilisez le délai intégré des flux Homey.",
+    "it": "Mette in pausa il flusso per il tempo specificato. Massimo 55 secondi, perché Homey interrompe le schede flusso delle app dopo 60 secondi. Per attese più lunghe usa il ritardo integrato dei flussi Homey.",
+    "nl": "Pauzeert de flow voor de opgegeven tijd. Maximaal 55 seconden, omdat Homey app-flowkaarten na 60 seconden stopt. Gebruik voor langer wachten de ingebouwde vertraging van Homey-flows.",
+    "sv": "Pausar flödet under angiven tid. Högst 55 sekunder, eftersom Homey stoppar appens flödeskort efter 60 sekunder. Använd Homeys inbyggda fördröjning i flöden för längre väntan.",
+    "pl": "Wstrzymuje przepływ na określony czas. Maksymalnie 55 sekund, ponieważ Homey zatrzymuje karty przepływu aplikacji po 60 sekundach. Do dłuższego oczekiwania użyj wbudowanego opóźnienia przepływów Homey.",
+    "fi": "Keskeyttää virtauksen määritetyksi ajaksi. Enintään 55 sekuntia, koska Homey pysäyttää sovellusten kulkukortit 60 sekunnin jälkeen. Pidempiin odotuksiin käytä Homeyn kulkujen sisäänrakennettua viivettä.",
+    "ru": "Приостанавливает поток на указанное время. Максимум 55 секунд, так как Homey останавливает карточки потоков приложений через 60 секунд. Для более долгого ожидания используйте встроенную задержку потоков Homey."
   },
   "args": [
     {

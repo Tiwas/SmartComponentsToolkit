@@ -61,7 +61,13 @@ class WaiterManager {
         const existing = this.waiters.get(id);
         if (existing && existing.flowId === flowContext.flowId) {
             this.logger.debug(`♻️  Re-initializing existing waiter: ${id}`);
+            const previousResolver = existing.resolver;
             this.removeWaiterById(id);
+            // Settle the superseded Flow card run through its NO/false path so it
+            // does not hang until Homey kills it at the 60 second card limit.
+            if (previousResolver) {
+                try { previousResolver(false); } catch (e) { this.logger.error(e); }
+            }
         } else if (existing) {
             throw new Error(`Waiter ID "${id}" already exists`);
         }
@@ -104,11 +110,13 @@ class WaiterManager {
         if (waiterData.timeoutHandle) clearTimeout(waiterData.timeoutHandle);
         if (waiterData.timeoutMs > 0) {
             waiterData.timeoutHandle = setTimeout(() => {
+                // A replaced waiter must never resolve or remove its successor.
+                if (this.waiters.get(waiterData.id) !== waiterData) return;
                 this.logger.warn(`⏰ Waiter "${waiterData.id}" timed out`);
                 if (waiterData.resolver) {
                     try { waiterData.resolver(false); } catch (e) { this.logger.error(e); }
                 }
-                this.removeWaiter(waiterData.id);
+                this.removeWaiterIfCurrent(waiterData.id, waiterData);
             }, waiterData.timeoutMs);
         }
     }
@@ -144,15 +152,77 @@ class WaiterManager {
         return true;
     }
 
+    /**
+     * Removes a waiter only if the given waiter object is still the one
+     * registered under that ID. Waiter IDs are reused (re-initialized Flow
+     * runs, restarted background waits), so stale timers and listeners must
+     * not remove the successor.
+     */
+    removeWaiterIfCurrent(id, waiterData) {
+        if (!waiterData || this.waiters.get(id) !== waiterData) return false;
+        return this.removeWaiterById(id);
+    }
+
+    getBackgroundGateWaiterId(gateName) {
+        return `gate_${gateName}_background`;
+    }
+
+    /**
+     * Starts a wait that is not bound to a Flow card run. The Flow card that
+     * starts it returns immediately; onFinish is called once when the waiter
+     * resolves (GO / capability match / timeout / orphan reaping). A pending
+     * background waiter with the same ID is replaced without calling its
+     * onFinish (restart semantics). Stopping or replacing a background waiter
+     * never calls onFinish.
+     */
+    async startBackgroundWaiter(id, config, deviceConfig = null, virtualGateConfig = null, onFinish = null) {
+        const existing = this.waiters.get(id);
+        if (existing && existing.background) {
+            this.logger.info(`🔁 Restarting background waiter: ${id}`);
+            this.removeWaiterById(id);
+        }
+
+        const actualId = await this.createWaiter(
+            id,
+            config,
+            { flowId: WaiterManager.BACKGROUND_FLOW_ID, flowToken: null },
+            deviceConfig,
+            virtualGateConfig,
+        );
+        const waiterData = this.waiters.get(actualId);
+        waiterData.background = true;
+
+        let finished = false;
+        waiterData.resolver = (result) => {
+            if (finished) return;
+            finished = true;
+            if (typeof onFinish === 'function') {
+                onFinish({
+                    id: actualId,
+                    success: result !== false,
+                    result,
+                    waitedMs: Math.max(0, Date.now() - waiterData.created),
+                    lastValue: waiterData.lastValue,
+                });
+            }
+        };
+
+        this.logger.info(`🕓 Background waiter started: ${actualId}`);
+        return waiterData;
+    }
+
     async registerCapabilityListener(waiterId, homey) {
         const waiter = this.waiters.get(waiterId);
         if (!waiter || !waiter.deviceConfig) return;
         try {
             const device = await homey.devices.getDevice({ id: waiter.deviceConfig.deviceId });
             const listener = async (value) => {
+                // Ignore events for a waiter that was replaced or already finished.
+                if (this.waiters.get(waiterId) !== waiter) return;
+                waiter.lastValue = value;
                 if (this.valueMatches(value, waiter.deviceConfig.targetValue)) {
                     if (waiter.resolver && waiter.enabled) waiter.resolver(true);
-                    this.removeWaiter(waiterId);
+                    this.removeWaiterIfCurrent(waiterId, waiter);
                 }
             };
             const instance = await device.makeCapabilityInstance(
@@ -235,7 +305,7 @@ class WaiterManager {
                         waiter.resolver({ gate_state: actualNewState === 'GO', gate_state_text: actualNewState });
                         triggered++;
                     } catch (e) { this.logger.error(e); }
-                    this.removeWaiter(waiterId);
+                    this.removeWaiterIfCurrent(waiterId, waiter);
                 }
             }
         }
@@ -275,7 +345,7 @@ class WaiterManager {
         const results = [];
         for (const [id, data] of this.waiters.entries()) {
             if (query && !id.toLowerCase().includes(query.toLowerCase())) continue;
-            const typeInfo = data.deviceConfig ? 'Device' : (data.virtualGateConfig ? 'Gate' : 'Unknown');
+            const typeInfo = (data.deviceConfig ? 'Device' : (data.virtualGateConfig ? 'Gate' : 'Unknown')) + (data.background ? ', background' : '');
             const targetInfo = data.virtualGateConfig ? `${data.virtualGateConfig.gateName} (${data.virtualGateConfig.targetState || 'GO'})` : '';
             results.push({ name: id, description: `${data.enabled ? '✅' : '⏸️'} [${typeInfo}] ${targetInfo}`, id });
         }
@@ -308,4 +378,8 @@ class WaiterManager {
 }
 
 WaiterManager.instance = null;
+// Homey stops every app Flow card run listener after ~60 seconds. In-card
+// waits are ended just before that; longer waits use background waiters.
+WaiterManager.FLOW_CARD_SAFE_WAIT_MS = 55000;
+WaiterManager.BACKGROUND_FLOW_ID = 'background';
 module.exports = WaiterManager;

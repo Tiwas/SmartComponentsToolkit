@@ -112,7 +112,10 @@
     "import_failed": "Failed to import states",
     "invalid_import_data": "Invalid import data",
     "invalid_json_format": "Invalid JSON format",
-    "import_would_exceed_limit": "Import would exceed maximum states limit"
+    "import_would_exceed_limit": "Import would exceed maximum states limit",
+    "flow_card_wait_limit_gate": "Homey stops app Flow cards after 60 seconds. For waits longer than 55 seconds, use \"Start waiting for Conditional Gate GO\" together with the \"Conditional Gate wait finished\" trigger.",
+    "flow_card_wait_limit_capability": "Homey stops app Flow cards after 60 seconds. For waits longer than 55 seconds, use \"Start waiting until device capability becomes value\" together with the \"Capability wait finished\" trigger.",
+    "flow_card_wait_limit_wait": "The Wait card is limited to 55 seconds because Homey stops app Flow cards after 60 seconds. Use Homey's built-in Flow delay for longer waits."
   },
   "evaluation": {
     "initial_complete": "Initial evaluation of all formulas...",

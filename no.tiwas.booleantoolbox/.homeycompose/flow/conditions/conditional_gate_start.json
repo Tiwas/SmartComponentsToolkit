@@ -28,18 +28,18 @@
     "ru": "Условный Шлюз: Ждать GO (по умолчанию: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]], Имя/ID: [[gate_name]])"
   },
   "hint": {
-    "en": "Pauses flow until the specified Gate is GO. Use 'Modify Conditional Gate' to control it by Name/ID.",
-    "no": "Pauser flyten til angitt Port er GO. Bruk 'Endre Betinget Port' for å styre den med Navn/ID.",
-    "da": "Pauser flow indtil den angivne Port er GO. Brug 'Ændr Betinget Port' til at styre den med Navn/ID.",
-    "nl": "Pauzeert flow totdat de opgegeven Poort GO is. Gebruik 'Wijzig Voorwaardelijke Poort' om te bedienen via Naam/ID.",
-    "de": "Pausiert Flow bis das angegebene Tor GO ist. Verwenden Sie 'Bedingtes Tor ändern' zur Steuerung über Name/ID.",
-    "es": "Pausa el flujo hasta que la Puerta especificada sea GO. Use 'Modificar Puerta Condicional' para controlarla por Nombre/ID.",
-    "fr": "Met le flux en pause jusqu'à ce que la Porte spécifiée soit GO. Utilisez 'Modifier Porte Conditionnelle' pour la contrôler par Nom/ID.",
-    "it": "Mette in pausa il flusso fino a quando la Porta specificata è GO. Usa 'Modifica Porta Condizionale' per controllarla tramite Nome/ID.",
-    "sv": "Pausar flödet tills den angivna Porten är GO. Använd 'Ändra Villkorlig Port' för att styra den med Namn/ID.",
-    "pl": "Wstrzymuje przepływ do momentu, gdy określona Brama będzie GO. Użyj 'Modyfikuj Bramę Warunkową' aby sterować nią przez Nazwę/ID.",
-    "fi": "Keskeyttää kulun kunnes määritetty Portti on GO. Käytä 'Muokkaa Ehdollista Porttia' hallitaksesi sitä Nimellä/ID:llä.",
-    "ru": "Приостанавливает поток до тех пор, пока указанный Шлюз не станет GO. Используйте 'Изменить Условный Шлюз' для управления по Имени/ID."
+    "en": "Pauses flow until the specified Gate is GO. Use 'Modify Conditional Gate' to control it by Name/ID. Homey stops app Flow cards after 60 seconds, so this card waits at most 55 seconds. For longer waits use 'Start waiting for Conditional Gate GO' with the 'Conditional Gate wait finished' trigger.",
+    "no": "Pauser flyten til angitt Port er GO. Bruk 'Endre Betinget Port' for å styre den med Navn/ID. Homey stopper app-flytkort etter 60 sekunder, så dette kortet venter maks 55 sekunder. For lengre venting, bruk 'Start venting på Betinget Port GO' med utløseren 'Venting på Betinget Port fullført'.",
+    "da": "Pauser flow indtil den angivne Port er GO. Brug 'Ændr Betinget Port' til at styre den med Navn/ID. Homey stopper app-flowkort efter 60 sekunder, så dette kort venter højst 55 sekunder. Til længere ventetid, brug 'Start venten på Betinget Port GO' med triggeren 'Venten på Betinget Port afsluttet'.",
+    "nl": "Pauzeert flow totdat de opgegeven Poort GO is. Gebruik 'Wijzig Voorwaardelijke Poort' om te bedienen via Naam/ID. Homey stopt app-flowkaarten na 60 seconden, dus deze kaart wacht maximaal 55 seconden. Gebruik voor langer wachten 'Start wachten op Voorwaardelijke Poort GO' met de trigger 'Wachten op Voorwaardelijke Poort voltooid'.",
+    "de": "Pausiert Flow bis das angegebene Tor GO ist. Verwenden Sie 'Bedingtes Tor ändern' zur Steuerung über Name/ID. Homey beendet App-Flow-Karten nach 60 Sekunden, daher wartet diese Karte höchstens 55 Sekunden. Für längere Wartezeiten 'Warten auf Bedingtes Tor GO starten' mit dem Auslöser 'Warten auf Bedingtes Tor beendet' verwenden.",
+    "es": "Pausa el flujo hasta que la Puerta especificada sea GO. Use 'Modificar Puerta Condicional' para controlarla por Nombre/ID. Homey detiene las tarjetas de flujo de apps tras 60 segundos, así que esta tarjeta espera como máximo 55 segundos. Para esperas más largas use 'Empezar a esperar GO de Puerta Condicional' con el disparador 'Espera de Puerta Condicional finalizada'.",
+    "fr": "Met le flux en pause jusqu'à ce que la Porte spécifiée soit GO. Utilisez 'Modifier Porte Conditionnelle' pour la contrôler par Nom/ID. Homey arrête les cartes de flux des apps après 60 secondes, cette carte attend donc au maximum 55 secondes. Pour des attentes plus longues, utilisez 'Commencer l'attente du GO de la Porte Conditionnelle' avec le déclencheur 'Attente de la Porte Conditionnelle terminée'.",
+    "it": "Mette in pausa il flusso fino a quando la Porta specificata è GO. Usa 'Modifica Porta Condizionale' per controllarla tramite Nome/ID. Homey interrompe le schede flusso delle app dopo 60 secondi, quindi questa scheda attende al massimo 55 secondi. Per attese più lunghe usa 'Inizia ad attendere GO della Porta Condizionale' con il trigger 'Attesa della Porta Condizionale terminata'.",
+    "sv": "Pausar flödet tills den angivna Porten är GO. Använd 'Ändra Villkorlig Port' för att styra den med Namn/ID. Homey stoppar appens flödeskort efter 60 sekunder, så detta kort väntar högst 55 sekunder. För längre väntan, använd 'Börja vänta på Villkorlig Port GO' med utlösaren 'Väntan på Villkorlig Port avslutad'.",
+    "pl": "Wstrzymuje przepływ do momentu, gdy określona Brama będzie GO. Użyj 'Modyfikuj Bramę Warunkową' aby sterować nią przez Nazwę/ID. Homey zatrzymuje karty przepływu aplikacji po 60 sekundach, więc ta karta czeka maksymalnie 55 sekund. Do dłuższego oczekiwania użyj 'Rozpocznij oczekiwanie na GO Bramy Warunkowej' z wyzwalaczem 'Oczekiwanie na Bramę Warunkową zakończone'.",
+    "fi": "Keskeyttää kulun kunnes määritetty Portti on GO. Käytä 'Muokkaa Ehdollista Porttia' hallitaksesi sitä Nimellä/ID:llä. Homey pysäyttää sovellusten kulkukortit 60 sekunnin jälkeen, joten tämä kortti odottaa enintään 55 sekuntia. Pidempiin odotuksiin käytä korttia 'Aloita Ehdollisen Portin GO-odotus' ja laukaisinta 'Ehdollisen Portin odotus päättyi'.",
+    "ru": "Приостанавливает поток до тех пор, пока указанный Шлюз не станет GO. Используйте 'Изменить Условный Шлюз' для управления по Имени/ID. Homey останавливает карточки потоков приложений через 60 секунд, поэтому эта карточка ждёт не более 55 секунд. Для более долгого ожидания используйте 'Начать ожидание GO Условного Шлюза' с триггером 'Ожидание Условного Шлюза завершено'."
   },
   "args": [
     {
@@ -116,7 +116,7 @@
       },
       "min": 0,
       "step": 1,
-      "defaultValue": 60
+      "defaultValue": 30
     },
     {
       "type": "dropdown",

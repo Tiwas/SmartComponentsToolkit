@@ -112,7 +112,10 @@
     "import_failed": "Échec de l'importation des états",
     "invalid_import_data": "Données d'importation non valides",
     "invalid_json_format": "Format JSON non valide",
-    "import_would_exceed_limit": "L'importation dépasserait la limite maximale d'états"
+    "import_would_exceed_limit": "L'importation dépasserait la limite maximale d'états",
+    "flow_card_wait_limit_gate": "Homey arrête les cartes de flux des apps après 60 secondes. Pour des attentes de plus de 55 secondes, utilisez \"Commencer l'attente du GO de la Porte Conditionnelle\" avec le déclencheur \"Attente de la Porte Conditionnelle terminée\".",
+    "flow_card_wait_limit_capability": "Homey arrête les cartes de flux des apps après 60 secondes. Pour des attentes de plus de 55 secondes, utilisez \"Commencer à attendre que la capability de l'appareil devienne valeur\" avec le déclencheur \"Attente de capability terminée\".",
+    "flow_card_wait_limit_wait": "La carte Attendre est limitée à 55 secondes car Homey arrête les cartes de flux des apps après 60 secondes. Pour des attentes plus longues, utilisez le délai intégré des flux Homey."
   },
   "evaluation": {
     "initial_complete": "Évaluation initiale de toutes les formules...",

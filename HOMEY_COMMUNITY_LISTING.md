@@ -170,8 +170,8 @@ Choose how the device knows how bright it is outside:
 
 | Flow Card (no device needed) | Purpose |
 |------------------------------|---------|
-| **Conditional Gates** | Simple GO/NO GO flow control without variables or devices. |
-| **Waiter Gates** | Pause flow until a device capability reaches a target value. |
+| **Conditional Gates** | Simple GO/NO GO flow control without variables or devices. Short waits in the card, long waits in the background with a "wait finished" trigger. |
+| **Waiter Gates** | Wait until a device capability reaches a target value — in the card (up to 55 s) or in the background with a "wait finished" trigger. |
 | **Evaluate Expression** | Range checking and value mapping with AND/OR logic. |
 | **Math Compare** | Compare a calculated number, e.g. `Temperature + 3` against a threshold. |
 | **Gradient Map** | Map a number from one range to another and pass the `Mapped value` tag to the next card. |
@@ -185,8 +185,7 @@ Choose how the device knows how bright it is outside:
 WHEN: Doorbell rings
 THEN: Push current state to stack
 THEN: Set all lights to 100%
-THEN: Wait 5 minutes
-THEN: Pop state (restore previous)
+THEN: Pop state (restore previous) [Homey Flow delay: 5 minutes]
 ```
 
 **Conditional Gate gating two flows:**
@@ -199,14 +198,28 @@ Flow 2 — WHEN: Door opened
         THEN: Turn on lights
 ```
 
-**Waiter Gate waiting for temperature:**
+**Long wait with a Conditional Gate (more than 60 seconds):**
 ```
-WHEN: Button pressed
-THEN: Turn on coffee machine
-THEN: Wait until coffee machine temperature ≥ 90°C (timeout 5 min)
-  → YES: Send notification "Coffee ready!"
-  → NO:  Send notification "Coffee machine timeout"
+Flow 1 — WHEN: Razor turned on
+        THEN: Modify Conditional Gate "Razor" → NO GO
+        THEN: Start waiting for Conditional Gate GO "Razor" (timeout 2 minutes)
+
+Flow 2 — WHEN: Conditional Gate wait finished "Razor"
+        THEN: Turn off Razor   (Result tag: GO = released early, TIMEOUT = 2 minutes passed)
 ```
+
+**Waiter Gate waiting for a device (more than 60 seconds):**
+```
+Flow 1 — WHEN: Button pressed
+        THEN: Turn on kettle
+        THEN: Start waiting until Kettle onoff becomes false (timeout 10 min, id kettle_boil)
+
+Flow 2 — WHEN: Capability wait finished "kettle_boil"
+        AND:  "Value matched" tag is Yes
+        THEN: Send notification "Water is ready!"
+```
+
+> Homey stops every app Flow card after 60 seconds. The in-card waits (*Conditional Gate: Wait for GO*, *Wait until device capability becomes value*, *Wait*) therefore end after at most 55 seconds; use the **Start waiting…** cards plus their **…wait finished** trigger for anything longer. In an Advanced Flow both parts can live on one canvas. Pending waits are kept in memory and are lost if the app restarts.
 
 ---
 

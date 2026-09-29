@@ -53,13 +53,14 @@ Generate a privacy-conscious diagnostic report from App Settings and open the Gi
 == STANDALONE FLOW CARDS ==
 
 Conditional Gates
-  Persistent named GO/NO GO gates for coordinating flows without a virtual device.
+  Persistent named GO/NO GO gates for coordinating flows without a virtual device. Gates and pending waits are kept in memory until the app restarts.
   - Check a gate immediately
-  - Wait for a gate to become GO, with timeout
+  - Wait for a gate to become GO, with timeout (up to 55 seconds in the card)
+  - Start a background wait for GO and continue when the "Conditional Gate wait finished" trigger fires (minutes or hours)
   - Open, close, toggle, or update a gate from another Flow
 
 Waiter Gates
-  Wait until any selected device capability reaches a target value, with YES/NO timeout branches. Enable, disable, or stop a waiter by ID.
+  Wait until any selected device capability reaches a target value, with YES/NO timeout branches (up to 55 seconds in the card). For longer waits, start a background wait and continue when the "Capability wait finished" trigger fires. Enable, disable, or stop a waiter by ID.
 
 Math Compare
   Calculate a simple numeric expression and compare the result with another value.
@@ -71,7 +72,7 @@ Evaluate Expression
   Evaluate range rules with AND/OR logic and return output and error tags.
 
 Wait
-  Pause a Flow for a selected number of seconds, minutes, or hours.
+  Pause a Flow for up to 55 seconds. Homey stops app Flow cards after 60 seconds, so use Homey's built-in Flow delay for longer pauses.
 
 Solar Event Occurred
   Trigger a Flow at sunrise, sunset, dawn, dusk, golden hour, blue hour, solar noon, or solar midnight, with an optional offset.

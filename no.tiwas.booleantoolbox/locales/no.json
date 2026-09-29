@@ -112,7 +112,10 @@
     "import_failed": "Kunne ikke importere tilstander",
     "invalid_import_data": "Ugyldige importdata",
     "invalid_json_format": "Ugyldig JSON-format",
-    "import_would_exceed_limit": "Import ville overstige maksgrensen for tilstander"
+    "import_would_exceed_limit": "Import ville overstige maksgrensen for tilstander",
+    "flow_card_wait_limit_gate": "Homey stopper app-flytkort etter 60 sekunder. For venting lengre enn 55 sekunder, bruk \"Start venting på Betinget Port GO\" sammen med utløseren \"Venting på Betinget Port fullført\".",
+    "flow_card_wait_limit_capability": "Homey stopper app-flytkort etter 60 sekunder. For venting lengre enn 55 sekunder, bruk \"Start venting til enhetens capability blir verdi\" sammen med utløseren \"Capability-venting fullført\".",
+    "flow_card_wait_limit_wait": "Vent-kortet er begrenset til 55 sekunder fordi Homey stopper app-flytkort etter 60 sekunder. Bruk Homeys innebygde forsinkelse i flyten for lengre venting."
   },
   "evaluation": {
     "initial_complete": "Initial evaluering av alle formler...",

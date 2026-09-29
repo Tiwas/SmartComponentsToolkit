@@ -1,0 +1,226 @@
+{
+  "title": {
+    "en": "Start waiting for Conditional Gate GO",
+    "no": "Start venting på Betinget Port GO",
+    "da": "Start venten på Betinget Port GO",
+    "nl": "Start wachten op Voorwaardelijke Poort GO",
+    "de": "Warten auf Bedingtes Tor GO starten",
+    "es": "Empezar a esperar GO de Puerta Condicional",
+    "fr": "Commencer l'attente du GO de la Porte Conditionnelle",
+    "it": "Inizia ad attendere GO della Porta Condizionale",
+    "sv": "Börja vänta på Villkorlig Port GO",
+    "pl": "Rozpocznij oczekiwanie na GO Bramy Warunkowej",
+    "fi": "Aloita Ehdollisen Portin GO-odotus",
+    "ru": "Начать ожидание GO Условного Шлюза"
+  },
+  "titleFormatted": {
+    "en": "Start waiting for gate [[gate_name]] to become GO (default: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "no": "Start venting på at port [[gate_name]] blir GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "da": "Start venten på at port [[gate_name]] bliver GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "nl": "Start wachten tot poort [[gate_name]] GO wordt (standaard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "de": "Warten starten, bis Tor [[gate_name]] GO wird (Standard: [[default_state]], Timeout: [[timeout_value]] [[timeout_unit]])",
+    "es": "Empezar a esperar que la puerta [[gate_name]] sea GO (predeterminado: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "fr": "Commencer à attendre que la porte [[gate_name]] passe à GO (défaut: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "it": "Inizia ad attendere che la porta [[gate_name]] diventi GO (predefinito: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "sv": "Börja vänta på att port [[gate_name]] blir GO (standard: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "pl": "Rozpocznij oczekiwanie, aż brama [[gate_name]] będzie GO (domyślnie: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "fi": "Aloita odotus kunnes portti [[gate_name]] on GO (oletus: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])",
+    "ru": "Начать ожидание, пока шлюз [[gate_name]] станет GO (по умолчанию: [[default_state]], timeout: [[timeout_value]] [[timeout_unit]])"
+  },
+  "hint": {
+    "en": "Starts a background wait and continues immediately, so it works for waits longer than 55 seconds. When the gate becomes GO or the timeout expires, the 'Conditional Gate wait finished' trigger fires. 0 = no timeout (maximum 24 hours). Starting again for the same gate restarts the wait. Pending waits are lost if the app restarts.",
+    "no": "Starter en venting i bakgrunnen og fortsetter umiddelbart, så den fungerer for venting lengre enn 55 sekunder. Når porten blir GO eller timeout utløper, utløses 'Venting på Betinget Port fullført'. 0 = ingen timeout (maks 24 timer). Å starte på nytt for samme port starter ventingen på nytt. Ventinger som pågår går tapt hvis appen startes på nytt.",
+    "da": "Starter en venten i baggrunden og fortsætter straks, så den virker til ventetid længere end 55 sekunder. Når porten bliver GO eller timeout udløber, udløses 'Venten på Betinget Port afsluttet'. 0 = ingen timeout (højst 24 timer). At starte igen for samme port genstarter ventetiden. Igangværende ventetider går tabt, hvis appen genstartes.",
+    "nl": "Start een wachttijd op de achtergrond en gaat direct verder, zodat het werkt voor wachttijden langer dan 55 seconden. Wanneer de poort GO wordt of de timeout verloopt, wordt 'Wachten op Voorwaardelijke Poort voltooid' geactiveerd. 0 = geen timeout (maximaal 24 uur). Opnieuw starten voor dezelfde poort herstart het wachten. Lopende wachttijden gaan verloren als de app herstart.",
+    "de": "Startet ein Warten im Hintergrund und fährt sofort fort, funktioniert also auch für Wartezeiten über 55 Sekunden. Wenn das Tor GO wird oder der Timeout abläuft, wird 'Warten auf Bedingtes Tor beendet' ausgelöst. 0 = kein Timeout (maximal 24 Stunden). Erneutes Starten für dasselbe Tor startet das Warten neu. Laufende Wartevorgänge gehen bei einem App-Neustart verloren.",
+    "es": "Inicia una espera en segundo plano y continúa de inmediato, por lo que sirve para esperas de más de 55 segundos. Cuando la puerta pasa a GO o el timeout expira, se activa 'Espera de Puerta Condicional finalizada'. 0 = sin timeout (máximo 24 horas). Volver a iniciar para la misma puerta reinicia la espera. Las esperas pendientes se pierden si la app se reinicia.",
+    "fr": "Démarre une attente en arrière-plan et continue immédiatement, ce qui fonctionne pour des attentes de plus de 55 secondes. Quand la porte passe à GO ou que le timeout expire, 'Attente de la Porte Conditionnelle terminée' se déclenche. 0 = pas de timeout (24 heures maximum). Redémarrer pour la même porte relance l'attente. Les attentes en cours sont perdues si l'app redémarre.",
+    "it": "Avvia un'attesa in background e prosegue subito, quindi funziona per attese più lunghe di 55 secondi. Quando la porta diventa GO o il timeout scade, si attiva 'Attesa della Porta Condizionale terminata'. 0 = nessun timeout (massimo 24 ore). Riavviare per la stessa porta fa ripartire l'attesa. Le attese in corso vanno perse se l'app si riavvia.",
+    "sv": "Startar en väntan i bakgrunden och fortsätter direkt, så den fungerar för väntan längre än 55 sekunder. När porten blir GO eller timeout löper ut utlöses 'Väntan på Villkorlig Port avslutad'. 0 = ingen timeout (högst 24 timmar). Att starta igen för samma port startar om väntan. Pågående väntan går förlorad om appen startas om.",
+    "pl": "Rozpoczyna oczekiwanie w tle i od razu kontynuuje, więc działa dla oczekiwania dłuższego niż 55 sekund. Gdy brama stanie się GO lub timeout wygaśnie, uruchamia się 'Oczekiwanie na Bramę Warunkową zakończone'. 0 = bez timeout (maksymalnie 24 godziny). Ponowne uruchomienie dla tej samej bramy restartuje oczekiwanie. Trwające oczekiwania są tracone po restarcie aplikacji.",
+    "fi": "Aloittaa odotuksen taustalla ja jatkaa heti, joten se toimii yli 55 sekunnin odotuksiin. Kun portti on GO tai timeout vanhenee, 'Ehdollisen Portin odotus päättyi' laukeaa. 0 = ei timeoutia (enintään 24 tuntia). Uudelleenaloitus samalle portille käynnistää odotuksen alusta. Käynnissä olevat odotukset menetetään, jos sovellus käynnistyy uudelleen.",
+    "ru": "Запускает ожидание в фоне и сразу продолжает, поэтому подходит для ожидания дольше 55 секунд. Когда шлюз становится GO или истекает timeout, срабатывает 'Ожидание Условного Шлюза завершено'. 0 = без timeout (максимум 24 часа). Повторный запуск для того же шлюза перезапускает ожидание. Текущие ожидания теряются при перезапуске приложения."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "gate_name",
+      "title": {
+        "en": "Gate Name / ID",
+        "no": "Port Navn / ID",
+        "da": "Port Navn / ID",
+        "nl": "Poort Naam / ID",
+        "de": "Tor Name / ID",
+        "es": "Nombre / ID de Puerta",
+        "fr": "Nom / ID de Porte",
+        "it": "Nome / ID Porta",
+        "sv": "Port Namn / ID",
+        "pl": "Nazwa / ID Bramy",
+        "fi": "Portin Nimi / ID",
+        "ru": "Имя / ID Шлюза"
+      },
+      "placeholder": {
+        "en": "e.g. KitchenCheck",
+        "no": "f.eks. KjsøkkenSjekk",
+        "da": "f.eks. KøkkenCheck",
+        "nl": "bijv. KeukenCheck",
+        "de": "z.B. KüchenCheck",
+        "es": "p.ej. VerificarCocina",
+        "fr": "p.ex. VérifierCuisine",
+        "it": "es. ControllareCucina",
+        "sv": "t.ex. KökKontroll",
+        "pl": "np. SprawdźKuchnię",
+        "fi": "esim. KeittiöTarkistus",
+        "ru": "напр. ПроверкаКухни"
+      }
+    },
+    {
+      "type": "dropdown",
+      "name": "default_state",
+      "title": {
+        "en": "Default State (if new)",
+        "no": "Standardstatus (hvis ny)",
+        "da": "Standardstatus (hvis ny)",
+        "nl": "Standaardstatus (indien nieuw)",
+        "de": "Standardstatus (wenn neu)",
+        "es": "Estado predeterminado (si es nuevo)",
+        "fr": "État par défaut (si nouveau)",
+        "it": "Stato predefinito (se nuovo)",
+        "sv": "Standardstatus (om ny)",
+        "pl": "Domyślny stan (jeśli nowy)",
+        "fi": "Oletustila (jos uusi)",
+        "ru": "Состояние по умолчанию (если новый)"
+      },
+      "values": [
+        {
+          "id": "NO_GO",
+          "title": {
+            "en": "NO GO (Closed)",
+            "no": "NO GO (Stengt)",
+            "da": "NO GO (Lukket)",
+            "nl": "NO GO (Gesloten)",
+            "de": "NO GO (Geschlossen)",
+            "es": "NO GO (Cerrado)",
+            "fr": "NO GO (Fermé)",
+            "it": "NO GO (Chiuso)",
+            "sv": "NO GO (Stängd)",
+            "pl": "NO GO (Zamknięty)",
+            "fi": "NO GO (Suljettu)",
+            "ru": "NO GO (Закрыт)"
+          }
+        },
+        {
+          "id": "GO",
+          "title": {
+            "en": "GO (Open)",
+            "no": "GO (Åpen)",
+            "da": "GO (Åben)",
+            "nl": "GO (Open)",
+            "de": "GO (Offen)",
+            "es": "GO (Abierto)",
+            "fr": "GO (Ouvert)",
+            "it": "GO (Aperto)",
+            "sv": "GO (Öppen)",
+            "pl": "GO (Otwarty)",
+            "fi": "GO (Auki)",
+            "ru": "GO (Открыт)"
+          }
+        }
+      ],
+      "defaultValue": "NO_GO"
+    },
+    {
+      "type": "number",
+      "name": "timeout_value",
+      "title": {
+        "en": "Timeout duration (0 = no timeout)",
+        "no": "Timeout varighet (0 = ingen timeout)",
+        "da": "Timeout varighed (0 = ingen timeout)",
+        "nl": "Timeout duur (0 = geen timeout)",
+        "de": "Timeout Dauer (0 = kein Timeout)",
+        "es": "Duración del timeout (0 = sin timeout)",
+        "fr": "Durée du timeout (0 = pas de timeout)",
+        "it": "Durata timeout (0 = nessun timeout)",
+        "sv": "Timeout varaktighet (0 = ingen timeout)",
+        "pl": "Czas trwania timeout (0 = bez timeout)",
+        "fi": "Timeout kesto (0 = ei timeoutia)",
+        "ru": "Продолжительность timeout (0 = без timeout)"
+      },
+      "min": 0,
+      "step": 1,
+      "defaultValue": 5
+    },
+    {
+      "type": "dropdown",
+      "name": "timeout_unit",
+      "title": {
+        "en": "Timeout unit",
+        "no": "Timeout enhet",
+        "da": "Timeout enhed",
+        "nl": "Timeout eenheid",
+        "de": "Timeout Einheit",
+        "es": "Unidad de timeout",
+        "fr": "Unité de timeout",
+        "it": "Unità timeout",
+        "sv": "Timeout enhet",
+        "pl": "Jednostka timeout",
+        "fi": "Timeout yksikkö",
+        "ru": "Единица timeout"
+      },
+      "values": [
+        {
+          "id": "s",
+          "title": {
+            "en": "Seconds",
+            "no": "Sekunder",
+            "da": "Sekunder",
+            "nl": "Seconden",
+            "de": "Sekunden",
+            "es": "Segundos",
+            "fr": "Secondes",
+            "it": "Secondi",
+            "sv": "Sekunder",
+            "pl": "Sekundy",
+            "fi": "Sekuntia",
+            "ru": "Секунды"
+          }
+        },
+        {
+          "id": "m",
+          "title": {
+            "en": "Minutes",
+            "no": "Minutter",
+            "da": "Minutter",
+            "nl": "Minuten",
+            "de": "Minuten",
+            "es": "Minutos",
+            "fr": "Minutes",
+            "it": "Minuti",
+            "sv": "Minuter",
+            "pl": "Minuty",
+            "fi": "Minuuttia",
+            "ru": "Минуты"
+          }
+        },
+        {
+          "id": "h",
+          "title": {
+            "en": "Hours",
+            "no": "Timer",
+            "da": "Timer",
+            "nl": "Uren",
+            "de": "Stunden",
+            "es": "Horas",
+            "fr": "Heures",
+            "it": "Ore",
+            "sv": "Timmar",
+            "pl": "Godziny",
+            "fi": "Tuntia",
+            "ru": "Часы"
+          }
+        }
+      ],
+      "defaultValue": "m"
+    }
+  ]
+}

@@ -112,7 +112,10 @@
     "import_failed": "Tilojen tuonti epäonnistui",
     "invalid_import_data": "Virheelliset tuontitiedot",
     "invalid_json_format": "Virheellinen JSON-muoto",
-    "import_would_exceed_limit": "Tuonti ylittäisi tilojen enimmäismäärän"
+    "import_would_exceed_limit": "Tuonti ylittäisi tilojen enimmäismäärän",
+    "flow_card_wait_limit_gate": "Homey pysäyttää sovellusten kulkukortit 60 sekunnin jälkeen. Yli 55 sekunnin odotuksiin käytä korttia \"Aloita Ehdollisen Portin GO-odotus\" yhdessä laukaisimen \"Ehdollisen Portin odotus päättyi\" kanssa.",
+    "flow_card_wait_limit_capability": "Homey pysäyttää sovellusten kulkukortit 60 sekunnin jälkeen. Yli 55 sekunnin odotuksiin käytä korttia \"Aloita odotus kunnes laitteen capability on arvo\" yhdessä laukaisimen \"Capability-odotus päättyi\" kanssa.",
+    "flow_card_wait_limit_wait": "Odota-kortti on rajoitettu 55 sekuntiin, koska Homey pysäyttää sovellusten kulkukortit 60 sekunnin jälkeen. Pidempiin odotuksiin käytä Homeyn kulkujen sisäänrakennettua viivettä."
   },
   "evaluation": {
     "initial_complete": "Kaikkien kaavojen alkuarviointi...",

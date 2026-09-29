@@ -19,10 +19,13 @@
     *   Timeout handling (reset to false after X seconds).
     *   "First Impression" mode (locks inputs for sequence logic).
 
-### 3. Waiter Gates (BETA)
-*   **Purpose:** Allows flows to pause and wait for specific device state changes.
+### 3. Waiter Gates (BETA) and Conditional Gates
+*   **Purpose:** Allows flows to pause and wait for specific device state changes or for an in-memory GO/NO GO gate.
 *   **Mechanism:** Registers listeners and routes flow based on success (YES) or timeout (NO).
-*   **Key Files:** `WaiterManager.js`.
+*   **Homey Flow card limit:** Homey stops every app Flow card run after ~60 seconds. In-card waits (`wait_until_becomes_true`, `conditional_gate_start`) are ended with a guidance error after `WaiterManager.FLOW_CARD_SAFE_WAIT_MS` (55 s); the `wait` action rejects delays above 55 s.
+*   **Background waits:** `conditional_gate_start_wait` and `wait_until_start` return immediately and let `WaiterManager.startBackgroundWaiter()` wait without the card limit; `conditional_gate_wait_finished` and `wait_until_finished` fire when the wait ends. Starting again with the same gate/waiter ID restarts the wait; stopping it does not fire the trigger.
+*   **State:** Gates and pending waits are in memory only and are lost when the app restarts.
+*   **Key Files:** `WaiterManager.js`, `app.js` (flow card registration), `WaiterManager.test.js`, `LongWaitFlowCards.test.js`.
 
 ### 4. Composite Device
 *   **Purpose:** Combines one capability shared by two or more Homey devices into a live virtual sensor, alarm, or text value.

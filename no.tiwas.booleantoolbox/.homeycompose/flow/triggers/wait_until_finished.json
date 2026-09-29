@@ -1,0 +1,153 @@
+{
+  "id": "wait_until_finished",
+  "title": {
+    "en": "Capability wait finished",
+    "no": "Capability-venting fullført",
+    "da": "Capability-venten afsluttet",
+    "de": "Capability-Warten beendet",
+    "es": "Espera de capability finalizada",
+    "fr": "Attente de capability terminée",
+    "it": "Attesa capability terminata",
+    "nl": "Capability-wachten voltooid",
+    "sv": "Capability-väntan avslutad",
+    "pl": "Oczekiwanie na capability zakończone",
+    "fi": "Capability-odotus päättyi",
+    "ru": "Ожидание capability завершено"
+  },
+  "titleFormatted": {
+    "en": "Capability wait [[waiter_id]] finished",
+    "no": "Capability-venting [[waiter_id]] fullført",
+    "da": "Capability-venten [[waiter_id]] afsluttet",
+    "de": "Capability-Warten [[waiter_id]] beendet",
+    "es": "Espera de capability [[waiter_id]] finalizada",
+    "fr": "Attente de capability [[waiter_id]] terminée",
+    "it": "Attesa capability [[waiter_id]] terminata",
+    "nl": "Capability-wachten [[waiter_id]] voltooid",
+    "sv": "Capability-väntan [[waiter_id]] avslutad",
+    "pl": "Oczekiwanie na capability [[waiter_id]] zakończone",
+    "fi": "Capability-odotus [[waiter_id]] päättyi",
+    "ru": "Ожидание capability [[waiter_id]] завершено"
+  },
+  "hint": {
+    "en": "Fires when a wait started with 'Start waiting until device capability becomes value' with this Waiter ID ends: result MATCHED when the value was reached, TIMEOUT when the timeout expired. Not fired when the wait is stopped or restarted.",
+    "no": "Utløses når en venting startet med 'Start venting til enhetens capability blir verdi' med denne Waiter ID-en avsluttes: resultat MATCHED når verdien ble nådd, TIMEOUT når timeout utløp. Utløses ikke når ventingen stoppes eller startes på nytt.",
+    "da": "Udløses når en venten startet med 'Start venten indtil enhedens capability bliver værdi' med dette Waiter ID slutter: resultat MATCHED når værdien blev nået, TIMEOUT når timeout udløb. Udløses ikke når ventetiden stoppes eller genstartes.",
+    "de": "Wird ausgelöst, wenn ein mit 'Warten starten, bis Geräte-Capability Wert wird' mit dieser Waiter ID begonnenes Warten endet: Ergebnis MATCHED, wenn der Wert erreicht wurde, TIMEOUT, wenn der Timeout abgelaufen ist. Nicht ausgelöst, wenn das Warten gestoppt oder neu gestartet wird.",
+    "es": "Se activa cuando termina una espera iniciada con 'Empezar a esperar hasta que la capability del dispositivo sea valor' con este ID de Waiter: resultado MATCHED si se alcanzó el valor, TIMEOUT si expiró el timeout. No se activa si la espera se detiene o se reinicia.",
+    "fr": "Se déclenche quand une attente démarrée avec 'Commencer à attendre que la capability de l'appareil devienne valeur' avec cet ID Waiter se termine : résultat MATCHED si la valeur a été atteinte, TIMEOUT si le timeout a expiré. Pas déclenché si l'attente est arrêtée ou redémarrée.",
+    "it": "Si attiva quando termina un'attesa avviata con 'Inizia ad aspettare che la capability del dispositivo diventi valore' con questo ID Waiter: risultato MATCHED se il valore è stato raggiunto, TIMEOUT se il timeout è scaduto. Non si attiva se l'attesa viene fermata o riavviata.",
+    "nl": "Wordt geactiveerd wanneer een wachttijd gestart met 'Start wachten tot apparaat capability waarde wordt' met deze Waiter ID eindigt: resultaat MATCHED als de waarde werd bereikt, TIMEOUT als de timeout verliep. Niet geactiveerd als het wachten wordt gestopt of herstart.",
+    "sv": "Utlöses när en väntan som startats med 'Börja vänta tills enhetens capability blir värde' med detta Waiter ID avslutas: resultat MATCHED när värdet nåddes, TIMEOUT när timeout löpte ut. Utlöses inte när väntan stoppas eller startas om.",
+    "pl": "Uruchamia się, gdy kończy się oczekiwanie rozpoczęte kartą 'Rozpocznij czekanie aż capability urządzenia stanie się wartością' z tym ID Waiter: wynik MATCHED, gdy wartość została osiągnięta, TIMEOUT, gdy timeout wygasł. Nie uruchamia się, gdy oczekiwanie zostanie zatrzymane lub zrestartowane.",
+    "fi": "Laukeaa kun kortilla 'Aloita odotus kunnes laitteen capability on arvo' tällä Waiter ID:llä aloitettu odotus päättyy: tulos MATCHED kun arvo saavutettiin, TIMEOUT kun timeout vanheni. Ei laukea, jos odotus pysäytetään tai aloitetaan uudelleen.",
+    "ru": "Срабатывает, когда завершается ожидание с этим ID Waiter, начатое карточкой 'Начать ожидание, пока capability устройства станет значением': результат MATCHED, если значение достигнуто, TIMEOUT, если истёк timeout. Не срабатывает, если ожидание остановлено или перезапущено."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "waiter_id",
+      "title": {
+        "en": "Waiter ID",
+        "no": "Waiter ID",
+        "da": "Waiter ID",
+        "de": "Waiter ID",
+        "es": "ID del Waiter",
+        "fr": "ID du Waiter",
+        "it": "ID Waiter",
+        "nl": "Waiter ID",
+        "sv": "Waiter ID",
+        "pl": "ID Waiter",
+        "fi": "Waiter ID",
+        "ru": "ID Waiter"
+      },
+      "placeholder": {
+        "en": "Select or type custom ID",
+        "no": "Velg eller skriv egen ID",
+        "da": "Vælg eller skriv brugerdefineret ID",
+        "de": "Auswählen oder eigene ID eingeben",
+        "es": "Seleccionar o escribir ID personalizado",
+        "fr": "Sélectionner ou saisir un ID personnalisé",
+        "it": "Seleziona o digita ID personalizzato",
+        "nl": "Selecteer of typ aangepaste ID",
+        "sv": "Välj eller skriv anpassat ID",
+        "pl": "Wybierz lub wpisz własne ID",
+        "fi": "Valitse tai kirjoita mukautettu ID",
+        "ru": "Выберите или введите пользовательский ID"
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "name": "matched",
+      "type": "boolean",
+      "title": {
+        "en": "Value matched",
+        "no": "Verdi matchet",
+        "da": "Værdi matchede",
+        "de": "Wert erreicht",
+        "es": "Valor coincidió",
+        "fr": "Valeur atteinte",
+        "it": "Valore raggiunto",
+        "nl": "Waarde kwam overeen",
+        "sv": "Värde matchade",
+        "pl": "Wartość osiągnięta",
+        "fi": "Arvo täsmäsi",
+        "ru": "Значение совпало"
+      }
+    },
+    {
+      "name": "result",
+      "type": "string",
+      "title": {
+        "en": "Result (MATCHED/TIMEOUT)",
+        "no": "Resultat (MATCHED/TIMEOUT)",
+        "da": "Resultat (MATCHED/TIMEOUT)",
+        "de": "Ergebnis (MATCHED/TIMEOUT)",
+        "es": "Resultado (MATCHED/TIMEOUT)",
+        "fr": "Résultat (MATCHED/TIMEOUT)",
+        "it": "Risultato (MATCHED/TIMEOUT)",
+        "nl": "Resultaat (MATCHED/TIMEOUT)",
+        "sv": "Resultat (MATCHED/TIMEOUT)",
+        "pl": "Wynik (MATCHED/TIMEOUT)",
+        "fi": "Tulos (MATCHED/TIMEOUT)",
+        "ru": "Результат (MATCHED/TIMEOUT)"
+      }
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "title": {
+        "en": "Last value",
+        "no": "Siste verdi",
+        "da": "Seneste værdi",
+        "de": "Letzter Wert",
+        "es": "Último valor",
+        "fr": "Dernière valeur",
+        "it": "Ultimo valore",
+        "nl": "Laatste waarde",
+        "sv": "Senaste värde",
+        "pl": "Ostatnia wartość",
+        "fi": "Viimeisin arvo",
+        "ru": "Последнее значение"
+      }
+    },
+    {
+      "name": "waited_seconds",
+      "type": "number",
+      "title": {
+        "en": "Waited (seconds)",
+        "no": "Ventet (sekunder)",
+        "da": "Ventet (sekunder)",
+        "nl": "Gewacht (seconden)",
+        "de": "Gewartet (Sekunden)",
+        "es": "Tiempo esperado (segundos)",
+        "fr": "Temps d'attente (secondes)",
+        "it": "Tempo di attesa (secondi)",
+        "sv": "Väntade (sekunder)",
+        "pl": "Czas oczekiwania (sekundy)",
+        "fi": "Odotettu (sekuntia)",
+        "ru": "Ожидание (секунды)"
+      }
+    }
+  ]
+}

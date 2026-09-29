@@ -28,18 +28,18 @@
     "ru": "[[action]] waiter gate [[waiter_id]]"
   },
   "hint": {
-    "en": "Enable, disable or stop a waiter gate by its ID",
-    "no": "Aktiver, deaktiver eller stopp en waiter gate ved dens ID",
-    "da": "Aktiver, deaktiver eller stop en waiter gate ved dens ID",
-    "de": "Waiter Gate über seine ID aktivieren, deaktivieren oder stoppen",
-    "es": "Activar, desactivar o detener un waiter gate por su ID",
-    "fr": "Activer, désactiver ou arrêter un waiter gate par son ID",
-    "it": "Attiva, disattiva o ferma un waiter gate tramite il suo ID",
-    "nl": "Schakel een waiter gate in, uit of stop het via zijn ID",
-    "sv": "Aktivera, inaktivera eller stoppa en waiter gate med dess ID",
-    "pl": "Włącz, wyłącz lub zatrzymaj waiter gate za pomocą jego ID",
-    "fi": "Ota käyttöön, poista käytöstä tai pysäytä waiter gate sen ID:llä",
-    "ru": "Включить, отключить или остановить waiter gate по его ID"
+    "en": "Enable, disable or stop a waiter gate by its ID. Also works for background waits; stopping a background wait does not fire its 'wait finished' trigger.",
+    "no": "Aktiver, deaktiver eller stopp en waiter gate ved dens ID. Fungerer også for bakgrunnsventing; å stoppe en bakgrunnsventing utløser ikke 'venting fullført'-utløseren.",
+    "da": "Aktiver, deaktiver eller stop en waiter gate ved dens ID. Virker også for baggrundsventen; at stoppe en baggrundsventen udløser ikke 'venten afsluttet'-triggeren.",
+    "de": "Waiter Gate über seine ID aktivieren, deaktivieren oder stoppen. Funktioniert auch für Hintergrund-Wartevorgänge; das Stoppen eines Hintergrund-Wartevorgangs löst den Auslöser 'Warten beendet' nicht aus.",
+    "es": "Activar, desactivar o detener un waiter gate por su ID. También funciona con esperas en segundo plano; detener una espera en segundo plano no activa su disparador 'espera finalizada'.",
+    "fr": "Activer, désactiver ou arrêter un waiter gate par son ID. Fonctionne aussi pour les attentes en arrière-plan ; arrêter une attente en arrière-plan ne déclenche pas son déclencheur 'attente terminée'.",
+    "it": "Attiva, disattiva o ferma un waiter gate tramite il suo ID. Funziona anche per le attese in background; fermare un'attesa in background non attiva il suo trigger 'attesa terminata'.",
+    "nl": "Schakel een waiter gate in, uit of stop het via zijn ID. Werkt ook voor achtergrondwachten; het stoppen van een achtergrondwacht activeert de trigger 'wachten voltooid' niet.",
+    "sv": "Aktivera, inaktivera eller stoppa en waiter gate med dess ID. Fungerar även för bakgrundsväntan; att stoppa en bakgrundsväntan utlöser inte 'väntan avslutad'-utlösaren.",
+    "pl": "Włącz, wyłącz lub zatrzymaj waiter gate za pomocą jego ID. Działa także dla oczekiwania w tle; zatrzymanie oczekiwania w tle nie uruchamia wyzwalacza 'oczekiwanie zakończone'.",
+    "fi": "Ota käyttöön, poista käytöstä tai pysäytä waiter gate sen ID:llä. Toimii myös taustaodotuksille; taustaodotuksen pysäyttäminen ei laukaise sen 'odotus päättyi' -laukaisinta.",
+    "ru": "Включить, отключить или остановить waiter gate по его ID. Работает и для фонового ожидания; остановка фонового ожидания не запускает его триггер 'ожидание завершено'."
   },
   "args": [
     {

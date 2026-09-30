@@ -1,5 +1,33 @@
 # Worklog
 
+## 2026-09-30 — Circadian Light Group editors keep lux anchors
+
+### Requested
+- Fix the pair (`pair/edit_configuration.html`) and repair (`repair/repair_configuration.html`) editors, whose `normalizeAnchor` only knew `time` and `solar` anchors and replaced lux anchors with the default time anchor.
+
+### Implemented
+- Added a `lux` branch to `normalizeAnchor` in both editors, matching `lib/CircadianProfile.js`: `sensorDeviceId` (or null), numeric `threshold` (default 100), `direction` only when `rising`/`falling` (otherwise null), and `fallbackTime` (default from the fallback anchor's time or `07:00`).
+- `collect()` no longer copies the hidden row `time` input into solar and lux anchors. It used to add a stray `time` key (`07:00` for lux), and switching a lux anchor back to time picked up that stale value instead of the lux fallback time. The device ignores `time` on solar/lux anchors (`mergeProfile` drops it), so runtime behaviour is unchanged.
+- `collect()` writes `sensorDeviceId: null` instead of `""` when no sensor is chosen, matching the device normalization.
+- The lux threshold field now shows a stored threshold of 0 instead of replacing it with 100 (`anchor.threshold || 100`), so a "fully dark" night anchor survives load → save.
+- Added `CircadianLightGroupEditors.test.js`: extracts `normalizeAnchor` from both editors and checks it against the device's `mergeProfile` for lux, solar, time, legacy string, and unknown-mode anchors. The three lux cases fail against the previous editors in both files.
+- Left `pair/repair_configuration.html` untouched; it is an unused copy that `driver.compose.json` does not reference.
+
+### Observed before the fix
+- Loading a config with lux anchors in either editor showed them as default time anchors, and Save/Create then wrote 07:00/19:00 time anchors.
+- Switching an anchor to lux and pressing Save kept the lux fields, because `collect()` re-reads them from the DOM after `ensureConfig()` resets the anchor, but it added `time: "07:00"`. The next time repair was opened, the anchor was reset to the default time, and the following Save persisted that.
+
+### Verification
+- `npx jest --runInBand`: 23 suites and 337 tests passed.
+- Playwright (Chromium) with a stubbed `window.Homey` (`__`, `setTitle`, `on`, `alert`, `done`, `createDevice`, and `emit` for `get_config`, `get_generated_json`, `get_light_candidates`, `get_lux_sensors`, `save_config`, `create_device`). All 11 checks passed after the fix; 9 failed before it (the time → lux carry-over and the clg-editor round-trip already worked):
+  - Repair: a config with two lux anchors, a solar anchor, a time anchor, and `_meta` survives load → Save unchanged; sensors are preselected.
+  - Repair: switching time anchors to lux (with an unsaved time edit carried over as the fallback), then changing another anchor's mode, then Save keeps both lux anchors exactly; a lux anchor with no sensor saves `sensorDeviceId: null`; lux → time uses the lux fallback time; threshold 0 survives.
+  - Pair: switching an anchor to lux and pressing Create keeps it; generated lux anchors survive load → Create unchanged.
+  - `docs/tools/clg-editor.html` (companion tool per CLAUDE.md): the lux config round-trips unchanged. No change needed there, and the config schema did not change.
+
+### Follow-ups
+- If a lux anchor's sensor is missing from `get_lux_sensors` (device deleted or the lookup failed), the sensor select falls back to "Select lux sensor..." and Save writes `sensorDeviceId: null`. The outdoor lux sensor select has the same existing behaviour; not changed here.
+
 ## 2026-09-29 — Remove the dormant homey-api subscription wrapper
 
 ### Requested

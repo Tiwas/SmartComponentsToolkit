@@ -296,6 +296,15 @@
                         fallbackTime: typeof value.fallbackTime === 'string' ? value.fallbackTime : (fallback.time || '07:00')
                     };
                 }
+                if (value.mode === 'lux') {
+                    return {
+                        mode: 'lux',
+                        sensorDeviceId: value.sensorDeviceId || null,
+                        threshold: Number.isFinite(Number(value.threshold)) ? Number(value.threshold) : 100,
+                        direction: value.direction === 'rising' || value.direction === 'falling' ? value.direction : null,
+                        fallbackTime: typeof value.fallbackTime === 'string' ? value.fallbackTime : (fallback.time || '07:00')
+                    };
+                }
             }
             return Object.assign({}, fallback);
         }
@@ -369,7 +378,7 @@
                         '<select data-anchor="' + key + '" data-key="sensorDeviceId">' + sensorOpts + '</select>' +
                         '<div class="grid" style="margin-top:6px;">' +
                             '<div><label>' + t('pair.circadian_light_group.lux_threshold', 'Threshold (lux)') + '</label>' +
-                            '<input data-anchor="' + key + '" data-key="threshold" type="number" min="0" step="1" value="' + (anchor.threshold || 100) + '"></div>' +
+                            '<input data-anchor="' + key + '" data-key="threshold" type="number" min="0" step="1" value="' + (Number.isFinite(Number(anchor.threshold)) ? Number(anchor.threshold) : 100) + '"></div>' +
                             '<div><label>' + t('pair.circadian_light_group.direction', 'Direction') + '</label>' +
                             '<select data-anchor="' + key + '" data-key="direction">' +
                                 '<option value="rising"' + (direction === 'rising' ? ' selected' : '') + '>' + t('pair.circadian_light_group.direction_rising', 'Rising') + '</option>' +
@@ -657,8 +666,12 @@
             document.querySelectorAll('[data-anchor][data-key]').forEach(input => {
                 const anchor = input.getAttribute('data-anchor');
                 const key = input.getAttribute('data-key');
+                // Solar and lux anchors keep the row's time input hidden; its value is not part of those anchors.
+                if (key === 'time' && input.style.visibility === 'hidden') return;
                 if (key === 'offsetMinutes' || key === 'threshold') {
                     config.profile.anchors[anchor][key] = Number(input.value) || 0;
+                } else if (key === 'sensorDeviceId') {
+                    config.profile.anchors[anchor][key] = input.value || null;
                 } else {
                     config.profile.anchors[anchor][key] = input.value;
                 }

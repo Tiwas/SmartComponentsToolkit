@@ -1,5 +1,33 @@
 # Worklog
 
+## 2026-09-30 — Circadian Light Group: local time zone and optional morning profile
+
+### Requested
+- Fix the Circadian Light Group schedule running in UTC (lights very dim in the morning), reported repeatedly by Lars.
+- Add a backward-compatible morning light profile, following a user suggestion (Mark Ellis). The suggested extra "watershed" phase between evening and night was declined; it can be scripted.
+
+### Implemented
+- Homey runs SDK3 apps with `TZ=UTC`, and the scheduler used `Date#getHours()`, so time anchors ran 2 h late in Norwegian summer time (1 h in winter). With the default profile the lights stayed at 8 % red until 09:00 local and reached day values at 12:00. New `lib/LocalTime.js` reads wall-clock time in `this.homey.clock.getTimezone()` via `Intl`, with the previous process-clock behaviour as fallback.
+- Time zone applied to time anchors, solar anchor minutes, lux anchor crossing date/minutes (`AnchorResolver`, `CircadianProfile`) and the "Pause until time" Flow card. Solar anchors already matched the sun and are unchanged.
+- Astronomical outdoor lux (default provider, also the MET.no base) treated the UTC clock as solar time, ignoring longitude: about 1 h off in Norway and 5–8 h in the Americas. It now uses `SunCalc.getPosition` with the Homey location.
+- Optional `profile.morning` (`dim`, `temperature`; missing fields use night values). Without it the curve and phase names are exactly as before. With it, morning values apply from the Morning anchor, fade into Day, and the group reports a `morning` phase until halfway to Day.
+- Pair and repair editors: "Own morning profile" checkbox, off by default; unchecked writes no `morning` block. `clg_is_in_phase` has a Morning option; `clg_phase_changed` hint updated. Locale keys added (Norwegian translated, other languages English like the other Circadian editor strings).
+- `docs/tools/clg-editor.html`: morning checkbox and fields, and unknown top-level keys are now kept on round-trip. Defaults still match `createDefaultConfig`, which has no morning block. Guide, README and the Homey Community listing mention the morning profile; the guide's "strong white light starts at 8 sharp" example was wrong and is corrected.
+
+### Behaviour changes to call out at release
+- Every time anchor now fires at local time. Users who moved anchors earlier to compensate must move them back.
+- On the update day only, a lux crossing already stored with the old UTC date/minutes can be ignored or read up to 2 h early.
+
+### Verification
+- `npx jest --runInBand`: 22 suites and 338 tests passed. The 11 new time-zone/morning/astronomical tests fail against the previous code.
+- `npm run test:package` (with `app.json` seeded from `.homeycompose/app.json`): publish-level validation passed.
+- Playwright/Chromium with a stubbed `Homey`: the repair and pair editors produce output identical to the previous editors when the morning profile is off; enabling, editing, preserving (partial block plus unknown keys) and removing the morning block work; `clg-editor.html` round-trips configs with lux anchors, unknown top-level keys and a morning block.
+- Not tested on a real Homey.
+
+### Not changed
+- The pair/repair editors still drop lux anchors on load/save (`normalizeAnchor` has no `lux` branch); pre-existing and outside this change.
+- `drivers/circadian-light-group/pair/repair_configuration.html` is not referenced by the driver manifest and was left untouched.
+
 ## 2026-09-29 — Remove the dormant homey-api subscription wrapper
 
 ### Requested

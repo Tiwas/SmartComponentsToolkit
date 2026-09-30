@@ -615,6 +615,8 @@
       "temperature_label": "Temperatura (0–1, niższa = cieplejsza)",
       "red_threshold_label": "Próg trybu czerwonego",
       "red_threshold_hint": "Gdy obliczona temperatura spada poniżej tej wartości, lampy z obsługą kolorów przełączają się na czerwone. Im głębiej poniżej, tym bardziej nasycone. Ustaw na 0, aby wyłączyć tryb czerwony.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Interwał aktualizacji (sekundy)",
       "transition_seconds": "Przejście (sekundy)",
       "raw_json_label": "Surowy JSON (podgląd tylko do odczytu, zostanie zregenerowany z formularza przy zapisie)",

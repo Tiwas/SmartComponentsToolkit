@@ -615,6 +615,8 @@
       "temperature_label": "Lämpötila (0–1, alempi = lämpimämpi)",
       "red_threshold_label": "Punaisen tilan kynnys",
       "red_threshold_hint": "Kun laskettu lämpötila laskee tämän arvon alle, värituetut valot vaihtuvat punaisiksi. Mitä syvemmälle alle, sitä kylläisempi. Aseta 0 poistaaksesi punaisen tilan käytöstä.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Päivitysväli (sekuntia)",
       "transition_seconds": "Siirtymä (sekuntia)",
       "raw_json_label": "Raaka JSON (vain luku -esikatselu, regeneroidaan lomakkeesta tallennettaessa)",

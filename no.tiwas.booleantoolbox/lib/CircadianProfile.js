@@ -1,6 +1,7 @@
 'use strict';
 
 const { resolveAnchor } = require('./AnchorResolver');
+const { minutesOfDay } = require('./LocalTime');
 
 const DEFAULT_PROFILE = {
   updateIntervalSeconds: 120,
@@ -68,8 +69,16 @@ function clamp(value, min = 0, max = 1) {
   return Math.min(max, Math.max(min, num));
 }
 
+function hasMorningProfile(profile) {
+  return !!profile.morning && typeof profile.morning === 'object' && !Array.isArray(profile.morning);
+}
+
 function mergeProfile(profile = {}) {
   const inputAnchors = profile.anchors || {};
+  const night = {
+    ...DEFAULT_PROFILE.night,
+    ...(profile.night || {}),
+  };
   return {
     ...DEFAULT_PROFILE,
     ...profile,
@@ -87,10 +96,10 @@ function mergeProfile(profile = {}) {
       ...DEFAULT_PROFILE.evening,
       ...(profile.evening || {}),
     },
-    night: {
-      ...DEFAULT_PROFILE.night,
-      ...(profile.night || {}),
-    },
+    night,
+    // Optional. Missing fields fall back to the night values; without a
+    // morning block the morning anchor behaves as before (night → day ramp).
+    morning: hasMorningProfile(profile) ? { ...night, ...profile.morning } : null,
     outdoor: {
       ...DEFAULT_PROFILE.outdoor,
       ...(profile.outdoor || {}),
@@ -109,8 +118,8 @@ function parseTimeToMinutes(value, fallback) {
   return (hours * 60) + minutes;
 }
 
-function getMinutesOfDay(date) {
-  return (date.getHours() * 60) + date.getMinutes() + (date.getSeconds() / 60);
+function getMinutesOfDay(date, timeZone) {
+  return minutesOfDay(date, timeZone);
 }
 
 function smoothstep(t) {
@@ -132,7 +141,9 @@ function resolveAnchorMinutes(anchor, fallback, ctx, anchorKey) {
 
 // Anchors mark when each phase's values are reached. Transitions happen
 // between anchors; before `morning` and after `night` we hold flat at night.
-function getSegment(nowMinutes, anchors, ctx) {
+// With a morning profile its values apply from the `morning` anchor and the
+// ramp to day starts from them; without one the ramp starts from night.
+function getSegment(nowMinutes, anchors, ctx, hasMorning = false) {
   const morning = resolveAnchorMinutes(anchors.morning, 420, ctx, 'morning');
   const day = resolveAnchorMinutes(anchors.day, 600, ctx, 'day');
   const evening = resolveAnchorMinutes(anchors.evening, 1140, ctx, 'evening');
@@ -143,8 +154,9 @@ function getSegment(nowMinutes, anchors, ctx) {
   }
 
   if (nowMinutes < day) {
+    const from = hasMorning ? 'morning' : 'night';
     const progress = (nowMinutes - morning) / Math.max(1, day - morning);
-    return { from: 'night', to: 'day', progress, phase: progress < 0.5 ? 'night' : 'day' };
+    return { from, to: 'day', progress, phase: progress < 0.5 ? from : 'day' };
   }
 
   if (nowMinutes < evening) {
@@ -157,6 +169,7 @@ function getSegment(nowMinutes, anchors, ctx) {
 }
 
 function getPhaseValues(profile, phase) {
+  if (phase === 'morning' && profile.morning) return profile.morning;
   if (phase === 'day') return profile.day;
   if (phase === 'evening') return profile.evening;
   return profile.night;
@@ -176,14 +189,15 @@ function calculateOutdoorDimFactor(outdoor, outdoorConfig) {
 
 function calculateTarget(profileInput = {}, outdoorInput = {}, now = new Date(), extras = {}) {
   const profile = mergeProfile(profileInput);
-  const nowMinutes = getMinutesOfDay(now);
+  const nowMinutes = getMinutesOfDay(now, extras.timeZone);
   const ctx = {
     date: now,
     latitude: extras.latitude,
     longitude: extras.longitude,
+    timeZone: extras.timeZone,
     luxCrossings: extras.luxCrossings || {},
   };
-  const segment = getSegment(nowMinutes, profile.anchors, ctx);
+  const segment = getSegment(nowMinutes, profile.anchors, ctx, !!profile.morning);
   const from = getPhaseValues(profile, segment.from);
   const to = getPhaseValues(profile, segment.to);
   const progress = clamp(segment.progress);

@@ -141,7 +141,7 @@ A virtual **light device** that adjusts brightness and color temperature for a g
 
 ### Light profile
 
-- Per-phase **dim** and **temperature** with smooth interpolation between anchors.
+- Per-phase **dim** and **temperature** with smooth interpolation between anchors, and an optional own **morning** profile.
 - **Red mode threshold**: when the calculated temperature drops below the threshold, color-capable lights shift to red. Saturation scales with how deep below the threshold you are.
 - Per-light tweaks: enable/disable, prewarm before on, allow red mode, min/max dim.
 

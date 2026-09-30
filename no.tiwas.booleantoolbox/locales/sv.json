@@ -615,6 +615,8 @@
       "temperature_label": "Temperatur (0–1, lägre = varmare)",
       "red_threshold_label": "Tröskelvärde för röd läge",
       "red_threshold_hint": "När den beräknade temperaturen sjunker under detta värde växlar lampor med färgstöd till rött. Ju djupare under, desto mer mättat. Ställ in på 0 för att inaktivera röd läge.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Uppdateringsintervall (sekunder)",
       "transition_seconds": "Övergång (sekunder)",
       "raw_json_label": "Rå JSON (skrivskyddad förhandsgranskning, regenereras från formuläret vid sparande)",

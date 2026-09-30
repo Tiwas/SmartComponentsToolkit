@@ -14,17 +14,17 @@
     "es": "Fase cambiada"
   },
   "hint": {
-    "en": "Fires when the device transitions between phases (day, evening, night).",
-    "no": "Fyrer når enheten går over mellom faser (dag, kveld, natt).",
-    "de": "Wird ausgelöst, wenn das Gerät zwischen Phasen wechselt (Tag, Abend, Nacht).",
-    "nl": "Wordt geactiveerd wanneer het apparaat tussen fasen overgaat (dag, avond, nacht).",
-    "fr": "Se déclenche lorsque l'appareil passe d'une phase à l'autre (jour, soir, nuit).",
-    "da": "Udløses, når enheden skifter mellem faser (dag, aften, nat).",
-    "fi": "Laukeaa, kun laite siirtyy vaiheiden välillä (päivä, ilta, yö).",
-    "sv": "Utlöses när enheten övergår mellan faser (dag, kväll, natt).",
-    "pl": "Wyzwalane, gdy urządzenie zmienia fazę (dzień, wieczór, noc).",
-    "it": "Si attiva quando il dispositivo passa tra le fasi (giorno, sera, notte).",
-    "es": "Se activa cuando el dispositivo cambia entre fases (día, noche, tarde)."
+    "en": "Fires when the device transitions between phases (morning, day, evening, night). Morning only occurs when a morning profile is set.",
+    "no": "Fyrer når enheten går over mellom faser (morgen, dag, kveld, natt). Morgen forekommer bare når en morgenprofil er satt.",
+    "de": "Wird ausgelöst, wenn das Gerät zwischen Phasen wechselt (Morgen, Tag, Abend, Nacht). Morgen gibt es nur mit einem Morgenprofil.",
+    "nl": "Wordt geactiveerd wanneer het apparaat tussen fasen overgaat (ochtend, dag, avond, nacht). Ochtend komt alleen voor met een ochtendprofiel.",
+    "fr": "Se déclenche lorsque l'appareil passe d'une phase à l'autre (matin, jour, soir, nuit). Le matin n'existe qu'avec un profil du matin.",
+    "da": "Udløses, når enheden skifter mellem faser (morgen, dag, aften, nat). Morgen forekommer kun med en morgenprofil.",
+    "fi": "Laukeaa, kun laite siirtyy vaiheiden välillä (aamu, päivä, ilta, yö). Aamu esiintyy vain, kun aamuprofiili on asetettu.",
+    "sv": "Utlöses när enheten övergår mellan faser (morgon, dag, kväll, natt). Morgon förekommer bara med en morgonprofil.",
+    "pl": "Wyzwalane, gdy urządzenie zmienia fazę (poranek, dzień, wieczór, noc). Poranek występuje tylko z profilem porannym.",
+    "it": "Si attiva quando il dispositivo passa tra le fasi (mattina, giorno, sera, notte). La mattina esiste solo con un profilo mattutino.",
+    "es": "Se activa cuando el dispositivo cambia entre fases (mañana, día, noche, madrugada). La mañana solo aparece con un perfil de mañana."
   },
   "args": [
     {

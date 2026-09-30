@@ -628,6 +628,8 @@
       "temperature_label": "Temperatur (0–1, lavere = varmere)",
       "red_threshold_label": "Tærskel for rød tilstand",
       "red_threshold_hint": "Når den beregnede temperatur falder under denne værdi, skifter farveunderstøttede lys til rød. Jo dybere under, jo mere mættet. Sæt til 0 for at deaktivere rød tilstand.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Opdateringsinterval (sekunder)",
       "transition_seconds": "Overgangstid (sekunder)",
       "raw_json_label": "Rå JSON (skrivebeskyttet forhåndsvisning, genskabes fra formularen ved lagring)",

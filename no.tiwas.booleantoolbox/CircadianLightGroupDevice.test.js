@@ -798,6 +798,79 @@ describe('CircadianLightGroupDevice pause persistence', () => {
   });
 });
 
+describe('CircadianLightGroupDevice time zone', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('reads the Homey time zone and tolerates a missing clock', () => {
+    const device = createDeviceHarness();
+    device.homey = { clock: { getTimezone: () => 'Europe/Oslo' } };
+    expect(device.getTimeZone()).toBe('Europe/Oslo');
+
+    device.homey = {};
+    expect(device.getTimeZone()).toBeNull();
+
+    device.homey = { clock: { getTimezone: () => { throw new Error('no clock'); } } };
+    expect(device.getTimeZone()).toBeNull();
+  });
+
+  test('pauses until the local wall-clock time', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-30T04:00:00Z')); // 06:00 in Oslo
+    const device = createDeviceHarness();
+    device.homey = { clock: { getTimezone: () => 'Europe/Oslo' } };
+    device.onFlowPause = jest.fn().mockResolvedValue(true);
+
+    await device.onFlowPauseUntilTime({ until_time: '07:00' });
+    await device.onFlowPauseUntilTime({ until_time: '05:30' });
+
+    expect(device.onFlowPause).toHaveBeenNthCalledWith(1, { amount: 60, unit: 'minutes' });
+    expect(device.onFlowPause).toHaveBeenNthCalledWith(2, { amount: 1410, unit: 'minutes' });
+  });
+
+  test('stores lux anchor crossings with the local date and time', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-30T05:15:00Z')); // 07:15 in Oslo
+    const device = createDeviceHarness();
+    device.homey = { clock: { getTimezone: () => 'Europe/Oslo' } };
+    device.luxWatchers = new Map([['sensor-1', { prevValue: 50 }]]);
+    device.getConfig = jest.fn(() => ({
+      profile: {
+        anchors: {
+          morning: { mode: 'lux', sensorDeviceId: 'sensor-1', threshold: 100, direction: 'rising', fallbackTime: '07:00' },
+        },
+      },
+    }));
+    device.getStoreValue = jest.fn().mockResolvedValue({});
+    device.setStoreValue = jest.fn().mockResolvedValue(undefined);
+    device.applyCurrentProfile = jest.fn().mockResolvedValue(true);
+
+    await device.onLuxSensorValue('sensor-1', 150);
+
+    expect(device.setStoreValue).toHaveBeenCalledWith('luxCrossings', {
+      morning: { dateKey: '2026-09-30', minutes: 435 },
+    });
+    expect(device.applyCurrentProfile).toHaveBeenCalledWith({ reason: 'lux-crossing' });
+  });
+
+  test('computes the current target in the Homey time zone', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-30T07:30:00Z')); // 09:30 in Oslo
+    const device = createDeviceHarness();
+    device.homey = { clock: { getTimezone: () => 'Europe/Oslo' } };
+    device.outdoorProvider = { getOutdoorLight: jest.fn().mockResolvedValue({ outdoorComputedLux: 0 }) };
+    device.getGeo = jest.fn(() => ({}));
+    device.getStoreValue = jest.fn().mockResolvedValue({});
+    device.applyOverridesToTarget = jest.fn();
+
+    const target = await device.computeCurrentTarget({ profile: { outdoor: { enabled: false } } });
+
+    expect(target.phase).toBe('day');
+    expect(target.dim).toBeGreaterThan(0.9);
+  });
+});
+
 describe('CircadianLightGroupDevice capability watcher cleanup', () => {
   test('destroys the lux capability instance during watcher teardown', async () => {
     const device = createDeviceHarness();

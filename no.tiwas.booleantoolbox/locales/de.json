@@ -629,6 +629,8 @@
       "temperature_label": "Temperatur (0–1, niedriger = wärmer)",
       "red_threshold_label": "Rotmodus-Schwellenwert",
       "red_threshold_hint": "Wenn die berechnete Temperatur unter diesen Wert fällt, wechseln Lichter mit Farbunterstützung zu Rot. Je tiefer darunter, desto gesättigter. Auf 0 setzen, um den Rotmodus zu deaktivieren.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Aktualisierungsintervall (Sekunden)",
       "transition_seconds": "Übergangszeit (Sekunden)",
       "raw_json_label": "Rohe JSON (schreibgeschützte Vorschau, wird beim Speichern aus dem Formular regeneriert)",

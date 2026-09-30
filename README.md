@@ -147,7 +147,7 @@ Virtual light device that adjusts brightness and color temperature for a group o
 |---------|-------------|
 | **Schedule** | Per anchor: clock time / solar event / lux sensor crossing |
 | **Solar events** | Sunrise, sunset, civil/nautical/astronomical dawn/dusk, golden hour, blue hour, solar noon/midnight — with offset and polar fallback |
-| **Light profile** | Per-phase dim + temperature, red mode threshold |
+| **Light profile** | Per-phase dim + temperature (optional own morning profile), red mode threshold |
 | **Outdoor source** | Astronomical / lux sensor / Open-Meteo / MET.no / external |
 | **Per-light** | Enable, prewarm, allow red mode, min/max dim |
 

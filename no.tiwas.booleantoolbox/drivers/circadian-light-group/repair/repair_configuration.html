@@ -11,7 +11,7 @@
         .section { background: #fff; border: 1px solid #e7e7e7; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
         .section h2 { font-size: 15px; margin: 0 0 10px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .phase-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .phase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
         input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: #fff; }
         input[type="checkbox"] { width: auto; margin-right: 6px; }
@@ -312,6 +312,12 @@
             config.profile.day = Object.assign({}, DEFAULT_PROFILE.day, config.profile.day || {});
             config.profile.evening = Object.assign({}, DEFAULT_PROFILE.evening, config.profile.evening || {});
             config.profile.night = Object.assign({}, DEFAULT_PROFILE.night, config.profile.night || {});
+            // Optional morning profile: absent means the morning anchor starts from night values.
+            if (config.profile.morning && typeof config.profile.morning === 'object' && !Array.isArray(config.profile.morning)) {
+                config.profile.morning = Object.assign({}, config.profile.night, config.profile.morning);
+            } else {
+                delete config.profile.morning;
+            }
             // Strip deprecated red/redSaturation
             delete config.profile.night.red;
             delete config.profile.night.redSaturation;
@@ -433,18 +439,38 @@
         function renderProfile() {
             const editor = document.getElementById('phase-editor');
             editor.innerHTML = '';
-            ['day', 'evening', 'night'].forEach(phase => {
-                const data = config.profile[phase];
+            const morningEnabled = !!config.profile.morning;
+            ['morning', 'day', 'evening', 'night'].forEach(phase => {
+                const isMorning = phase === 'morning';
+                const data = isMorning ? (config.profile.morning || config.profile.night) : config.profile[phase];
+                const disabled = isMorning && !morningEnabled ? ' disabled' : '';
                 const phaseTitle = t('pair.circadian_light_group.' + phase, phase.charAt(0).toUpperCase() + phase.slice(1));
                 const dimLabel = t('pair.circadian_light_group.dim_label', 'Dim (0–1)');
                 const tempLabel = t('pair.circadian_light_group.temperature_label', 'Temperature (0–1, lower = warmer)');
                 const div = document.createElement('div');
                 div.innerHTML =
+                    (isMorning
+                        ? '<div class="row"><input id="morning-enabled" type="checkbox"' + (morningEnabled ? ' checked' : '') + '><label for="morning-enabled">' + t('pair.circadian_light_group.morning_profile_enabled', 'Own morning profile') + '</label></div>'
+                        : '') +
                     '<label>' + phaseTitle + ' — ' + dimLabel + '</label>' +
-                    '<input data-phase="' + phase + '" data-key="dim" type="number" min="0" max="1" step="0.01" value="' + data.dim + '">' +
+                    '<input data-phase="' + phase + '" data-key="dim" type="number" min="0" max="1" step="0.01" value="' + data.dim + '"' + disabled + '>' +
                     '<label style="margin-top:6px;">' + phaseTitle + ' — ' + tempLabel + '</label>' +
-                    '<input data-phase="' + phase + '" data-key="temperature" type="number" min="0" max="1" step="0.01" value="' + data.temperature + '">';
+                    '<input data-phase="' + phase + '" data-key="temperature" type="number" min="0" max="1" step="0.01" value="' + data.temperature + '"' + disabled + '>' +
+                    (isMorning
+                        ? '<p class="muted" style="margin:6px 0 0;">' + t('pair.circadian_light_group.morning_profile_hint', 'On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.') + '</p>'
+                        : '');
                 editor.appendChild(div);
+            });
+
+            document.getElementById('morning-enabled').addEventListener('change', (e) => {
+                const morningInputs = editor.querySelectorAll('[data-phase="morning"]');
+                if (e.target.checked && !config.profile.morning) {
+                    morningInputs.forEach(input => {
+                        const nightInput = editor.querySelector('[data-phase="night"][data-key="' + input.getAttribute('data-key') + '"]');
+                        if (nightInput) input.value = nightInput.value;
+                    });
+                }
+                morningInputs.forEach(input => { input.disabled = !e.target.checked; });
             });
 
             const slider = document.getElementById('red-threshold');
@@ -665,8 +691,21 @@
             });
 
             document.querySelectorAll('[data-phase][data-key]').forEach(input => {
+                if (input.getAttribute('data-phase') === 'morning') return;
                 config.profile[input.getAttribute('data-phase')][input.getAttribute('data-key')] = Number(input.value);
             });
+            const morningToggle = document.getElementById('morning-enabled');
+            if (morningToggle) {
+                if (morningToggle.checked) {
+                    const morning = Object.assign({}, config.profile.morning || config.profile.night);
+                    document.querySelectorAll('[data-phase="morning"][data-key]').forEach(input => {
+                        morning[input.getAttribute('data-key')] = Number(input.value);
+                    });
+                    config.profile.morning = morning;
+                } else {
+                    delete config.profile.morning;
+                }
+            }
 
             config.profile.redThreshold = numberValue('red-threshold', 0.2);
             config.profile.updateIntervalSeconds = numberValue('update-interval', 120);

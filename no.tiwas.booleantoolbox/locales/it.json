@@ -615,6 +615,8 @@
       "temperature_label": "Temperatura (0–1, più basso = più caldo)",
       "red_threshold_label": "Soglia modalità rossa",
       "red_threshold_hint": "Quando la temperatura calcolata scende sotto questo valore, le luci con supporto colore passano al rosso. Più in basso, più saturo. Imposta a 0 per disabilitare la modalità rossa.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Intervallo di aggiornamento (secondi)",
       "transition_seconds": "Transizione (secondi)",
       "raw_json_label": "JSON grezzo (anteprima di sola lettura, rigenerata dal modulo al salvataggio)",

@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.31 test - Stability + long waits]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.32 test - Stability, long waits + Circadian time fix]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.31
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.32
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,15 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.32 (test channel)
+
+- **Circadian schedule on local time:** clock-time anchors, lux anchors and *Pause until time* now follow your Homey's time zone, including daylight saving time. Homey runs apps on UTC, so in Norway the schedule ran 2 hours late in summer (1 hour in winter), and mornings stayed dim and red until about 09:00. **If you moved your anchors earlier to compensate, move them back.**
+- **Correct outdoor light estimate:** the astronomical estimate (the default outdoor source, also used for MET.no) now follows the real sun at your location. It was up to an hour off in Norway and several hours off in the Americas.
+- **Optional morning profile:** tick *Own morning profile* under Repair → Light Profile to give mornings their own brightness and colour temperature. It applies from the Morning anchor and fades into Day. It is off by default, so existing groups behave exactly as before. With it on, *Is in phase* and *Phase changed* also use a Morning phase.
+- **Lux anchors kept in the editors:** the pairing and Repair editors no longer turn lux-sensor anchors back into clock times when you open or save them. A saved lux sensor that is missing from the list (deleted, or not loaded yet) now shows as *Unknown sensor* instead of being cleared on save.
+
+<a href="https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html" target="_blank">Circadian Light Group guide</a>
 
 ### v1.10.31 (test channel)
 
@@ -113,10 +122,11 @@ THEN: Set fan speed to Mapped value
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.27 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.32 is available on the test channel.
 
 ### Circadian Light Group highlights
 
+- **Local time and morning profile (v1.10.32).** The schedule follows your Homey's time zone instead of UTC. Mornings can have their own dim and temperature, and lux anchors stay intact when you edit the group.
 - **Device ID resolver (v1.10.16).** The app now captures Homey device IDs and names so <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html" target="_blank">Flow Doctor</a> can resolve references to previously deleted devices.
 - **Parallel device writes (v1.10.7).** Multi-device flow actions and the scheduler push to up to 5 lights at the same time instead of one-after-another. A 16-light "turn on all" goes from minute-scale to seconds.
 - **Last-write-wins on conflicting commands (v1.10.7).** Trigger "all off" right after "all on" and the off command supersedes the in-flight on, instead of fighting it on every lamp. Each pass also verifies the on/off state afterwards and serially retries transient Z-Wave / Zigbee timeouts.
@@ -135,7 +145,7 @@ A virtual **light device** that adjusts brightness and color temperature for a g
 
 | Mode | Description |
 |------|-------------|
-| **Time** | Fixed clock time (HH:MM). Best near the equator. |
+| **Time** | Fixed clock time (HH:MM) in your Homey's time zone. Best near the equator. |
 | **Solar event** | Sunrise, sunset, civil/nautical/astronomical dawn/dusk, golden hour, blue hour, solar noon/midnight — with offset minutes and a polar fallback time. |
 | **Lux sensor** | A real lux sensor crosses a configurable threshold (rising or falling). Falls back to a fixed time until the first crossing of the day. |
 
@@ -165,7 +175,7 @@ Choose how the device knows how bright it is outside:
 
 <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">→ Install store v1.10.16</a>
 <br>
-<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.27</a>
+<a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">→ Install test v1.10.32</a>
 
 ---
 
@@ -251,7 +261,7 @@ Flow 2 — WHEN: Capability wait finished "kettle_boil"
 ## Installation and Links
 
 * **Homey App Store (v1.10.16):** <a href="https://homey.app/en-no/app/no.tiwas.booleantoolbox/" target="_blank">Install Smart (Components) Toolkit</a>
-* **Test channel (v1.10.27):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
+* **Test channel (v1.10.32):** <a href="https://homey.app/a/no.tiwas.booleantoolbox/test/" target="_blank">Install test version</a>
 * **GitHub Repo:** <a href="https://github.com/tiwas/SmartComponentsToolkit" target="_blank">github.com/tiwas/SmartComponentsToolkit</a>
 * **Online Emulator:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/emulator.html" target="_blank">Boolean Logic Emulator</a>
 * **Formula Builder:** <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/formula-builder.html" target="_blank">Formula Builder</a>

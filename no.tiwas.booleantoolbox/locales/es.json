@@ -615,6 +615,8 @@
       "temperature_label": "Temperatura (0–1, menor = más cálido)",
       "red_threshold_label": "Umbral del modo rojo",
       "red_threshold_hint": "Cuando la temperatura calculada cae por debajo de este valor, las luces con soporte de color cambian a rojo. Cuanto más profundo, más saturado. Establezca a 0 para deshabilitar el modo rojo.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Intervalo de actualización (segundos)",
       "transition_seconds": "Transición (segundos)",
       "raw_json_label": "JSON sin procesar (vista previa de solo lectura, se regenerará desde el formulario al guardar)",

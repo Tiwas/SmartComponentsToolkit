@@ -28,6 +28,13 @@
       },
       "values": [
         {
+          "id": "morning",
+          "label": {
+            "en": "Morning", "no": "Morgen", "de": "Morgen", "nl": "Ochtend", "fr": "Matin",
+            "da": "Morgen", "fi": "Aamu", "sv": "Morgon", "pl": "Poranek", "it": "Mattina", "es": "Mañana"
+          }
+        },
+        {
           "id": "day",
           "label": {
             "en": "Day", "no": "Dag", "de": "Tag", "nl": "Dag", "fr": "Jour",

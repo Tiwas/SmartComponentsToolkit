@@ -1,6 +1,7 @@
 'use strict';
 
 const https = require('https');
+const SunCalc = require('suncalc');
 
 const DEFAULT_CONFIG = {
   provider: 'external_value',
@@ -78,7 +79,7 @@ function estimateLuxFromRadiation(shortwaveRadiation, cloudCover) {
   return Math.round(radiation * 120 * cloudFactor);
 }
 
-function estimateAstronomicalLux(date = new Date(), latitude = 60) {
+function estimateSunElevation(date, latitude) {
   const dayOfYear = Math.floor((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(date.getFullYear(), 0, 0)) / 86400000);
   const hour = date.getHours() + (date.getMinutes() / 60);
   const declination = 23.44 * Math.sin((2 * Math.PI / 365) * (dayOfYear - 81));
@@ -87,7 +88,17 @@ function estimateAstronomicalLux(date = new Date(), latitude = 60) {
   const decRad = declination * Math.PI / 180;
   const hourRad = hourAngle * Math.PI / 180;
   const sinElevation = (Math.sin(latRad) * Math.sin(decRad)) + (Math.cos(latRad) * Math.cos(decRad) * Math.cos(hourRad));
-  const elevation = Math.asin(Math.max(-1, Math.min(1, sinElevation))) * 180 / Math.PI;
+  return Math.asin(Math.max(-1, Math.min(1, sinElevation))) * 180 / Math.PI;
+}
+
+// With a longitude the sun position comes from SunCalc, which works on the
+// absolute instant. The clock-based estimate treats the process clock as
+// solar time, which is off by hours on Homey (TZ=UTC) away from Greenwich.
+function estimateAstronomicalLux(date = new Date(), latitude = 60, longitude = null) {
+  const hasLongitude = longitude !== null && longitude !== undefined && Number.isFinite(Number(longitude));
+  const elevation = hasLongitude
+    ? SunCalc.getPosition(date, Number(latitude), Number(longitude)).altitude * 180 / Math.PI
+    : estimateSunElevation(date, latitude);
 
   if (elevation <= -6) return 0;
   if (elevation <= 0) return Math.round((elevation + 6) * 5);
@@ -210,7 +221,7 @@ class OutdoorLightProvider {
     const data = await requestJson(url, { 'User-Agent': userAgent });
     const details = data.properties?.timeseries?.[0]?.data?.instant?.details || {};
     const cloudCover = details.cloud_area_fraction;
-    const astronomical = estimateAstronomicalLux(now, latitude);
+    const astronomical = estimateAstronomicalLux(now, latitude, longitude);
     const lux = Math.round(astronomical * (1 - (Math.min(100, Math.max(0, Number(cloudCover) || 0)) / 100 * 0.65)));
     const value = createOutdoorValue(lux, 'met-no', config.cacheMinutes, {
       cloudCover,
@@ -221,8 +232,8 @@ class OutdoorLightProvider {
   }
 
   async getAstronomical(config, now, source = null) {
-    const { latitude } = await this.getLocation(config);
-    return createOutdoorValue(estimateAstronomicalLux(now, latitude), source || 'astronomical', config.cacheMinutes);
+    const { latitude, longitude } = await this.getLocation(config);
+    return createOutdoorValue(estimateAstronomicalLux(now, latitude, longitude), source || 'astronomical', config.cacheMinutes);
   }
 
   getCached(provider, config, now) {

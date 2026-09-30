@@ -615,6 +615,8 @@
       "temperature_label": "Température (0–1, plus bas = plus chaud)",
       "red_threshold_label": "Seuil du mode rouge",
       "red_threshold_hint": "Lorsque la température calculée descend en dessous de cette valeur, les lumières avec prise en charge des couleurs passent au rouge. Plus profondément en dessous, plus saturé. Réglez sur 0 pour désactiver le mode rouge.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Intervalle de mise à jour (secondes)",
       "transition_seconds": "Transition (secondes)",
       "raw_json_label": "JSON brut (aperçu en lecture seule, régénéré depuis le formulaire à l'enregistrement)",

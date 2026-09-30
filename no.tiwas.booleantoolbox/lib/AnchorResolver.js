@@ -1,6 +1,7 @@
 'use strict';
 
 const SunCalc = require('suncalc');
+const { minutesOfDay, dateKey } = require('./LocalTime');
 
 const SOLAR_EVENTS = [
   { value: 'sunrise', label: 'Sunrise' },
@@ -49,8 +50,8 @@ function isValidDate(d) {
   return d instanceof Date && !Number.isNaN(d.getTime());
 }
 
-function dateToMinutesOfDay(date) {
-  return (date.getHours() * 60) + date.getMinutes() + (date.getSeconds() / 60);
+function dateToMinutesOfDay(date, timeZone) {
+  return minutesOfDay(date, timeZone);
 }
 
 function parseTimeToMinutes(value) {
@@ -67,7 +68,7 @@ function parseTimeToMinutes(value) {
  * Returns null if unresolvable (e.g. polar day with no sunset and no fallback).
  *
  * @param {object} anchor - { mode, time, solarEvent, offsetMinutes, fallbackTime }
- * @param {object} ctx - { date, latitude, longitude }
+ * @param {object} ctx - { date, latitude, longitude, timeZone }
  */
 function resolveAnchor(anchor, ctx) {
   if (!anchor || !anchor.mode) return null;
@@ -92,16 +93,16 @@ function resolveAnchor(anchor, ctx) {
     }
 
     const offset = Number(anchor.offsetMinutes) || 0;
-    const minutes = dateToMinutesOfDay(eventDate) + offset;
+    const minutes = dateToMinutesOfDay(eventDate, ctx && ctx.timeZone) + offset;
     return ((minutes % 1440) + 1440) % 1440;
   }
 
   if (anchor.mode === 'lux') {
-    const dateKey = todayKey(ctx && ctx.date);
+    const currentDateKey = todayKey(ctx && ctx.date, ctx && ctx.timeZone);
     const crossings = (ctx && ctx.luxCrossings) || {};
     const anchorKey = ctx && ctx.anchorKey;
     const stored = anchorKey && crossings[anchorKey];
-    if (stored && stored.dateKey === dateKey && Number.isFinite(Number(stored.minutes))) {
+    if (stored && stored.dateKey === currentDateKey && Number.isFinite(Number(stored.minutes))) {
       return Number(stored.minutes);
     }
     return parseTimeToMinutes(anchor.fallbackTime || anchor.time);
@@ -110,9 +111,9 @@ function resolveAnchor(anchor, ctx) {
   return parseTimeToMinutes(anchor.time);
 }
 
-function todayKey(date) {
+function todayKey(date, timeZone) {
   const d = (date instanceof Date && !Number.isNaN(date.getTime())) ? date : new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return dateKey(d, timeZone);
 }
 
 function defaultDirectionFor(anchorKey) {

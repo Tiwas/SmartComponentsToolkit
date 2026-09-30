@@ -628,6 +628,8 @@
       "temperature_label": "Temperature (0–1, lower = warmer)",
       "red_threshold_label": "Red mode threshold",
       "red_threshold_hint": "When the calculated temperature drops below this value, color-capable lights shift to red. The deeper below, the more saturated. Set to 0 to disable red mode.",
+      "morning_profile_enabled": "Own morning profile",
+      "morning_profile_hint": "On: these values apply from the Morning anchor and fade into Day. Off: the Morning anchor starts from the night values.",
       "update_interval": "Update interval (seconds)",
       "transition_seconds": "Transition (seconds)",
       "raw_json_label": "Raw JSON (read-only preview, will be regenerated from form on save)",

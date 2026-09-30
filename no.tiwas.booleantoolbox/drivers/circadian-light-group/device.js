@@ -311,7 +311,9 @@ class CircadianLightGroupDevice extends Homey.Device {
     const config = this.getConfig();
     const anchors = (config.profile && config.profile.anchors) || {};
     const crossings = await this.getStoreValue('luxCrossings') || {};
-    const dateKey = todayKey(new Date());
+    const now = new Date();
+    const timeZone = this.getTimeZone();
+    const dateKey = todayKey(now, timeZone);
     let updated = false;
 
     Object.keys(anchors).forEach(anchorKey => {
@@ -329,7 +331,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       if (detectCrossing(prev, currentValue, threshold, direction)) {
         crossings[anchorKey] = {
           dateKey,
-          minutes: dateToMinutesOfDay(new Date()),
+          minutes: dateToMinutesOfDay(now, timeZone),
         };
         updated = true;
         this.debug(`Lux anchor "${anchorKey}" crossed (${prev} → ${currentValue}, threshold ${threshold}, ${direction})`);
@@ -350,6 +352,19 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   pauseDebug(message) {
     this.debug('[CLG pause]', message);
+  }
+
+  // SDK3 apps run with TZ=UTC; anchors and "until" times are wall-clock
+  // times in the Homey's own time zone.
+  getTimeZone() {
+    try {
+      const timeZone = this.homey.clock && typeof this.homey.clock.getTimezone === 'function'
+        ? this.homey.clock.getTimezone()
+        : null;
+      return typeof timeZone === 'string' && timeZone ? timeZone : null;
+    } catch (error) {
+      return null;
+    }
   }
 
   getGeo() {
@@ -611,6 +626,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     const luxCrossings = await this.getStoreValue('luxCrossings') || {};
     const target = calculateTarget(config.profile || {}, outdoor, new Date(), {
       ...geo,
+      timeZone: this.getTimeZone(),
       luxCrossings,
     });
 
@@ -1344,7 +1360,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     }
     const geo = this.getGeo();
     const luxCrossings = await this.getStoreValue('luxCrossings') || {};
-    const target = calculateTarget(config.profile || {}, outdoor, new Date(), { ...geo, luxCrossings });
+    const target = calculateTarget(config.profile || {}, outdoor, new Date(), { ...geo, timeZone: this.getTimeZone(), luxCrossings });
     this.applyOverridesToTarget(target);
     return target;
   }
@@ -1507,13 +1523,10 @@ class CircadianLightGroupDevice extends Homey.Device {
     const targetHours = Number(match[1]);
     const targetMinutes = Number(match[2]);
 
-    const now = new Date();
-    const target = new Date(now);
-    target.setHours(targetHours, targetMinutes, 0, 0);
-    if (target.getTime() <= now.getTime()) {
-      target.setDate(target.getDate() + 1); // tomorrow
-    }
-    const minutes = Math.max(1, Math.round((target.getTime() - now.getTime()) / 60000));
+    const nowMinutes = dateToMinutesOfDay(new Date(), this.getTimeZone());
+    let untilMinutes = (targetHours * 60) + targetMinutes - nowMinutes;
+    if (untilMinutes <= 0) untilMinutes += 1440; // tomorrow
+    const minutes = Math.max(1, Math.round(untilMinutes));
     return this.onFlowPause({ amount: minutes, unit: 'minutes' });
   }
 

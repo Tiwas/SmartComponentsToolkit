@@ -629,6 +629,8 @@
       "temperature_label": "Temperatur (0–1, lavere = varmere)",
       "red_threshold_label": "Terskel for rødmodus",
       "red_threshold_hint": "Når den beregnede temperaturen synker under denne verdien, går farge-støttende lys over til rødt. Jo dypere under, jo mer mettet. Sett til 0 for å skru av rødmodus.",
+      "morning_profile_enabled": "Egen morgenprofil",
+      "morning_profile_hint": "På: disse verdiene gjelder fra morgen-ankeret og går gradvis over i dag. Av: morgen-ankeret starter fra nattverdiene.",
       "update_interval": "Oppdateringsintervall (sekunder)",
       "transition_seconds": "Overgangstid (sekunder)",
       "raw_json_label": "Rå JSON (skrivebeskyttet forhåndsvisning, regenereres fra skjemaet ved lagring)",

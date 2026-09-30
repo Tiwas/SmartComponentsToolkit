@@ -112,7 +112,7 @@
             <p class="mb-4 text-gray-700">The schedule has four anchors: <strong>Morning</strong>, <strong>Day</strong>, <strong>Evening</strong>, <strong>Night</strong>. Each anchor independently picks one of three resolution modes:</p>
 
             <h3 class="text-lg font-semibold text-purple-700 mt-4 mb-2">Time</h3>
-            <p class="text-gray-700 mb-3">A fixed wall-clock time (HH:MM). Best for users near the equator where sunrise/sunset times are stable.</p>
+            <p class="text-gray-700 mb-3">A fixed wall-clock time (HH:MM) in your Homey's time zone, including daylight saving time. Best for users near the equator where sunrise/sunset times are stable.</p>
 
             <h3 class="text-lg font-semibold text-purple-700 mt-4 mb-2">Solar event</h3>
             <p class="text-gray-700 mb-3">A solar event computed from your Homey's geolocation. Each anchor can pick:</p>
@@ -140,7 +140,7 @@
 
             <h3 class="text-lg font-semibold text-purple-700 mt-4 mb-2">Mix and match</h3>
             <div class="code-block">
-<pre>Morning: Time 08:00            ← strong white light starts at 8 sharp
+<pre>Morning: Time 08:00            ← the wake-up ramp starts at 8 sharp
 Day:     Solar noon             ← peak brightness at solar noon
 Evening: Solar sunset           ← evening warmth from actual sunset
 Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</pre>
@@ -155,6 +155,14 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
                 <li><strong>Temperature</strong> (0–1, lower = warmer): color temperature target.</li>
             </ul>
             <p class="text-gray-700 mb-4">Values transition smoothly between anchors using a smoothstep curve. The currently calculated dim and temperature are always shown on the device tile, regardless of whether the scheduler is actively pushing values to the lights.</p>
+
+            <h3 class="text-lg font-semibold text-purple-700 mt-4 mb-2">Morning profile (optional)</h3>
+            <p class="text-gray-700 mb-3">Day, Evening and Night always have their own values. Morning is optional and is switched on with <strong>Own morning profile</strong>:</p>
+            <ul class="list-disc ml-6 text-gray-700 mb-3 text-sm">
+                <li><strong>Off</strong> (default) — the night values hold until the Morning anchor, and the ramp to Day starts from them. With the default profile the lights are still dim and red at the Morning anchor and reach full Day values at the Day anchor.</li>
+                <li><strong>On</strong> — the Morning values apply from the Morning anchor and fade into Day by the Day anchor. The step from night to morning at the anchor uses the normal transition time. The group also reports a <code>morning</code> phase between the Morning anchor and halfway to Day.</li>
+            </ul>
+            <p class="text-gray-700 mb-4">In <code>config_json</code> the morning profile is an optional <code>profile.morning</code> block with <code>dim</code> and <code>temperature</code>; a missing field uses the night value. Without the block the group behaves exactly as before the morning profile existed.</p>
 
             <h3 class="text-lg font-semibold text-purple-700 mt-4 mb-2">Red mode threshold</h3>
             <p class="text-gray-700 mb-3">A single slider controls when color-capable lights shift to red:</p>
@@ -211,7 +219,7 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
 
             <h3 class="text-lg font-semibold text-amber-700 mt-2 mb-3">Conditions</h3>
             <ul class="text-gray-700 space-y-2 text-sm mb-4">
-                <li><span class="badge-condition">And</span> <strong>Is in phase</strong> — current phase is day/evening/night.</li>
+                <li><span class="badge-condition">And</span> <strong>Is in phase</strong> — current phase is morning/day/evening/night (morning only with a morning profile).</li>
                 <li><span class="badge-condition">And</span> <strong>Red mode is active</strong>.</li>
                 <li><span class="badge-condition">And</span> <strong>Is paused</strong>.</li>
                 <li><span class="badge-condition">And</span> <strong>Is on</strong>.</li>
@@ -221,7 +229,7 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
             <ul class="text-gray-700 space-y-2 text-sm">
                 <li><span class="badge-action">Then</span> <strong>Apply now</strong> — recalculate and push values immediately.</li>
                 <li><span class="badge-action">Then</span> <strong>Pause</strong> — amount + unit (seconds / minutes / hours). Set 0 to pause until manually resumed.</li>
-                <li><span class="badge-action">Then</span> <strong>Pause until time</strong> — a wall-clock time (HH:MM).</li>
+                <li><span class="badge-action">Then</span> <strong>Pause until time</strong> — a wall-clock time (HH:MM) in your Homey's time zone.</li>
                 <li><span class="badge-action">Then</span> <strong>Pause until solar event</strong> — pick from the 14 solar events plus an offset.</li>
                 <li><span class="badge-action">Then</span> <strong>Resume</strong>.</li>
                 <li><span class="badge-action">Then</span> <strong>Turn on / Turn off / Toggle</strong>.</li>

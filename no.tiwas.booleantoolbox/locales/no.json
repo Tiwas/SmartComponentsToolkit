@@ -558,6 +558,7 @@
       "stale_minutes": "Ekstern verdi foreldes etter minutter",
       "lux_sensor": "Lux-sensor",
       "select_lux_sensor": "Velg lux-sensor...",
+      "unknown_lux_sensor": "Ukjent sensor",
       "external_flow_hint": "For eksterne verdier bruker du Flow-handlingen \"Sett beregnet utendors lux\".",
       "outdoor_adjustment": "Utelysjustering",
       "outdoor_enabled": "Juster lysstyrke etter utelys",

@@ -279,6 +279,12 @@
             config.devices = Array.isArray(config.devices) ? config.devices : [];
         }
 
+        // A saved sensor that get_lux_sensors did not return (deleted, or the lookup failed) stays selected, so Create keeps it.
+        function unknownSensorOption(sensorId) {
+            if (!sensorId || sensors.some(s => s.id === sensorId)) return '';
+            return '<option value="' + esc(sensorId) + '" selected>' + esc(t('pair.circadian_light_group.unknown_lux_sensor', 'Unknown sensor') + ' (' + sensorId + ')') + '</option>';
+        }
+
         function renderAnchors() {
             const container = document.getElementById('anchors-container');
             container.innerHTML = '';
@@ -303,7 +309,7 @@
                 row.querySelector('select').value = anchor.mode || 'time';
 
                 if (anchor.mode === 'lux') {
-                    const sensorOpts = ['<option value="">' + t('pair.circadian_light_group.select_lux_sensor', 'Select lux sensor...') + '</option>']
+                    const sensorOpts = ['<option value="">' + t('pair.circadian_light_group.select_lux_sensor', 'Select lux sensor...') + '</option>', unknownSensorOption(anchor.sensorDeviceId)]
                         .concat(sensors.map(s => '<option value="' + esc(s.id) + '"' + (s.id === anchor.sensorDeviceId ? ' selected' : '') + '>' + esc(s.name) + (s.zoneName ? ' (' + esc(s.zoneName) + ')' : '') + '</option>'))
                         .join('');
                     const direction = anchor.direction || ((key === 'morning' || key === 'day') ? 'rising' : 'falling');

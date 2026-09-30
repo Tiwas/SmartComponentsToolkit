@@ -557,6 +557,7 @@
       "stale_minutes": "External stale after minutes",
       "lux_sensor": "Lux sensor",
       "select_lux_sensor": "Select lux sensor...",
+      "unknown_lux_sensor": "Unknown sensor",
       "external_flow_hint": "For external values, use the Flow action \"Set outdoor computed lux\".",
       "outdoor_adjustment": "Outdoor Adjustment",
       "outdoor_enabled": "Adjust brightness by outdoor light",

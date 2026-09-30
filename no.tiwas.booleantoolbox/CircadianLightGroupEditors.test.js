@@ -9,18 +9,31 @@ const EDITORS = [
   'drivers/circadian-light-group/repair/repair_configuration.html',
 ];
 
-// Pulls the browser-side normalizeAnchor() out of an editor page so it can be compared with the device.
-function loadNormalizeAnchor(relativePath) {
+// Returns the source of a browser-side function declared in an editor page.
+function extractFunction(relativePath, name) {
   const html = fs.readFileSync(path.join(__dirname, relativePath), 'utf8');
-  const start = html.indexOf('function normalizeAnchor(');
+  const start = html.indexOf(`function ${name}(`);
   let end = html.indexOf('{', start);
   let depth = 0;
   for (; end < html.length; end++) {
     if (html[end] === '{') depth++;
     else if (html[end] === '}' && --depth === 0) break;
   }
-  return new Function(`${html.slice(start, end + 1)}\nreturn normalizeAnchor;`)();
+  return html.slice(start, end + 1);
 }
+
+// Pulls the browser-side normalizeAnchor() out of an editor page so it can be compared with the device.
+function loadNormalizeAnchor(relativePath) {
+  return new Function(`${extractFunction(relativePath, 'normalizeAnchor')}\nreturn normalizeAnchor;`)();
+}
+
+// unknownSensorOption() reads the page's `sensors` list and uses its t() and esc() helpers.
+function loadUnknownSensorOption(relativePath, sensors, t) {
+  return new Function('sensors', 't', `${extractFunction(relativePath, 'esc')}\n${extractFunction(relativePath, 'unknownSensorOption')}\nreturn unknownSensorOption;`)(sensors, t);
+}
+
+const SENSORS = [{ id: 'sensor-1', name: 'Garden', zoneName: 'Outside' }];
+const translate = key => (key === 'pair.circadian_light_group.unknown_lux_sensor' ? 'Ukjent sensor' : key);
 
 const ANCHORS = {
   'a lux anchor': { mode: 'lux', sensorDeviceId: 'sensor-1', threshold: 250, direction: 'rising', fallbackTime: '06:30' },
@@ -42,6 +55,26 @@ describe('Circadian Light Group editors', () => {
 
         expect(normalizeAnchor(anchor, DEFAULT_PROFILE.anchors.morning)).toEqual(device);
       });
+    });
+
+    test(`${path.basename(editor)} keeps a saved sensor that get_lux_sensors did not return`, () => {
+      const unknownSensorOption = loadUnknownSensorOption(editor, [], translate);
+
+      expect(unknownSensorOption('sensor-x')).toBe('<option value="sensor-x" selected>Ukjent sensor (sensor-x)</option>');
+    });
+
+    test(`${path.basename(editor)} escapes an unknown sensor id`, () => {
+      const unknownSensorOption = loadUnknownSensorOption(editor, SENSORS, translate);
+
+      expect(unknownSensorOption('a"b<c')).toBe('<option value="a&quot;b&lt;c" selected>Ukjent sensor (a&quot;b&lt;c)</option>');
+    });
+
+    test(`${path.basename(editor)} adds no unknown sensor option for a listed or empty sensor id`, () => {
+      const unknownSensorOption = loadUnknownSensorOption(editor, SENSORS, translate);
+
+      expect(unknownSensorOption('sensor-1')).toBe('');
+      expect(unknownSensorOption(null)).toBe('');
+      expect(unknownSensorOption('')).toBe('');
     });
   });
 });

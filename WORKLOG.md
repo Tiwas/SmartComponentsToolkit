@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-09-30 — Circadian Light Group editors keep unknown lux sensors
+
+### Requested
+- Follow-up to #54: when a saved lux sensor is not in the `get_lux_sensors` list, the pair and repair editors showed "Select lux sensor..." and Save/Create wrote `sensorDeviceId: null`. The device then stopped watching the sensor, and the lux anchor quietly used its fallback time. This happens when the sensor was deleted, or when `getLuxSensors` returns `[]` because `homey.app.api` is not ready yet.
+- Lars chose to give the outdoor lux sensor select (repair editor only; the pair editor has none) the same fix.
+
+### Implemented
+- New `unknownSensorOption(sensorId)` in both editors: when a saved id is not in `sensors`, it adds a selected option that carries the id, labelled "Unknown sensor (<id>)", right after "Select lux sensor...". The id is HTML-escaped. It adds nothing for an empty id or a listed sensor.
+- Used for the lux anchor sensor selects in `renderAnchors()` (pair and repair) and for `#lux-sensor` in the repair editor's `renderOutdoor()`. `collect()` is unchanged; it now reads the kept id back. Users can still pick a listed sensor or clear it to "Select lux sensor..." (saves null).
+- New locale key `pair.circadian_light_group.unknown_lux_sensor` in all 11 locales ("Ukjent sensor" in Norwegian; other languages in English, like the other Circadian editor strings).
+- `CircadianLightGroupEditors.test.js`: the function extractor is shared, and three tests per editor cover `unknownSensorOption` (missing id kept and translated, markup escaped, no option for listed or empty ids).
+- Not changed: the repair editor still builds the listed sensor options without `esc()` (pre-existing; the pair editor escapes them). `pair/repair_configuration.html` (unused copy, not referenced by `driver.compose.json`) was left untouched.
+
+### Verification
+- `npx jest --runInBand`: 23 suites and 358 tests passed.
+- Playwright (Chromium, 1.55) with a stubbed `window.Homey` (`__` backed by `locales/no.json` or key passthrough, `setTitle`, `on`, `alert`, `done`, `createDevice`, and `emit` for `get_config`, `get_generated_json`, `get_light_candidates`, `get_lux_sensors`, `save_config`, `create_device`). All 11 checks passed; against the `origin/main` editors 8 of the 10 editor checks failed (the two "listed sensor" checks already passed):
+  - Repair, `get_lux_sensors` returns `[]` while `get_config` has lux anchors with `sensor-x`/`sensor-y` and outdoor `sensor-outdoor`: the selects show "Ukjent sensor (sensor-x)" and Save keeps all three ids; the whole config (with `_meta`, a solar anchor and a device) is saved unchanged. Also passes when `get_lux_sensors` fails (English label "Unknown sensor (sensor-x)").
+  - Repair: listed sensors are preselected with no extra option; picking a listed sensor or "Select lux sensor..." replaces the unknown id; changing another anchor's mode and switching provider (both re-render) keeps the ids; the outdoor id is kept while another provider hides the select; an id containing markup is escaped (no injected element) and saved unchanged.
+  - Pair: `get_lux_sensors` `[]` → Create keeps `sensor-x`/`sensor-y` and the whole config; listed sensors get no extra option.
+  - `docs/tools/clg-editor.html` (companion tool per CLAUDE.md): the config with sensor ids round-trips unchanged. It does not edit sensor ids, so no change was needed; the config schema did not change.
+- Not tested on a real Homey.
+
 ## 2026-09-30 — Circadian Light Group editors keep lux anchors
 
 ### Requested

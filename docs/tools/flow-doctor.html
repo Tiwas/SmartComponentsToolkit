@@ -165,14 +165,14 @@
             <!-- Flows tab -->
             <div id="tab-flows" class="tab-pane">
                 <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
-                    <input type="text" id="flow-search" placeholder="Search flow name…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
+                    <input type="text" id="flow-search" data-i18n-placeholder="filter.searchFlow" placeholder="Search flow name…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
                     <select id="flow-app-filter" class="text-sm border border-gray-300 rounded px-2 py-1">
                         <option value="" data-i18n="filter.allApps">All apps</option>
                     </select>
-                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="error" checked> <span class="badge badge-err">Errors</span> <span id="count-errors">0</span></label>
-                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="warn" checked> <span class="badge badge-warn">Warnings</span> <span id="count-warnings">0</span></label>
-                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="info"> <span class="badge badge-info">Info</span> <span id="count-info">0</span></label>
-                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="ok"> <span class="badge badge-ok">Healthy</span> <span id="count-ok">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="error" checked> <span class="badge badge-err" data-i18n="filter.errors">Errors</span> <span id="count-errors">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="warn" checked> <span class="badge badge-warn" data-i18n="filter.warnings">Warnings</span> <span id="count-warnings">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="info"> <span class="badge badge-info" data-i18n="filter.info">Info</span> <span id="count-info">0</span></label>
+                    <label class="text-xs flex items-center gap-1"><input type="checkbox" class="sev-toggle" data-sev="ok"> <span class="badge badge-ok" data-i18n="filter.healthy">Healthy</span> <span id="count-ok">0</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="flow-hide-disabled"> <span data-i18n="filter.hideDisabled">Hide disabled flows</span></label>
                 </div>
                 <div id="results-list" class="space-y-3"></div>
@@ -181,7 +181,7 @@
             <!-- Apps tab -->
             <div id="tab-apps" class="tab-pane hidden">
                 <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
-                    <input type="text" id="app-search" placeholder="Search app…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
+                    <input type="text" id="app-search" data-i18n-placeholder="apps.search" placeholder="Search app…" class="text-sm border border-gray-300 rounded px-2 py-1 flex-grow min-w-[180px]">
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-updates"> <span data-i18n="apps.onlyUpdates">Only apps with updates</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-only-unused"> <span data-i18n="apps.onlyUnused">Only unused apps</span></label>
                     <label class="text-xs flex items-center gap-1"><input type="checkbox" id="app-hide-extensions" checked> <span data-i18n="apps.hideExtensions">Hide extensions</span></label>
@@ -418,6 +418,20 @@ const I18N = {
         'graph.kind.start': 'Start a Flow',
         'graph.kind.enable': 'Enable a Flow',
         'graph.kind.disable': 'Disable a Flow',
+        'graph.kind.start_string': 'Start a Flow with a Text-tag',
+        'graph.kind.start_number': 'Start a Flow with a Number-tag',
+        'graph.kind.start_boolean': 'Start a Flow with a Yes/No-tag',
+        'graph.kind.start_image': 'Start a Flow with an Image-tag',
+        'graph.pointedByOne': '1 flow points to this flow',
+        'filter.searchFlow': 'Search flow name…',
+        'apps.search': 'Search app…',
+        'severity.error': 'ERROR',
+        'severity.warn': 'WARN',
+        'severity.info': 'INFO',
+        unnamed: '(unnamed)',
+        'apiSettings.confirmReset': 'Reset API credentials?',
+        'error.noHomey': 'No Homey found on this account.',
+        'error.homeyUnavailable': 'Selected Homey is unavailable.',
         'graph.pointedByCount': '{n} flows point to this flow',
         'graph.via': 'via',
         'graph.truncated': 'The tree was cut off because it is very large.',
@@ -589,6 +603,20 @@ const I18N = {
         'graph.kind.start': 'Start en flow',
         'graph.kind.enable': 'Aktiver en flow',
         'graph.kind.disable': 'Deaktiver en flow',
+        'graph.kind.start_string': 'Start en flow med tekst-tag',
+        'graph.kind.start_number': 'Start en flow med tall-tag',
+        'graph.kind.start_boolean': 'Start en flow med ja/nei-tag',
+        'graph.kind.start_image': 'Start en flow med bilde-tag',
+        'graph.pointedByOne': '1 flow peker på denne flowen',
+        'filter.searchFlow': 'Søk etter flow-navn…',
+        'apps.search': 'Søk etter app…',
+        'severity.error': 'FEIL',
+        'severity.warn': 'ADVARSEL',
+        'severity.info': 'INFO',
+        unnamed: '(uten navn)',
+        'apiSettings.confirmReset': 'Nullstille API-credentials?',
+        'error.noHomey': 'Fant ingen Homey på denne kontoen.',
+        'error.homeyUnavailable': 'Valgt Homey er ikke tilgjengelig.',
         'graph.pointedByCount': '{n} flows peker på denne flowen',
         'graph.via': 'via',
         'graph.truncated': 'Treet ble kuttet fordi det er svært stort.',
@@ -760,6 +788,20 @@ const I18N = {
         'graph.kind.start': 'Einen Flow starten',
         'graph.kind.enable': 'Einen Flow aktivieren',
         'graph.kind.disable': 'Einen Flow deaktivieren',
+        'graph.kind.start_string': 'Einen Flow mit Text-Tag starten',
+        'graph.kind.start_number': 'Einen Flow mit Zahl-Tag starten',
+        'graph.kind.start_boolean': 'Einen Flow mit Ja/Nein-Tag starten',
+        'graph.kind.start_image': 'Einen Flow mit Bild-Tag starten',
+        'graph.pointedByOne': '1 Flow verweist auf diesen Flow',
+        'filter.searchFlow': 'Flow-Namen suchen…',
+        'apps.search': 'App suchen…',
+        'severity.error': 'FEHLER',
+        'severity.warn': 'WARNUNG',
+        'severity.info': 'INFO',
+        unnamed: '(ohne Namen)',
+        'apiSettings.confirmReset': 'API-Zugangsdaten zurücksetzen?',
+        'error.noHomey': 'Kein Homey in diesem Konto gefunden.',
+        'error.homeyUnavailable': 'Der ausgewählte Homey ist nicht verfügbar.',
         'graph.pointedByCount': '{n} Flows verweisen auf diesen Flow',
         'graph.via': 'über',
         'graph.truncated': 'Der Baum wurde gekürzt, weil er sehr groß ist.',
@@ -931,6 +973,20 @@ const I18N = {
         'graph.kind.start': 'Start een flow',
         'graph.kind.enable': 'Een flow inschakelen',
         'graph.kind.disable': 'Een flow uitschakelen',
+        'graph.kind.start_string': 'Start een flow met een teksttag',
+        'graph.kind.start_number': 'Start een flow met een getaltag',
+        'graph.kind.start_boolean': 'Start een flow met een ja/nee-tag',
+        'graph.kind.start_image': 'Start een flow met een afbeeldingstag',
+        'graph.pointedByOne': '1 flow verwijst naar deze flow',
+        'filter.searchFlow': 'Flownaam zoeken…',
+        'apps.search': 'App zoeken…',
+        'severity.error': 'FOUT',
+        'severity.warn': 'WAARSCHUWING',
+        'severity.info': 'INFO',
+        unnamed: '(naamloos)',
+        'apiSettings.confirmReset': 'API-gegevens resetten?',
+        'error.noHomey': 'Geen Homey gevonden op dit account.',
+        'error.homeyUnavailable': 'De gekozen Homey is niet beschikbaar.',
         'graph.pointedByCount': '{n} flows verwijzen naar deze flow',
         'graph.via': 'via',
         'graph.truncated': 'De boom is ingekort omdat hij erg groot is.',
@@ -960,6 +1016,14 @@ const FlowGraph = {
         if (m[1] === 'enable_flow') return 'enable';
         if (m[1] === 'disable_flow') return 'disable';
         return 'start';
+    },
+
+    // Translation key for the card, e.g. "start", "start_string", "disable".
+    // The UI uses its own labels so they follow the tool language, not Homey's.
+    cardLabelKey(uri) {
+        const kind = this.cardKind(uri);
+        const tag = /_([a-z]+)_tag$/.exec(uri || '');
+        return kind === 'start' && tag ? `start_${tag[1]}` : kind;
     },
 
     collator: new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
@@ -1012,7 +1076,7 @@ const FlowGraph = {
         return reached;
     },
 
-    build({ flows = {}, advancedFlows = {}, folders = {}, cardTitle = () => null } = {}) {
+    build({ flows = {}, advancedFlows = {}, folders = {} } = {}) {
         const nodes = new Map();
         const addNode = (flow, type) => {
             if (!flow || !flow.id) return;
@@ -1046,7 +1110,7 @@ const FlowGraph = {
                 to,
                 kind,
                 cardUri: uri,
-                cardTitle: cardTitle(uri) || null,
+                card: this.cardLabelKey(uri),
                 targetName: (flowArg && typeof flowArg === 'object' && flowArg.name) || '',
                 missing: !nodes.has(to),
                 connected: true,
@@ -1357,7 +1421,7 @@ class FlowDoctor {
         });
 
         document.getElementById('api-settings-button').addEventListener('click', () => {
-            if (confirm('Reset API credentials?')) {
+            if (confirm(this.t('apiSettings.confirmReset'))) {
                 localStorage.removeItem('flowdoctor_client_id');
                 localStorage.removeItem('flowdoctor_client_secret');
                 localStorage.removeItem('flowdoctor_homey_id');
@@ -1466,7 +1530,7 @@ class FlowDoctor {
             this.showLoader(this.t('loading'));
             this.user = await this.cloudApi.getAuthenticatedUser();
             this.homeys = await this.user.getHomeys();
-            if (!this.homeys.length) throw new Error('No Homey found on this account.');
+            if (!this.homeys.length) throw new Error(this.t('error.noHomey'));
 
             const savedHomeyId = localStorage.getItem('flowdoctor_homey_id');
             const savedHomey = savedHomeyId && this.homeys.find(homey => homey.id === savedHomeyId);
@@ -1487,7 +1551,7 @@ class FlowDoctor {
     showHomeySelector() {
         if (this.scanInProgress || this.connectingHomey) return;
         if (!this.homeys.length) {
-            this.showError('No Homey found on this account.');
+            this.showError(this.t('error.noHomey'));
             return;
         }
 
@@ -1516,7 +1580,7 @@ class FlowDoctor {
     async connectToHomey(homey) {
         if (this.scanInProgress || this.connectingHomey) return;
         if (!homey) {
-            this.showError('Selected Homey is unavailable.');
+            this.showError(this.t('error.homeyUnavailable'));
             return;
         }
 
@@ -2220,23 +2284,14 @@ class FlowDoctor {
 
             // Links between flows (Start/Enable/Disable a Flow cards) for the Flow tree
             // tab, plus the issues they reveal: references to deleted flows and loops.
-            const graph = FlowGraph.build({
-                flows,
-                advancedFlows: advFlows,
-                folders,
-                cardTitle: (uri) => {
-                    const def = cardSets.action[uri];
-                    return def ? this.localizeStoreValue(def.title) : null;
-                },
-            });
+            const graph = FlowGraph.build({ flows, advancedFlows: advFlows, folders });
             const resultById = new Map(results.map(r => [r.id, r]));
             const reportedMissing = new Set();
             for (const e of graph.edges) {
                 const key = `${e.from}>${e.cardUri}>${e.to}`;
                 if (!e.missing || reportedMissing.has(key)) continue;
                 reportedMissing.add(key);
-                const card = `«${e.cardTitle || this.t('graph.kind.' + e.kind)}» → `;
-                resultById.get(e.from)?.issues.push({ severity: 'error', key: 'issue.missingFlowRef', detail: `${card}${e.targetName || '?'} (ID: ${e.to})` });
+                resultById.get(e.from)?.issues.push({ severity: 'error', key: 'issue.missingFlowRef', detail: `${e.targetName || '?'} (ID: ${e.to})`, cardEdge: e });
             }
             for (const [id, info] of graph.nodeCycles) {
                 resultById.get(id)?.issues.push({
@@ -2409,8 +2464,9 @@ class FlowDoctor {
             const sevClass = sev === 'error' ? 'sev-error' : sev === 'warn' ? 'sev-warn' : sev === 'info' ? 'sev-info' : '';
             const typeLabel = r.type === 'advanced' ? this.t('flowType.advanced') : this.t('flowType.standard');
             const issuesHtml = r.issues.map(i => {
+                const detail = i.cardEdge ? `«${this.graphCardLabel(i.cardEdge)}» → ${i.detail}` : i.detail;
                 const cls = i.severity === 'error' ? 'badge-err' : i.severity === 'warn' ? 'badge-warn' : 'badge-info';
-                return `<div class="text-sm py-1"><span class="badge ${cls}">${i.severity.toUpperCase()}</span> ${this.t(i.key)}${i.detail ? `<code class="ml-2 text-xs bg-white px-1 rounded border border-gray-200 inline-block max-w-full overflow-x-auto align-middle whitespace-nowrap">${this.escape(i.detail)}</code>` : ''}</div>`;
+                return `<div class="text-sm py-1"><span class="badge ${cls}">${this.t('severity.' + i.severity)}</span> ${this.t(i.key)}${detail ? `<code class="ml-2 text-xs bg-white px-1 rounded border border-gray-200 inline-block max-w-full overflow-x-auto align-middle whitespace-nowrap">${this.escape(detail)}</code>` : ''}</div>`;
             }).join('');
 
             const url = this.flowUrl(r, r.type);
@@ -2422,8 +2478,8 @@ class FlowDoctor {
             div.innerHTML = `
                 <div class="flex items-start justify-between gap-4">
                     <div>
-                        <div class="font-semibold text-gray-900">${this.escape(r.name || '(unnamed)')}</div>
-                        <div class="text-xs text-gray-500">${typeLabel}${r.enabled ? '' : ' · disabled'}</div>
+                        <div class="font-semibold text-gray-900">${this.escape(r.name || this.t('unnamed'))}</div>
+                        <div class="text-xs text-gray-500">${typeLabel}${r.enabled ? '' : ` · ${this.t('graph.disabled')}`}</div>
                     </div>
                     <div class="flex items-center gap-3 flex-wrap justify-end">
                         ${graphLinkHtml}
@@ -2600,8 +2656,8 @@ class FlowDoctor {
                            const url = this.flowUrl(f, f.type);
                            const typeTag = f.type === 'advanced' ? ` <span class="text-gray-400">(adv)</span>` : '';
                            const nameHtml = url
-                               ? `<a href="${url}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${this.escape(f.name || '(unnamed)')}</a>`
-                               : this.escape(f.name || '(unnamed)');
+                               ? `<a href="${url}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${this.escape(f.name || this.t('unnamed'))}</a>`
+                               : this.escape(f.name || this.t('unnamed'));
                            return `<li class="text-xs">${sevDot(f.severity)} ${nameHtml}${typeTag}</li>`;
                        }).join('')}</ul>
                    </div>`
@@ -2694,9 +2750,14 @@ class FlowDoctor {
         el.innerHTML = html;
     }
 
+    graphCardLabel(edge) {
+        const key = 'graph.kind.' + edge.card;
+        return this.t(I18N.en[key] ? key : 'graph.kind.' + edge.kind);
+    }
+
     graphFlowName(id) {
         const n = this.graph && this.graph.nodes.get(id);
-        return n ? (n.name || '(unnamed)') : id;
+        return n ? (n.name || this.t('unnamed')) : id;
     }
 
     graphPathHtml(path) {
@@ -2743,13 +2804,14 @@ class FlowDoctor {
             const badges = [];
             if (n.type === 'advanced') badges.push(`<span class="badge bg-gray-100 text-gray-600">${this.escape(this.t('graph.advanced'))}</span>`);
             const pointers = new Set((g.in.get(n.id) || []).map(e => e.from)).size;
-            if (pointers) badges.push(`<span class="badge badge-info" title="${this.escape(this.t('graph.pointedByCount').replace('{n}', pointers))}">← ${pointers}</span>`);
+            const pointersTitle = pointers === 1 ? this.t('graph.pointedByOne') : this.t('graph.pointedByCount').replace('{n}', pointers);
+            if (pointers) badges.push(`<span class="badge badge-info" title="${this.escape(pointersTitle)}">← ${pointers}</span>`);
             const cyc = g.nodeCycles.get(n.id);
             if (cyc) badges.push(`<span class="badge ${cyc.active ? 'badge-err' : 'badge-warn'}" title="${this.escape(this.t('graph.cycle'))}">↻</span>`);
             const disabled = n.enabled ? '' : ` title="${this.escape(this.t('graph.disabled'))}"`;
             return `<button type="button" data-select-flow="${this.escape(n.id)}" class="w-full flex items-center gap-2 py-1 pr-1 rounded text-left ${tone}" style="${indent(depth)}"${disabled}>
                     <span class="w-4 text-center shrink-0 text-gray-400">${n.enabled ? '⇄' : '⊘'}</span>
-                    <span class="truncate flex-grow ${n.enabled ? '' : 'line-through'}">${this.escape(n.name || '(unnamed)')}</span>
+                    <span class="truncate flex-grow ${n.enabled ? '' : 'line-through'}">${this.escape(n.name || this.t('unnamed'))}</span>
                     <span class="flex items-center gap-1 shrink-0 whitespace-nowrap">${badges.join('')}</span>
                 </button>`;
         };
@@ -2766,7 +2828,7 @@ class FlowDoctor {
                 parts.push(`<div>
                         <button type="button" data-toggle-folder="${this.escape(sub.id)}" class="w-full flex items-center gap-2 py-1 pr-1 rounded text-left hover:bg-gray-100" style="${indent(depth)}">
                             <span class="w-4 text-center shrink-0 text-gray-500">${open ? '▾' : '▸'}</span>
-                            <span class="truncate font-medium text-gray-900">${this.escape(sub.name || '(unnamed)')}</span>
+                            <span class="truncate font-medium text-gray-900">${this.escape(sub.name || this.t('unnamed'))}</span>
                             <span class="text-xs text-gray-400">${body.count}</span>
                         </button>
                         ${open ? body.html : ''}
@@ -2838,7 +2900,7 @@ class FlowDoctor {
             const min = Math.min(...edges.map(e => e.delaySeconds));
             tags.push(`<span class="badge bg-gray-100 text-gray-600">⏱ ${this.escape(this.t('graph.delay'))} ${this.escape(this.formatDelay(min))}</span>`);
         }
-        const titles = [...new Set(edges.map(e => e.cardTitle || this.t('graph.kind.' + e.kind)))];
+        const titles = [...new Set(edges.map(e => this.graphCardLabel(e)))];
         const via = titles.length
             ? `${this.escape(this.t('graph.via'))} «${titles.map(x => this.escape(x)).join('», «')}»${edges.length > 1 ? ` ×${edges.length}` : ''}`
             : (edges.length > 1 ? `×${edges.length}` : '');
@@ -2846,7 +2908,7 @@ class FlowDoctor {
         const url = this.flowUrl(n, n.type);
         const link = url ? `<a href="${this.escape(url)}" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-blue-600" title="${this.escape(this.t('openInHomey'))}">↗</a>` : '';
         return `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <button type="button" data-select-flow="${this.escape(n.id)}" class="font-medium ${n.enabled ? 'text-blue-700' : 'text-gray-500'} hover:underline text-left">${this.escape(n.name || '(unnamed)')}</button>
+                <button type="button" data-select-flow="${this.escape(n.id)}" class="font-medium ${n.enabled ? 'text-blue-700' : 'text-gray-500'} hover:underline text-left">${this.escape(n.name || this.t('unnamed'))}</button>
                 ${tags.join('')}
                 ${link}
             </div>
@@ -2920,7 +2982,7 @@ class FlowDoctor {
         el.innerHTML = `
             <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0">
-                    <div class="text-lg font-semibold text-gray-900 break-words">${this.escape(n.name || '(unnamed)')}</div>
+                    <div class="text-lg font-semibold text-gray-900 break-words">${this.escape(n.name || this.t('unnamed'))}</div>
                     <div class="text-xs text-gray-500">${this.escape(typeLabel)}${n.enabled ? '' : ` · ${this.escape(this.t('graph.disabled'))}`}</div>
                     <div class="text-xs text-gray-500 mt-1">${this.escape(this.t('graph.folder'))}: ${this.escape(folder)}</div>
                 </div>

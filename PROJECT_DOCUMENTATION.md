@@ -47,7 +47,7 @@
     *   `drivers/`: Device drivers (`composite-device`, `logic-device`, `logic-unit`, state and Circadian Light Group drivers).
     *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `DiagnosticsReport.js`, `FormulaEvaluator.js`, `Logger.js`).
     *   `locales/`: Translation files.
-*   `docs/`: Documentation for the GitHub Pages site.
+*   `docs/`: Documentation and web tools for the GitHub Pages site, published by `.github/workflows/pages.yml` on every push to `main` that changes `docs/` (Pages source: GitHub Actions).
 *   Jest test files live beside the app source, including `CompositeAggregator.test.js`, `CompositeDevice.test.js`, `FormulaEvaluator.test.js`, and `LogicUnit.test.js`.
 
 ## Key Technologies

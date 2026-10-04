@@ -15,6 +15,7 @@
 - Regular Flows view: new findings for references to deleted flows (all three card kinds; Homey does not mark these flows as broken) and for flows in a loop, plus a "Flow tree" button on each row. The bug report adds link and loop counts only, no names.
 - Translations: all new strings in en/no/de/nl. Card names use the tool's own labels instead of Homey's card titles, which follow the Homey's language. Also translated strings that were hard-coded in English: the severity filters and badges, the search placeholders, "disabled", "(unnamed)", the API reset confirmation and two error messages.
 - `docs/index.html`: Flow Doctor card text mentions the new feature.
+- Review fix: when `getFlows()` or `getAdvancedFlows()` fails, the scan still goes on with an empty list, but deleted-flow findings are now skipped. Before, a transient API error reported valid flows (for example an Advanced Flow started from a standard flow) as deleted.
 - `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
 
 ### Verification

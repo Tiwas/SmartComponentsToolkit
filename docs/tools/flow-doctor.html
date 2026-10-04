@@ -2058,9 +2058,14 @@ class FlowDoctor {
         try {
             this.showLoader(this.t('scanning'));
 
+            // A failed flow fetch is replaced by an empty list so the scan can go on, but
+            // then references into that list cannot be checked. Track it so they are not
+            // reported as deleted flows.
+            let flowListsComplete = true;
+            const flowList = (promise) => promise.catch(() => { flowListsComplete = false; return {}; });
             const [flows, advFlows, apps, triggers, conditions, actions, devices, folders] = await Promise.all([
-                this.api.flow.getFlows().catch(() => ({})),
-                (this.api.flow.getAdvancedFlows ? this.api.flow.getAdvancedFlows() : Promise.resolve({})).catch(() => ({})),
+                flowList(this.api.flow.getFlows()),
+                this.api.flow.getAdvancedFlows ? flowList(this.api.flow.getAdvancedFlows()) : Promise.resolve({}),
                 this.api.apps.getApps().catch(() => ({})),
                 this.api.flow.getFlowCardTriggers ? this.api.flow.getFlowCardTriggers().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardConditions ? this.api.flow.getFlowCardConditions().catch(() => ({})) : Promise.resolve({}),
@@ -2289,7 +2294,7 @@ class FlowDoctor {
             const reportedMissing = new Set();
             for (const e of graph.edges) {
                 const key = `${e.from}>${e.cardUri}>${e.to}`;
-                if (!e.missing || reportedMissing.has(key)) continue;
+                if (!e.missing || !flowListsComplete || reportedMissing.has(key)) continue;
                 reportedMissing.add(key);
                 resultById.get(e.from)?.issues.push({ severity: 'error', key: 'issue.missingFlowRef', detail: `${e.targetName || '?'} (ID: ${e.to})`, cardEdge: e });
             }

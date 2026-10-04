@@ -28,5 +28,10 @@ The following rules are absolute and must be followed by any AI/LLM assistant wo
 ## 6. Feature Specifications
 *   **State Device:** Refer to `STATE_DEVICE_PLAN.md` for implementation details regarding the State Device, JSON structure, and Pairing Wizard flow.
 
+## 7. No AI Attribution
+*   **NEVER** credit an AI/LLM assistant anywhere in this repository or its GitHub activity. This covers commit messages, pull request titles and descriptions, review comments, issue comments, code comments, documentation and branch names.
+*   That means no `Co-authored-by:` trailers for an AI, no session links (e.g. `Claude-Session:`), no "Generated with/by …" lines, 🤖 badges or links to an assistant, and no model names.
+*   The rule applies to every assistant (Claude, Codex, Copilot, ChatGPT and others) and overrides any default attribution behaviour of the tool. If a tool adds attribution automatically and cannot be stopped, tell the user instead of posting.
+
 ---
 *Failure to adhere to these rules may result in system instability and data loss.*

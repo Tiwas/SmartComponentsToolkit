@@ -1,5 +1,32 @@
 # Worklog
 
+## 2026-10-04 — Flow Doctor: flow tree showing who points to a flow
+
+### Requested
+- Lars asked for a view in the web tools that lists all flows in the same folder tree as the Homey app, where selecting a flow shows every flow that starts it, over several levels (selecting "All on - Toolbox" should show "All on", and then whoever starts "All on"), with an alarm for circular references.
+- Follow-up: the tab should only answer "who points to this flow". References to deleted flows belong in the regular Flows view, not in the tree.
+- Follow-up: every visible string must be translated in all four languages (en/no/de/nl).
+- Follow-up: no AI attribution anywhere in the repo or its GitHub activity; add this to the rules.
+
+### Implemented
+- `docs/tools/flow-doctor.html`: new **Flow tree** tab. The scan now also reads `api.flow.getFlowFolders()`. A DOM-free `FlowGraph` object builds the links between flows from *Start a Flow* (and its Text/Number/Yes-No/Image-tag variants), *Enable a Flow* and *Disable a Flow* cards in standard and Advanced Flows, the folder tree (folders first, natural sort) and circular references (Tarjan SCC).
+- Selecting a flow shows who points to it and who points to those, through every level, with the card used, folder path, disabled flows, Advanced Flow cards not wired to a trigger, Else-column cards and delays. A flow that is already in the chain is marked as a circular reference and not expanded again.
+- Circular-reference alarm at the top of the tab and on each affected flow: a loop of wired *Start a Flow* cards between enabled flows is red; a loop through a disabled flow, an unwired card or an Enable/Disable card is shown as inactive.
+- Regular Flows view: new findings for references to deleted flows (all three card kinds; Homey does not mark these flows as broken) and for flows in a loop, plus a "Flow tree" button on each row. The bug report adds link and loop counts only, no names.
+- Translations: all new strings in en/no/de/nl. Card names use the tool's own labels instead of Homey's card titles, which follow the Homey's language. Also translated strings that were hard-coded in English: the severity filters and badges, the search placeholders, "disabled", "(unnamed)", the API reset confirmation and two error messages.
+- `docs/index.html`: Flow Doctor card text mentions the new feature.
+- `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
+
+### Verification
+- Node unit tests for `FlowGraph` (run from a scratch copy of the inline script, not checked in): 8 passed. They cover standard and Advanced Flows, all card kinds, the legacy `uri` + `id` card shape, deleted targets, unwired cards, active/inactive/self loops, the folder tree with a corrupt parent loop, and empty input.
+- Playwright (Chromium) against a mocked Homey API whose fixtures follow real Homey Pro (2023) responses (card ids and `args.flow` shape checked on Lars's Homey): tree, chain, navigation, filters, the Flows-tab jump, 1400 px and 390 px (no horizontal scroll), and the visible text of every tab in all four languages.
+- Not tested against a real Homey through the OAuth login. The `getFlowFolders()` shape follows `apps/dashboard/shared/src/homey-client.ts` and was not checked live.
+
+### Follow-ups
+- Folder order is natural-sort alphabetical; a custom Homey folder order is not used.
+- The "cannot be started from another flow" hint relies on Homey's `triggerable` flag, whose meaning is inferred from live data.
+- Remove existing AI attribution from earlier PRs, comments and commits (separate task).
+
 ## 2026-09-30 — Circadian Light Group editors keep unknown lux sensors
 
 ### Requested

@@ -17,6 +17,12 @@
 - `docs/index.html`: Flow Doctor card text mentions the new feature.
 - Review fix: when `getFlows()` or `getAdvancedFlows()` fails, the scan still goes on with an empty list, but deleted-flow findings are now skipped. Before, a transient API error reported valid flows (for example an Advanced Flow started from a standard flow) as deleted.
 - Review fix: delays in Advanced Flows live on separate `delay` cards (`args.delay`, same shape as a standard-flow card delay, checked on Lars's Homey). The link from an Advanced Flow now gets the shortest total delay on the path from a trigger or the start card to the Start/Enable/Disable card, so the delay badge also shows for Advanced Flows. A path without any delay means no badge.
+- Adversarial review fixes:
+  - Loops are now built from *Start a Flow* links only. A flow that disables itself, or two flows that enable/disable each other, no longer raise a circular-reference alarm or finding. Enable/Disable links still show as pointers, and a repeat through one is labelled "already in this chain".
+  - A flow is never counted as its own pointer (direct count, tree badge, "only flows that other flows point to" filter).
+  - All direct pointers are always listed; the 400-node limit only cuts deeper levels. A flow that was already expanded in the same chain shows "shown above" instead of repeating its ancestors.
+  - A failed flow list now shows a warning above the tabs, and the bug report sends `missingTargets: null` with `flowListsComplete: false`.
+  - The "Flow tree" button in the Flows tab scrolls the tab into view. The folder tree is built once per scan, and a folder in a corrupt parent loop shows the same path as its place in the tree.
 - `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
 
 ### Verification

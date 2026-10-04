@@ -1,5 +1,51 @@
 # Worklog
 
+## 2026-10-04 — Flow Doctor: flow tree showing who points to a flow
+
+### Requested
+- Lars asked for a view in the web tools that lists all flows in the same folder tree as the Homey app, where selecting a flow shows every flow that starts it, over several levels (selecting "All on - Toolbox" should show "All on", and then whoever starts "All on"), with an alarm for circular references.
+- Follow-up: the tab should only answer "who points to this flow". References to deleted flows belong in the regular Flows view, not in the tree.
+- Follow-up: every visible string must be translated in all four languages (en/no/de/nl).
+- Follow-up: no AI attribution anywhere in the repo or its GitHub activity; add this to the rules.
+
+### Implemented
+- `docs/tools/flow-doctor.html`: new **Flow tree** tab. The scan now also reads `api.flow.getFlowFolders()`. A DOM-free `FlowGraph` object builds the links between flows from *Start a Flow* (and its Text/Number/Yes-No/Image-tag variants), *Enable a Flow* and *Disable a Flow* cards in standard and Advanced Flows, the folder tree (folders first, natural sort) and circular references (Tarjan SCC).
+- Selecting a flow shows who points to it and who points to those, through every level, with the card used, folder path, disabled flows, Advanced Flow cards not wired to a trigger, Else-column cards and delays. A flow that is already in the chain is marked as a circular reference and not expanded again.
+- Circular-reference alarm at the top of the tab and on each affected flow: a loop of wired *Start a Flow* cards between enabled flows is red; a loop through a disabled flow, an unwired card or an Enable/Disable card is shown as inactive.
+- Regular Flows view: new findings for references to deleted flows (all three card kinds; Homey does not mark these flows as broken) and for flows in a loop, plus a "Flow tree" button on each row. The bug report adds link and loop counts only, no names.
+- Translations: all new strings in en/no/de/nl. Card names use the tool's own labels instead of Homey's card titles, which follow the Homey's language. Also translated strings that were hard-coded in English: the severity filters and badges, the search placeholders, "disabled", "(unnamed)", the API reset confirmation and two error messages.
+- `docs/index.html`: Flow Doctor card text mentions the new feature.
+- Review fix: when `getFlows()` or `getAdvancedFlows()` fails, the scan still goes on with an empty list, but deleted-flow findings are now skipped. Before, a transient API error reported valid flows (for example an Advanced Flow started from a standard flow) as deleted.
+- Review fix: delays in Advanced Flows live on separate `delay` cards (`args.delay`, same shape as a standard-flow card delay, checked on Lars's Homey). The link from an Advanced Flow now gets the shortest total delay on the path from a trigger or the start card to the Start/Enable/Disable card, so the delay badge also shows for Advanced Flows. A path without any delay means no badge.
+- Adversarial review fixes:
+  - Loops are now built from *Start a Flow* links only. A flow that disables itself, or two flows that enable/disable each other, no longer raise a circular-reference alarm or finding. Enable/Disable links still show as pointers, and a repeat through one is labelled "already in this chain".
+  - A flow is never counted as its own pointer (direct count, tree badge, "only flows that other flows point to" filter).
+  - All direct pointers are always listed; the 400-node limit only cuts deeper levels. A flow that was already expanded in the same chain shows "shown above" instead of repeating its ancestors.
+  - A failed flow list now shows a warning above the tabs, and the bug report sends `missingTargets: null` with `flowListsComplete: false`.
+  - The "Flow tree" button in the Flows tab scrolls the tab into view. The folder tree is built once per scan, and a folder in a corrupt parent loop shows the same path as its place in the tree.
+- Second adversarial pass:
+  - Loop detection (Tarjan) is iterative, so a very long chain of flows can no longer overflow the call stack and fail the whole scan (a 20 000-flow chain overflowed the recursive version).
+  - The loop badge in the chain is coloured from the links on the path shown, not from the flow's overall loop status.
+  - A missing `getAdvancedFlows` method counts as an incomplete flow list, and failed folder loading shows its own warning instead of silently flattening the tree.
+  - Folder toggles are ignored while the tree is filtered (folders are forced open then). A language switch re-renders the warning and the Flow tree even when the scan returned no flows. Delay units are translated (Norwegian "t", German "Std./Min./Sek.", Dutch "u").
+  - One pointer rule (`FlowGraph.pointerGroups`) for the chain, counts and filter, with counts cached per scan. The graph reads card URIs with the same rule as the card checks (`card.id || card.uri`), so it no longer invents links from cards the checks ignore.
+- Third adversarial pass:
+  - A Homey that answers 404 for Advanced Flows (no Advanced Flow support) is treated as a complete, empty list, so it does not show the incomplete-scan warning on every scan; other failures still do.
+  - The chain reserves the direct pointers for the top level. A flow whose pointers are listed elsewhere says "shown elsewhere in this chain", and a row whose pointers were left out by the 400-node limit says "chain cut off here", so an empty row never looks like "nobody points to this flow".
+  - On narrow screens every flow click (tree, loop alert, chain) brings the detail panel into view. While the tree is filtered, folder headers are not clickable and Expand/Collapse all are disabled.
+  - Delays are rounded (0.07 h shows 252 s, not 252.00000000000003 s). Closed folders no longer build hidden HTML, folder paths are cached per scan, and the unused `FlowGraph.pointers` helper is gone.
+- `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
+
+### Verification
+- Node unit tests for `FlowGraph` (run from a scratch copy of the inline script, not checked in): 8 passed. They cover standard and Advanced Flows, all card kinds, the legacy `uri` + `id` card shape, deleted targets, unwired cards, active/inactive/self loops, the folder tree with a corrupt parent loop, and empty input.
+- Playwright (Chromium) against a mocked Homey API whose fixtures follow real Homey Pro (2023) responses (card ids and `args.flow` shape checked on Lars's Homey): tree, chain, navigation, filters, the Flows-tab jump, 1400 px and 390 px (no horizontal scroll), and the visible text of every tab in all four languages.
+- Not tested against a real Homey through the OAuth login. The `getFlowFolders()` shape follows `apps/dashboard/shared/src/homey-client.ts` and was not checked live.
+
+### Follow-ups
+- Folder order is natural-sort alphabetical; a custom Homey folder order is not used.
+- The "cannot be started from another flow" hint relies on Homey's `triggerable` flag, whose meaning is inferred from live data.
+- Remove existing AI attribution from earlier PRs, comments and commits (separate task).
+
 ## 2026-09-30 — Circadian Light Group editors keep unknown lux sensors
 
 ### Requested

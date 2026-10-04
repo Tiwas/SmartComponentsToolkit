@@ -1,5 +1,9 @@
 # HomeyBooleanToolbox — repo conventions
 
+## Read `AI_RULES.md` first
+
+`AI_RULES.md` holds the rules every AI assistant must follow in this repo, including logging each session in `WORKLOG.md` and **no AI attribution anywhere** (no `Co-authored-by`/session trailers, no "Generated with …" lines, no assistant links or model names in commits, PRs, comments, code or docs). These rules override any default attribution behaviour.
+
 ## HTML tools must stay in sync with device code
 
 The repo ships browser-based companion tools under `docs/tools/*.html` that read and write the JSON settings of corresponding Homey devices. Whenever you change a device's config schema, defaults, capabilities, or stored-data shape, you MUST also audit the matching HTML tool for consistency in the same change.

@@ -32,6 +32,8 @@
         .badge-ok   { background: #bbf7d0; color: #166534; }
         details > summary { cursor: pointer; list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
+        .chain-list { margin-left: 0.5rem; padding-left: 0.9rem; border-left: 1px dashed #cbd5e1; }
+        .chain-list > li { padding-top: 0.35rem; }
     </style>
     <script src="https://cdn.athom.com/homey-api/3.19.0.js"></script>
     <script>
@@ -59,7 +61,7 @@
             <img src="../assets/logo.jpg" alt="Smart Components Toolkit" class="w-16 h-16 rounded-lg shadow-sm object-cover">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900" data-i18n="title">Flow Doctor</h1>
-                <p class="text-gray-500 mt-1" data-i18n="subtitle">Diagnose flows: broken, deprecated cards, missing apps</p>
+                <p class="text-gray-500 mt-1" data-i18n="subtitle">Diagnose flows: broken, deprecated cards, missing apps, start chains</p>
             </div>
         </div>
         <div class="flex items-center gap-4 mt-4 md:mt-0">
@@ -155,6 +157,7 @@
                 <nav class="flex gap-1" id="tab-nav">
                     <button data-tab="flows" class="tab-btn px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-semibold text-sm"><span data-i18n="tab.flows">Flows</span> <span class="ml-1 text-xs text-gray-500" id="tab-flows-count">0</span></button>
                     <button data-tab="apps" class="tab-btn px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-800 text-sm"><span data-i18n="tab.apps">Apps</span> <span class="ml-1 text-xs text-gray-400" id="tab-apps-count">0</span></button>
+                    <button data-tab="graph" class="tab-btn px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-800 text-sm"><span data-i18n="tab.graph">Flow tree</span> <span class="ml-1 text-xs text-gray-400" id="tab-graph-count">0</span></button>
                 </nav>
                 <button id="rescan-button" class="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 mb-2" data-i18n="rescan">Rescan</button>
             </div>
@@ -190,6 +193,26 @@
                     </select>
                 </div>
                 <div id="apps-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Flow tree tab: folder tree + which flows start the selected flow -->
+            <div id="tab-graph" class="tab-pane hidden">
+                <div id="graph-cycle-alert" class="mb-4"></div>
+                <div class="grid gap-4 lg:grid-cols-5">
+                    <section class="lg:col-span-2 border border-gray-200 rounded-lg bg-white min-w-0">
+                        <div class="bg-gray-50 border-b border-gray-200 rounded-t-lg p-3 space-y-2">
+                            <input type="text" id="graph-search" data-i18n-placeholder="graph.search" placeholder="Search flow…" class="w-full text-sm border border-gray-300 rounded px-2 py-1">
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <label class="text-xs flex items-center gap-1"><input type="checkbox" id="graph-only-linked"> <span data-i18n="graph.onlyLinked">Only flows linked by "Start a Flow"</span></label>
+                                <span class="flex-grow"></span>
+                                <button type="button" id="graph-expand-all" class="text-xs text-blue-600 hover:underline" data-i18n="graph.expandAll">Expand all</button>
+                                <button type="button" id="graph-collapse-all" class="text-xs text-blue-600 hover:underline" data-i18n="graph.collapseAll">Collapse all</button>
+                            </div>
+                        </div>
+                        <div id="flow-tree" class="p-2 text-sm overflow-auto max-h-[60vh] lg:max-h-[70vh]"></div>
+                    </section>
+                    <section id="flow-detail" class="lg:col-span-3 border border-gray-200 rounded-lg bg-white p-4 min-w-0"></section>
+                </div>
             </div>
 
         </div>
@@ -235,7 +258,7 @@
 const I18N = {
     en: {
         title: 'Flow Doctor',
-        subtitle: 'Diagnose flows: broken, deprecated cards, missing apps',
+        subtitle: 'Diagnose flows: broken, deprecated cards, missing apps, start chains',
         apiSettings: '⚙️ API Settings',
         logout: 'Log out',
         'bug.button': '🐞 Report bug',
@@ -363,10 +386,50 @@ const I18N = {
         loadingFlows: 'Loading flows and apps…',
         scanning: 'Scanning flows…',
         noIssues: 'No issues found. All flows look healthy. 🎉',
+        'tab.graph': 'Flow tree',
+        'graph.search': 'Search flow…',
+        'graph.onlyLinked': 'Only flows linked by "Start a Flow"',
+        'graph.expandAll': 'Expand all',
+        'graph.collapseAll': 'Collapse all',
+        'graph.root': 'My Flows',
+        'graph.noFlows': 'No flows match the filter.',
+        'graph.selectHint': 'Select a flow in the tree to see which flows start it.',
+        'graph.folder': 'Folder',
+        'graph.startedBy': 'Started by',
+        'graph.starts': 'Starts',
+        'graph.direct': 'direct',
+        'graph.inChain': 'in the whole chain',
+        'graph.noStarters': 'No other flow starts this flow.',
+        'graph.noStarts': 'This flow does not start any other flow.',
+        'graph.notTriggerable': 'Homey reports that this flow cannot be started from another flow.',
+        'graph.cycle': 'circular reference',
+        'graph.cycleAlertTitle': 'Circular references',
+        'graph.cycleAlertHelp': 'These flows start each other in a loop. A loop with a delay and a stop condition can be intentional; otherwise it can keep running forever.',
+        'graph.cycleInactive': 'inactive',
+        'graph.cycleInactiveHelp': 'The loop goes through a disabled flow or a card that is not connected, so it does not run right now.',
+        'graph.moreInLoop': 'more flows in the same loop group',
+        'graph.noCycles': 'No circular references found.',
+        'graph.inCycle': 'This flow is part of a circular reference:',
+        'graph.disabled': 'disabled',
+        'graph.advanced': 'Advanced',
+        'graph.unconnected': 'card not connected',
+        'graph.unconnectedHelp': 'The start card is not connected to a trigger in this Advanced Flow, so it never runs.',
+        'graph.elseBranch': 'else',
+        'graph.elseBranchHelp': 'Runs only when the conditions are not met (Else column).',
+        'graph.delay': 'delay',
+        'graph.missingFlow': 'deleted flow',
+        'graph.startedByCount': 'Started by {n} flows',
+        'graph.via': 'via',
+        'graph.truncated': 'The tree was cut off because it is very large.',
+        'graph.links': 'start links',
+        'graph.showInTree': 'Flow tree',
+        'issue.startCycle': 'Part of a circular reference (flows start each other in a loop)',
+        'issue.startCycleInactive': 'Part of an inactive circular reference (through a disabled flow or an unconnected card)',
+        'issue.missingStartTarget': 'Starts a flow that no longer exists',
     },
     no: {
         title: 'Flow Doctor',
-        subtitle: 'Diagnoser flows: ødelagte, deprecated kort, manglende apper',
+        subtitle: 'Diagnoser flows: ødelagte, deprecated kort, manglende apper, startkjeder',
         apiSettings: '⚙️ API-innstillinger',
         logout: 'Logg ut',
         'bug.button': '🐞 Rapportér feil',
@@ -494,10 +557,50 @@ const I18N = {
         loadingFlows: 'Henter flows og apper…',
         scanning: 'Analyserer flows…',
         noIssues: 'Ingen feil funnet. Alle flows ser bra ut. 🎉',
+        'tab.graph': 'Flow-tre',
+        'graph.search': 'Søk etter flow…',
+        'graph.onlyLinked': 'Bare flows koblet med «Start en flow»',
+        'graph.expandAll': 'Utvid alle',
+        'graph.collapseAll': 'Lukk alle',
+        'graph.root': 'Mine flows',
+        'graph.noFlows': 'Ingen flows passer filteret.',
+        'graph.selectHint': 'Velg en flow i treet for å se hvilke flows som starter den.',
+        'graph.folder': 'Mappe',
+        'graph.startedBy': 'Startes av',
+        'graph.starts': 'Starter',
+        'graph.direct': 'direkte',
+        'graph.inChain': 'i hele kjeden',
+        'graph.noStarters': 'Ingen andre flows starter denne flowen.',
+        'graph.noStarts': 'Denne flowen starter ingen andre flows.',
+        'graph.notTriggerable': 'Homey oppgir at denne flowen ikke kan startes fra en annen flow.',
+        'graph.cycle': 'sirkulær referanse',
+        'graph.cycleAlertTitle': 'Sirkulære referanser',
+        'graph.cycleAlertHelp': 'Disse flowene starter hverandre i en løkke. En løkke med forsinkelse og en stoppbetingelse kan være tilsiktet; ellers kan den gå i det uendelige.',
+        'graph.cycleInactive': 'inaktiv',
+        'graph.cycleInactiveHelp': 'Løkken går via en deaktivert flow eller et kort som ikke er koblet til, så den kjører ikke nå.',
+        'graph.moreInLoop': 'flere flows i samme løkkegruppe',
+        'graph.noCycles': 'Ingen sirkulære referanser funnet.',
+        'graph.inCycle': 'Denne flowen er del av en sirkulær referanse:',
+        'graph.disabled': 'deaktivert',
+        'graph.advanced': 'Advanced',
+        'graph.unconnected': 'kortet er ikke koblet til',
+        'graph.unconnectedHelp': 'Startkortet er ikke koblet til noen trigger i denne Advanced Flow-en, så det kjører aldri.',
+        'graph.elseBranch': 'ellers',
+        'graph.elseBranchHelp': 'Kjører bare når betingelsene ikke er oppfylt (Ellers-kolonnen).',
+        'graph.delay': 'forsinkelse',
+        'graph.missingFlow': 'slettet flow',
+        'graph.startedByCount': 'Startes av {n} flows',
+        'graph.via': 'via',
+        'graph.truncated': 'Treet ble kuttet fordi det er svært stort.',
+        'graph.links': 'startkoblinger',
+        'graph.showInTree': 'Flow-tre',
+        'issue.startCycle': 'Del av en sirkulær referanse (flows starter hverandre i en løkke)',
+        'issue.startCycleInactive': 'Del av en inaktiv sirkulær referanse (via en deaktivert flow eller et frakoblet kort)',
+        'issue.missingStartTarget': 'Starter en flow som ikke lenger finnes',
     },
     de: {
         title: 'Flow Doctor',
-        subtitle: 'Diagnose von Flows: defekt, veraltete Karten, fehlende Apps',
+        subtitle: 'Diagnose von Flows: defekt, veraltete Karten, fehlende Apps, Startketten',
         apiSettings: '⚙️ API-Einstellungen',
         logout: 'Abmelden',
         'bug.button': '🐞 Fehler melden',
@@ -625,10 +728,50 @@ const I18N = {
         loadingFlows: 'Lade Flows und Apps…',
         scanning: 'Flows werden analysiert…',
         noIssues: 'Keine Probleme gefunden. Alle Flows sehen gut aus. 🎉',
+        'tab.graph': 'Flow-Baum',
+        'graph.search': 'Flow suchen…',
+        'graph.onlyLinked': 'Nur Flows, die über „Einen Flow starten“ verbunden sind',
+        'graph.expandAll': 'Alle aufklappen',
+        'graph.collapseAll': 'Alle zuklappen',
+        'graph.root': 'Meine Flows',
+        'graph.noFlows': 'Keine Flows entsprechen dem Filter.',
+        'graph.selectHint': 'Wählen Sie einen Flow im Baum, um zu sehen, welche Flows ihn starten.',
+        'graph.folder': 'Ordner',
+        'graph.startedBy': 'Gestartet von',
+        'graph.starts': 'Startet',
+        'graph.direct': 'direkt',
+        'graph.inChain': 'in der gesamten Kette',
+        'graph.noStarters': 'Kein anderer Flow startet diesen Flow.',
+        'graph.noStarts': 'Dieser Flow startet keine anderen Flows.',
+        'graph.notTriggerable': 'Homey meldet, dass dieser Flow nicht von einem anderen Flow gestartet werden kann.',
+        'graph.cycle': 'Zirkelbezug',
+        'graph.cycleAlertTitle': 'Zirkelbezüge',
+        'graph.cycleAlertHelp': 'Diese Flows starten sich gegenseitig in einer Schleife. Eine Schleife mit Verzögerung und Abbruchbedingung kann gewollt sein; andernfalls kann sie endlos laufen.',
+        'graph.cycleInactive': 'inaktiv',
+        'graph.cycleInactiveHelp': 'Die Schleife führt über einen deaktivierten Flow oder eine nicht verbundene Karte und läuft deshalb derzeit nicht.',
+        'graph.moreInLoop': 'weitere Flows in derselben Schleifengruppe',
+        'graph.noCycles': 'Keine Zirkelbezüge gefunden.',
+        'graph.inCycle': 'Dieser Flow ist Teil eines Zirkelbezugs:',
+        'graph.disabled': 'deaktiviert',
+        'graph.advanced': 'Advanced',
+        'graph.unconnected': 'Karte nicht verbunden',
+        'graph.unconnectedHelp': 'Die Startkarte ist in diesem Advanced Flow mit keinem Auslöser verbunden und wird daher nie ausgeführt.',
+        'graph.elseBranch': 'sonst',
+        'graph.elseBranchHelp': 'Läuft nur, wenn die Bedingungen nicht erfüllt sind (Sonst-Spalte).',
+        'graph.delay': 'Verzögerung',
+        'graph.missingFlow': 'gelöschter Flow',
+        'graph.startedByCount': 'Gestartet von {n} Flows',
+        'graph.via': 'über',
+        'graph.truncated': 'Der Baum wurde gekürzt, weil er sehr groß ist.',
+        'graph.links': 'Start-Verknüpfungen',
+        'graph.showInTree': 'Flow-Baum',
+        'issue.startCycle': 'Teil eines Zirkelbezugs (Flows starten sich gegenseitig in einer Schleife)',
+        'issue.startCycleInactive': 'Teil eines inaktiven Zirkelbezugs (über einen deaktivierten Flow oder eine nicht verbundene Karte)',
+        'issue.missingStartTarget': 'Startet einen Flow, der nicht mehr existiert',
     },
     nl: {
         title: 'Flow Doctor',
-        subtitle: 'Diagnose van flows: kapot, verouderde kaarten, ontbrekende apps',
+        subtitle: 'Diagnose van flows: kapot, verouderde kaarten, ontbrekende apps, startketens',
         apiSettings: '⚙️ API-instellingen',
         logout: 'Uitloggen',
         'bug.button': '🐞 Bug melden',
@@ -756,12 +899,329 @@ const I18N = {
         loadingFlows: 'Flows en apps laden…',
         scanning: 'Flows worden geanalyseerd…',
         noIssues: 'Geen problemen gevonden. Alle flows zien er goed uit. 🎉',
+        'tab.graph': 'Flow-boom',
+        'graph.search': 'Flow zoeken…',
+        'graph.onlyLinked': 'Alleen flows die via „Start een flow” verbonden zijn',
+        'graph.expandAll': 'Alles uitklappen',
+        'graph.collapseAll': 'Alles inklappen',
+        'graph.root': 'Mijn flows',
+        'graph.noFlows': 'Geen flows komen overeen met het filter.',
+        'graph.selectHint': 'Kies een flow in de boom om te zien welke flows hem starten.',
+        'graph.folder': 'Map',
+        'graph.startedBy': 'Gestart door',
+        'graph.starts': 'Start',
+        'graph.direct': 'direct',
+        'graph.inChain': 'in de hele keten',
+        'graph.noStarters': 'Geen andere flow start deze flow.',
+        'graph.noStarts': 'Deze flow start geen andere flows.',
+        'graph.notTriggerable': 'Homey meldt dat deze flow niet vanuit een andere flow gestart kan worden.',
+        'graph.cycle': 'kringverwijzing',
+        'graph.cycleAlertTitle': 'Kringverwijzingen',
+        'graph.cycleAlertHelp': 'Deze flows starten elkaar in een lus. Een lus met vertraging en een stopvoorwaarde kan bedoeld zijn; anders kan hij eindeloos doorlopen.',
+        'graph.cycleInactive': 'inactief',
+        'graph.cycleInactiveHelp': 'De lus loopt via een uitgeschakelde flow of een niet-verbonden kaart en draait daarom nu niet.',
+        'graph.moreInLoop': 'meer flows in dezelfde lusgroep',
+        'graph.noCycles': 'Geen kringverwijzingen gevonden.',
+        'graph.inCycle': 'Deze flow maakt deel uit van een kringverwijzing:',
+        'graph.disabled': 'uitgeschakeld',
+        'graph.advanced': 'Advanced',
+        'graph.unconnected': 'kaart niet verbonden',
+        'graph.unconnectedHelp': 'De startkaart is in deze Advanced Flow niet met een trigger verbonden en wordt dus nooit uitgevoerd.',
+        'graph.elseBranch': 'anders',
+        'graph.elseBranchHelp': 'Draait alleen als niet aan de voorwaarden is voldaan (Anders-kolom).',
+        'graph.delay': 'vertraging',
+        'graph.missingFlow': 'verwijderde flow',
+        'graph.startedByCount': 'Gestart door {n} flows',
+        'graph.via': 'via',
+        'graph.truncated': 'De boom is ingekort omdat hij erg groot is.',
+        'graph.links': 'startkoppelingen',
+        'graph.showInTree': 'Flow-boom',
+        'issue.startCycle': 'Deel van een kringverwijzing (flows starten elkaar in een lus)',
+        'issue.startCycleInactive': 'Deel van een inactieve kringverwijzing (via een uitgeschakelde flow of een niet-verbonden kaart)',
+        'issue.missingStartTarget': 'Start een flow die niet meer bestaat',
     },
 };
 
 const FLAGS = { en: '🇬🇧', no: '🇳🇴', de: '🇩🇪', nl: '🇳🇱' };
 const SMART_COMPONENTS_APP_ID = 'no.tiwas.booleantoolbox';
 const DEVICE_REGISTRY_SETTING_KEY = 'device_registry';
+
+// Pure helpers for the Flow tree tab: which flow starts which, the folder tree,
+// and circular start chains. No DOM access, so the logic can be tested in Node.
+const FlowGraph = {
+    // "Start a Flow" plus the "...with a Text/Number/Yes-No/Image-tag" variants.
+    START_CARD_RE: /^homey:manager:flow:programmatic_trigger(?:_[a-z]+_tag)?$/,
+
+    collator: new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
+
+    cardUri(card) {
+        if (!card) return '';
+        const id = typeof card.id === 'string' ? card.id : '';
+        if (id.startsWith('homey:')) return id;
+        const owner = card.ownerUri || card.uri || '';
+        return owner && id ? `${owner}:${id}` : id;
+    },
+
+    startTargetId(card) {
+        const flowArg = card && card.args && card.args.flow;
+        if (!flowArg) return null;
+        if (typeof flowArg === 'string') return flowArg || null;
+        return typeof flowArg.id === 'string' && flowArg.id ? flowArg.id : null;
+    },
+
+    delaySeconds(delay) {
+        if (!delay || typeof delay !== 'object') return null;
+        const seconds = Number(delay.number) * Number(delay.multiplier || 1);
+        return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+    },
+
+    // An Advanced Flow card only runs when a path leads to it from a trigger or
+    // the "start" card. Returns the keys of the cards that can run.
+    reachableCards(cards) {
+        const reached = new Set();
+        const queue = [];
+        for (const [key, card] of Object.entries(cards || {})) {
+            const type = String((card && card.type) || '');
+            if (type === 'start' || type.endsWith('trigger')) {
+                reached.add(key);
+                queue.push(key);
+            }
+        }
+        while (queue.length) {
+            const card = cards[queue.shift()] || {};
+            for (const [field, value] of Object.entries(card)) {
+                if (!field.startsWith('output') || !Array.isArray(value)) continue;
+                for (const next of value) {
+                    if (cards[next] && !reached.has(next)) {
+                        reached.add(next);
+                        queue.push(next);
+                    }
+                }
+            }
+        }
+        return reached;
+    },
+
+    build({ flows = {}, advancedFlows = {}, folders = {}, cardTitle = () => null } = {}) {
+        const nodes = new Map();
+        const addNode = (flow, type) => {
+            if (!flow || !flow.id) return;
+            nodes.set(flow.id, {
+                id: flow.id,
+                type,
+                name: flow.name || '',
+                enabled: flow.enabled !== false,
+                triggerable: flow.triggerable,
+                folder: flow.folder || null,
+            });
+        };
+        Object.values(flows || {}).forEach(f => addNode(f, 'standard'));
+        Object.values(advancedFlows || {}).forEach(f => addNode(f, 'advanced'));
+
+        const folderMap = new Map();
+        Object.values(folders || {}).forEach(f => {
+            if (f && f.id) folderMap.set(f.id, { id: f.id, name: f.name || '', parent: f.parent || null });
+        });
+
+        const edges = [];
+        const addEdge = (from, card, extra) => {
+            const uri = this.cardUri(card);
+            if (!this.START_CARD_RE.test(uri)) return;
+            const to = this.startTargetId(card);
+            if (!to) return;
+            const flowArg = card.args.flow;
+            edges.push({
+                from,
+                to,
+                cardUri: uri,
+                cardTitle: cardTitle(uri) || null,
+                targetName: (flowArg && typeof flowArg === 'object' && flowArg.name) || '',
+                missing: !nodes.has(to),
+                connected: true,
+                group: null,
+                delaySeconds: null,
+                ...extra,
+            });
+        };
+        for (const flow of Object.values(flows || {})) {
+            if (!flow || !flow.id) continue;
+            for (const card of (flow.actions || [])) {
+                addEdge(flow.id, card, { group: (card && card.group) || null, delaySeconds: this.delaySeconds(card && card.delay) });
+            }
+        }
+        for (const flow of Object.values(advancedFlows || {})) {
+            if (!flow || !flow.id) continue;
+            const cards = flow.cards || {};
+            const reachable = this.reachableCards(cards);
+            for (const [key, card] of Object.entries(cards)) {
+                if (!card || (card.type && card.type !== 'action')) continue;
+                addEdge(flow.id, card, { connected: reachable.has(key) });
+            }
+        }
+
+        const out = new Map();
+        const inbound = new Map();
+        for (const e of edges) {
+            const src = nodes.get(e.from);
+            const dst = nodes.get(e.to);
+            // A link only fires when the card is wired up and both flows are enabled.
+            e.active = !e.missing && e.connected && !!src && src.enabled && !!dst && dst.enabled;
+            if (!out.has(e.from)) out.set(e.from, []);
+            out.get(e.from).push(e);
+            if (!inbound.has(e.to)) inbound.set(e.to, []);
+            inbound.get(e.to).push(e);
+        }
+
+        const graph = { nodes, folders: folderMap, edges, out, in: inbound };
+        this.attachCycles(graph);
+        return graph;
+    },
+
+    // Shortest start chain that leaves startId and returns to it, staying inside
+    // `members` and (with activeOnly) using only links that currently fire.
+    // Returns [startId, ..., startId] or null.
+    cycleThrough(graph, startId, members, activeOnly) {
+        const prev = new Map();
+        const visited = new Set([startId]);
+        const queue = [startId];
+        while (queue.length) {
+            const u = queue.shift();
+            for (const e of (graph.out.get(u) || [])) {
+                if (e.missing || (activeOnly && !e.active) || !members.has(e.to)) continue;
+                if (e.to === startId) {
+                    const back = [];
+                    for (let cur = u; cur !== startId; cur = prev.get(cur)) back.push(cur);
+                    return [startId, ...back.reverse(), startId];
+                }
+                if (!visited.has(e.to)) {
+                    visited.add(e.to);
+                    prev.set(e.to, u);
+                    queue.push(e.to);
+                }
+            }
+        }
+        return null;
+    },
+
+    // Groups flows into strongly connected components (Tarjan). Every component
+    // with more than one flow, or a flow that starts itself, is a circular reference.
+    attachCycles(graph) {
+        const byName = (a, b) => this.collator.compare(graph.nodes.get(a)?.name || a, graph.nodes.get(b)?.name || b);
+        let counter = 0;
+        const index = new Map();
+        const low = new Map();
+        const stack = [];
+        const onStack = new Set();
+        const components = [];
+        const visit = (v) => {
+            index.set(v, counter);
+            low.set(v, counter);
+            counter++;
+            stack.push(v);
+            onStack.add(v);
+            for (const e of (graph.out.get(v) || [])) {
+                if (e.missing) continue;
+                if (!index.has(e.to)) {
+                    visit(e.to);
+                    low.set(v, Math.min(low.get(v), low.get(e.to)));
+                } else if (onStack.has(e.to)) {
+                    low.set(v, Math.min(low.get(v), index.get(e.to)));
+                }
+            }
+            if (low.get(v) === index.get(v)) {
+                const component = [];
+                let w;
+                do {
+                    w = stack.pop();
+                    onStack.delete(w);
+                    component.push(w);
+                } while (w !== v);
+                components.push(component);
+            }
+        };
+        for (const id of graph.nodes.keys()) if (!index.has(id)) visit(id);
+
+        graph.cycles = [];
+        graph.nodeCycles = new Map();
+        for (const component of components) {
+            const selfLoop = component.length === 1
+                && (graph.out.get(component[0]) || []).some(e => e.to === component[0]);
+            if (component.length < 2 && !selfLoop) continue;
+            const members = new Set(component);
+            const sorted = [...members].sort(byName);
+            const cycle = { members: sorted, path: null, active: false };
+            for (const id of sorted) {
+                const activePath = this.cycleThrough(graph, id, members, true);
+                const path = activePath || this.cycleThrough(graph, id, members, false);
+                graph.nodeCycles.set(id, { cycle, active: !!activePath, path });
+                if (activePath && !cycle.active) {
+                    cycle.active = true;
+                    cycle.path = activePath;
+                }
+            }
+            if (!cycle.path) cycle.path = graph.nodeCycles.get(sorted[0]).path;
+            graph.cycles.push(cycle);
+        }
+        graph.cycles.sort((a, b) => (b.active - a.active) || byName(a.members[0], b.members[0]));
+    },
+
+    // Folder ids from the flow's own folder up to the top level.
+    folderChain(graph, folderId) {
+        const chain = [];
+        const seen = new Set();
+        for (let id = folderId; id && graph.folders.has(id) && !seen.has(id); id = graph.folders.get(id).parent) {
+            seen.add(id);
+            chain.push(id);
+        }
+        return chain;
+    },
+
+    folderPath(graph, folderId) {
+        return this.folderChain(graph, folderId).reverse().map(id => graph.folders.get(id).name).join(' / ');
+    },
+
+    // Nested folders → flows, sorted like the Homey app (folders first, then flows).
+    folderTree(graph) {
+        const root = { id: null, name: '', folders: [], flows: [] };
+        const byId = new Map();
+        for (const f of graph.folders.values()) byId.set(f.id, { id: f.id, name: f.name, folders: [], flows: [] });
+        for (const f of graph.folders.values()) {
+            const chain = this.folderChain(graph, f.parent);
+            // A parent that loops back to this folder is treated as missing.
+            const parent = f.parent && !chain.includes(f.id) ? byId.get(f.parent) : null;
+            (parent || root).folders.push(byId.get(f.id));
+        }
+        for (const node of graph.nodes.values()) {
+            (byId.get(node.folder) || root).flows.push(node);
+        }
+        const sortNode = (n) => {
+            n.folders.sort((a, b) => this.collator.compare(a.name, b.name));
+            n.flows.sort((a, b) => this.collator.compare(a.name, b.name));
+            n.folders.forEach(sortNode);
+        };
+        sortNode(root);
+        return root;
+    },
+
+    // Every flow that (directly or through others) starts `id` (dir 'up') or is
+    // started by it (dir 'down'). Deleted flows are not included.
+    reachable(graph, id, dir) {
+        const seen = new Set([id]);
+        const queue = [id];
+        while (queue.length) {
+            const cur = queue.shift();
+            const list = dir === 'up' ? (graph.in.get(cur) || []) : (graph.out.get(cur) || []);
+            for (const e of list) {
+                const next = dir === 'up' ? e.from : e.to;
+                if (e.missing || seen.has(next)) continue;
+                seen.add(next);
+                queue.push(next);
+            }
+        }
+        seen.delete(id);
+        return seen;
+    },
+};
 
 class FlowDoctor {
     constructor() {
@@ -776,6 +1236,9 @@ class FlowDoctor {
         this.results = [];
         this.deviceRegistry = null;
         this.deviceRegistryStatus = 'not_loaded';
+        this.graph = null;
+        this.graphSelected = null;
+        this.graphExpanded = new Set();
     }
 
     t(key) { return (I18N[this.lang] && I18N[this.lang][key]) || I18N.en[key] || key; }
@@ -850,7 +1313,7 @@ class FlowDoctor {
                 this.applyI18n();
                 document.getElementById('language-dropdown').classList.remove('active');
                 if (document.getElementById('homey-select-screen').classList.contains('active')) this.showHomeySelector();
-                if (this.results.length) { this.populateAppFilter(); this.renderFlows(); this.renderApps(); }
+                if (this.results.length) { this.populateAppFilter(); this.renderFlows(); this.renderApps(); this.renderGraph(); }
             });
         });
         document.addEventListener('click', () => document.getElementById('language-dropdown').classList.remove('active'));
@@ -919,6 +1382,37 @@ class FlowDoctor {
         document.getElementById('app-only-unused').addEventListener('change', () => this.renderApps());
         document.getElementById('app-hide-extensions').addEventListener('change', () => this.renderApps());
         document.getElementById('app-sort').addEventListener('change', () => this.renderApps());
+        document.getElementById('graph-search').addEventListener('input', () => this.renderFlowTree());
+        document.getElementById('graph-only-linked').addEventListener('change', () => this.renderFlowTree());
+        document.getElementById('graph-expand-all').addEventListener('click', () => {
+            this.graphExpanded = new Set(this.graph ? this.graph.folders.keys() : []);
+            this.renderFlowTree();
+        });
+        document.getElementById('graph-collapse-all').addEventListener('click', () => {
+            this.graphExpanded.clear();
+            this.renderFlowTree();
+        });
+        document.getElementById('tab-graph').addEventListener('click', (e) => {
+            const folderBtn = e.target.closest('[data-toggle-folder]');
+            if (folderBtn) {
+                const id = folderBtn.getAttribute('data-toggle-folder');
+                if (this.graphExpanded.has(id)) this.graphExpanded.delete(id);
+                else this.graphExpanded.add(id);
+                this.renderFlowTree();
+                return;
+            }
+            const flowBtn = e.target.closest('[data-select-flow]');
+            if (flowBtn) {
+                const fromTree = !!flowBtn.closest('#flow-tree');
+                this.selectGraphFlow(flowBtn.getAttribute('data-select-flow'), { reveal: !fromTree, showDetail: fromTree });
+            }
+        });
+        document.getElementById('results-list').addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-graph-flow]');
+            if (!btn) return;
+            this.switchTab('graph');
+            this.selectGraphFlow(btn.getAttribute('data-graph-flow'), { reveal: true });
+        });
 
         if (!this.CLIENT_ID || !this.CLIENT_SECRET) {
             this.showScreen('api-setup-screen');
@@ -1401,6 +1895,16 @@ class FlowDoctor {
                 apps: { total: apps.length, crashed: nCrashed, update: nUpdate, unused: nUnused, ok: nAppsOk },
             },
             issuesByKey: issueKeyCount,
+            flowGraph: this.graph ? {
+                folders: this.graph.folders.size,
+                startLinks: this.graph.edges.length,
+                missingTargets: this.graph.edges.filter(e => e.missing).length,
+                unconnectedStartCards: this.graph.edges.filter(e => !e.connected).length,
+                cycles: {
+                    active: this.graph.cycles.filter(c => c.active).length,
+                    inactive: this.graph.cycles.filter(c => !c.active).length,
+                },
+            } : null,
             deviceRegistry: {
                 status: this.deviceRegistryStatus,
                 updatedAt: this.deviceRegistry?.updatedAt || null,
@@ -1465,8 +1969,7 @@ class FlowDoctor {
             btn.classList.toggle('border-transparent', !active);
             btn.classList.toggle('text-gray-500', !active);
         });
-        document.getElementById('tab-flows').classList.toggle('hidden', name !== 'flows');
-        document.getElementById('tab-apps').classList.toggle('hidden', name !== 'apps');
+        document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.toggle('hidden', pane.id !== 'tab-' + name));
     }
 
     async scan() {
@@ -1476,7 +1979,7 @@ class FlowDoctor {
         try {
             this.showLoader(this.t('scanning'));
 
-            const [flows, advFlows, apps, triggers, conditions, actions, devices] = await Promise.all([
+            const [flows, advFlows, apps, triggers, conditions, actions, devices, folders] = await Promise.all([
                 this.api.flow.getFlows().catch(() => ({})),
                 (this.api.flow.getAdvancedFlows ? this.api.flow.getAdvancedFlows() : Promise.resolve({})).catch(() => ({})),
                 this.api.apps.getApps().catch(() => ({})),
@@ -1484,6 +1987,7 @@ class FlowDoctor {
                 this.api.flow.getFlowCardConditions ? this.api.flow.getFlowCardConditions().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardActions ? this.api.flow.getFlowCardActions().catch(() => ({})) : Promise.resolve({}),
                 this.api.devices ? this.api.devices.getDevices().catch(() => ({})) : Promise.resolve({}),
+                this.api.flow.getFlowFolders ? this.api.flow.getFlowFolders().catch(() => ({})) : Promise.resolve({}),
             ]);
 
             const installedApps = {};
@@ -1699,6 +2203,32 @@ class FlowDoctor {
                 results.push({ type: 'advanced', id: flow.id, name: flow.name, enabled: flow.enabled !== false, broken: !!flow.broken, issues, apps: collectAppIds(flow), raw: flow });
             }
 
+            // Start links between flows ("Start a Flow" cards) for the Flow tree tab,
+            // plus the issues they reveal: deleted target flows and circular chains.
+            const graph = FlowGraph.build({
+                flows,
+                advancedFlows: advFlows,
+                folders,
+                cardTitle: (uri) => {
+                    const def = cardSets.action[uri];
+                    return def ? this.localizeStoreValue(def.title) : null;
+                },
+            });
+            const resultById = new Map(results.map(r => [r.id, r]));
+            const reportedMissing = new Set();
+            for (const e of graph.edges) {
+                if (!e.missing || reportedMissing.has(e.from + '>' + e.to)) continue;
+                reportedMissing.add(e.from + '>' + e.to);
+                resultById.get(e.from)?.issues.push({ severity: 'error', key: 'issue.missingStartTarget', detail: `${e.targetName || '?'} (ID: ${e.to})` });
+            }
+            for (const [id, info] of graph.nodeCycles) {
+                resultById.get(id)?.issues.push({
+                    severity: info.active ? 'warn' : 'info',
+                    key: info.active ? 'issue.startCycle' : 'issue.startCycleInactive',
+                    detail: info.path.map(x => graph.nodes.get(x)?.name || x).join(' → '),
+                });
+            }
+
             // Build apps aggregation
             const appUsage = {};
             results.forEach(r => r.apps.forEach(a => { appUsage[a] = (appUsage[a] || 0) + 1; }));
@@ -1755,6 +2285,7 @@ class FlowDoctor {
             Object.values(appToDevices).forEach(list => list.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
 
             this.results = results;
+            this.graph = graph;
             this.appsList = appsList;
             this.appToFlows = appToFlows;
             this.appToDevices = appToDevices;
@@ -1765,6 +2296,7 @@ class FlowDoctor {
             this.switchTab(activeTab);
             this.renderFlows();
             this.renderApps();
+            this.renderGraph();
             // Lazy-load stable + test store versions from Athom's Apps API.
             // Fire-and-forget; re-renders when done.
             this.fetchStoreVersions().catch(() => {});
@@ -1866,6 +2398,7 @@ class FlowDoctor {
 
             const url = this.flowUrl(r, r.type);
             const linkHtml = url ? `<a href="${url}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap">${this.t('openInHomey')} ↗</a>` : '';
+            const graphLinkHtml = `<button type="button" data-graph-flow="${this.escape(r.id || '')}" class="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap">${this.t('graph.showInTree')}</button>`;
 
             const div = document.createElement('div');
             div.className = `issue-row ${sevClass} bg-white border border-gray-200 rounded-lg p-4`;
@@ -1875,7 +2408,8 @@ class FlowDoctor {
                         <div class="font-semibold text-gray-900">${this.escape(r.name || '(unnamed)')}</div>
                         <div class="text-xs text-gray-500">${typeLabel}${r.enabled ? '' : ' · disabled'}</div>
                     </div>
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 flex-wrap justify-end">
+                        ${graphLinkHtml}
                         ${linkHtml}
                         <div class="text-xs text-gray-400 font-mono">${this.escape(r.id || '')}</div>
                     </div>
@@ -2123,6 +2657,277 @@ class FlowDoctor {
         });
     }
 
+
+    renderGraph() {
+        this.renderGraphTabCount();
+        this.renderCycleAlert();
+        this.renderFlowTree();
+        this.renderFlowDetail();
+    }
+
+    renderGraphTabCount() {
+        const el = document.getElementById('tab-graph-count');
+        const g = this.graph;
+        if (!g) { el.textContent = '0'; return; }
+        const nActive = g.cycles.filter(c => c.active).length;
+        const nInactive = g.cycles.length - nActive;
+        let html = `${g.edges.length} ${this.escape(this.t('graph.links'))}`;
+        if (nActive) html += ` · <span class="text-red-600" title="${this.escape(this.t('graph.cycleAlertTitle'))}">↻ ${nActive}</span>`;
+        if (nInactive) html += ` · <span class="text-amber-600" title="${this.escape(this.t('graph.cycleAlertTitle') + ' (' + this.t('graph.cycleInactive') + ')')}">↻ ${nInactive}</span>`;
+        el.innerHTML = html;
+    }
+
+    graphFlowName(id) {
+        const n = this.graph && this.graph.nodes.get(id);
+        return n ? (n.name || '(unnamed)') : id;
+    }
+
+    graphPathHtml(path) {
+        return path.map(id => `<button type="button" data-select-flow="${this.escape(id)}" class="text-blue-700 hover:underline">${this.escape(this.graphFlowName(id))}</button>`).join(' <span class="text-gray-400">→</span> ');
+    }
+
+    renderCycleAlert() {
+        const el = document.getElementById('graph-cycle-alert');
+        const g = this.graph;
+        if (!g) { el.innerHTML = ''; return; }
+        if (!g.cycles.length) {
+            el.innerHTML = `<div class="text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">✓ ${this.escape(this.t('graph.noCycles'))}</div>`;
+            return;
+        }
+        const anyActive = g.cycles.some(c => c.active);
+        const box = anyActive ? 'bg-red-50 border-red-300 text-red-900' : 'bg-amber-50 border-amber-300 text-amber-900';
+        const items = g.cycles.map(c => {
+            const inactive = c.active ? '' : ` <span class="badge badge-warn" title="${this.escape(this.t('graph.cycleInactiveHelp'))}">${this.escape(this.t('graph.cycleInactive'))}</span>`;
+            const extra = c.members.length - (c.path.length - 1);
+            const extraHtml = extra > 0 ? ` <span class="text-xs text-gray-600">+${extra} ${this.escape(this.t('graph.moreInLoop'))}</span>` : '';
+            return `<li class="py-1">${this.graphPathHtml(c.path)}${inactive}${extraHtml}</li>`;
+        }).join('');
+        el.innerHTML = `<div class="border rounded-lg p-4 ${box}">
+                <div class="font-semibold">⚠ ${this.escape(this.t('graph.cycleAlertTitle'))} (${g.cycles.length})</div>
+                <p class="text-xs mt-1 mb-2">${this.escape(this.t('graph.cycleAlertHelp'))}</p>
+                <ul class="text-sm">${items}</ul>
+            </div>`;
+    }
+
+    renderFlowTree() {
+        const el = document.getElementById('flow-tree');
+        const g = this.graph;
+        if (!g) { el.innerHTML = ''; return; }
+        const search = (document.getElementById('graph-search').value || '').toLowerCase().trim();
+        const onlyLinked = document.getElementById('graph-only-linked').checked;
+        const filtering = !!search || onlyLinked;
+        const matches = (n) => (!search || n.name.toLowerCase().includes(search))
+            && (!onlyLinked || g.in.has(n.id) || g.out.has(n.id));
+        const indent = (depth) => `padding-left:${depth * 1.1}rem`;
+
+        const flowRow = (n, depth) => {
+            const selected = n.id === this.graphSelected;
+            const tone = selected ? 'bg-blue-100 text-blue-900' : `hover:bg-gray-100 ${n.enabled ? 'text-gray-800' : 'text-gray-400'}`;
+            const badges = [];
+            if (n.type === 'advanced') badges.push(`<span class="badge bg-gray-100 text-gray-600">${this.escape(this.t('graph.advanced'))}</span>`);
+            const starters = new Set((g.in.get(n.id) || []).map(e => e.from)).size;
+            if (starters) badges.push(`<span class="badge badge-info" title="${this.escape(this.t('graph.startedByCount').replace('{n}', starters))}">← ${starters}</span>`);
+            const cyc = g.nodeCycles.get(n.id);
+            if (cyc) badges.push(`<span class="badge ${cyc.active ? 'badge-err' : 'badge-warn'}" title="${this.escape(this.t('graph.cycle'))}">↻</span>`);
+            if ((g.out.get(n.id) || []).some(e => e.missing)) badges.push(`<span class="badge badge-err" title="${this.escape(this.t('issue.missingStartTarget'))}">!</span>`);
+            const disabled = n.enabled ? '' : ` title="${this.escape(this.t('graph.disabled'))}"`;
+            return `<button type="button" data-select-flow="${this.escape(n.id)}" class="w-full flex items-center gap-2 py-1 pr-1 rounded text-left ${tone}" style="${indent(depth)}"${disabled}>
+                    <span class="w-4 text-center shrink-0 text-gray-400">${n.enabled ? '⇄' : '⊘'}</span>
+                    <span class="truncate flex-grow ${n.enabled ? '' : 'line-through'}">${this.escape(n.name || '(unnamed)')}</span>
+                    <span class="flex items-center gap-1 shrink-0 whitespace-nowrap">${badges.join('')}</span>
+                </button>`;
+        };
+
+        // Returns { html, count } so folders without matches can be hidden while filtering.
+        const folderBody = (folder, depth) => {
+            let count = 0;
+            const parts = [];
+            for (const sub of folder.folders) {
+                const open = filtering || this.graphExpanded.has(sub.id);
+                const body = folderBody(sub, depth + 1);
+                if (filtering && !body.count) continue;
+                count += body.count;
+                parts.push(`<div>
+                        <button type="button" data-toggle-folder="${this.escape(sub.id)}" class="w-full flex items-center gap-2 py-1 pr-1 rounded text-left hover:bg-gray-100" style="${indent(depth)}">
+                            <span class="w-4 text-center shrink-0 text-gray-500">${open ? '▾' : '▸'}</span>
+                            <span class="truncate font-medium text-gray-900">${this.escape(sub.name || '(unnamed)')}</span>
+                            <span class="text-xs text-gray-400">${body.count}</span>
+                        </button>
+                        ${open ? body.html : ''}
+                    </div>`);
+            }
+            for (const n of folder.flows) {
+                if (!matches(n)) continue;
+                count++;
+                parts.push(flowRow(n, depth));
+            }
+            return { html: parts.join(''), count };
+        };
+
+        const tree = folderBody(FlowGraph.folderTree(g), 1);
+        el.innerHTML = `<div class="flex items-center gap-2 py-1 font-semibold text-gray-900"><span class="text-gray-400">●</span> ${this.escape(this.t('graph.root'))}</div>`
+            + (tree.count ? tree.html : `<div class="text-center text-gray-500 py-8">${this.escape(this.t('graph.noFlows'))}</div>`);
+    }
+
+    selectGraphFlow(id, { reveal = false, showDetail = false } = {}) {
+        const g = this.graph;
+        if (!g || !g.nodes.has(id)) return;
+        this.graphSelected = id;
+        if (reveal) {
+            FlowGraph.folderChain(g, g.nodes.get(id).folder).forEach(f => this.graphExpanded.add(f));
+            const searchInput = document.getElementById('graph-search');
+            const name = g.nodes.get(id).name.toLowerCase();
+            if (searchInput.value && !name.includes(searchInput.value.toLowerCase().trim())) searchInput.value = '';
+            if (document.getElementById('graph-only-linked').checked && !g.in.has(id) && !g.out.has(id)) {
+                document.getElementById('graph-only-linked').checked = false;
+            }
+        }
+        this.renderFlowTree();
+        this.renderFlowDetail();
+        const tree = document.getElementById('flow-tree');
+        const row = tree.querySelector(`[data-select-flow="${CSS.escape(id)}"]`);
+        if (reveal && row) {
+            // Scroll only the tree panel, not the page.
+            const top = row.offsetTop - tree.offsetTop;
+            if (top < tree.scrollTop || top > tree.scrollTop + tree.clientHeight - row.offsetHeight) {
+                tree.scrollTop = Math.max(0, top - tree.clientHeight / 3);
+            }
+        }
+        if (showDetail && window.matchMedia('(max-width: 1023px)').matches) {
+            document.getElementById('flow-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    formatDelay(seconds) {
+        if (seconds % 3600 === 0) return `${seconds / 3600} h`;
+        if (seconds % 60 === 0) return `${seconds / 60} min`;
+        return `${seconds} s`;
+    }
+
+    // One row in the "Started by" / "Starts" chain: a flow plus the start card(s) linking it.
+    renderChainNode(group, cyclic) {
+        const g = this.graph;
+        const edges = group.edges;
+        if (group.missing) {
+            return `<div class="flex flex-wrap items-center gap-2">
+                    <span class="badge badge-err">${this.escape(this.t('graph.missingFlow'))}</span>
+                    <span class="text-red-800">${this.escape(edges[0].targetName || '?')}</span>
+                    <span class="text-xs text-gray-400 font-mono">${this.escape(group.id)}</span>
+                </div>`;
+        }
+        const n = g.nodes.get(group.id);
+        const tags = [];
+        if (cyclic) tags.push(`<span class="badge badge-err">↻ ${this.escape(this.t('graph.cycle'))}</span>`);
+        if (n.type === 'advanced') tags.push(`<span class="badge bg-gray-100 text-gray-600">${this.escape(this.t('graph.advanced'))}</span>`);
+        if (!n.enabled) tags.push(`<span class="badge badge-info">${this.escape(this.t('graph.disabled'))}</span>`);
+        if (!edges.some(e => e.connected)) tags.push(`<span class="badge badge-warn" title="${this.escape(this.t('graph.unconnectedHelp'))}">${this.escape(this.t('graph.unconnected'))}</span>`);
+        if (edges.every(e => e.group === 'else')) tags.push(`<span class="badge bg-gray-100 text-gray-600" title="${this.escape(this.t('graph.elseBranchHelp'))}">${this.escape(this.t('graph.elseBranch'))}</span>`);
+        if (edges.every(e => e.delaySeconds)) {
+            const min = Math.min(...edges.map(e => e.delaySeconds));
+            tags.push(`<span class="badge bg-gray-100 text-gray-600">⏱ ${this.escape(this.t('graph.delay'))} ${this.escape(this.formatDelay(min))}</span>`);
+        }
+        const titles = [...new Set(edges.map(e => e.cardTitle).filter(Boolean))];
+        const via = titles.length
+            ? `${this.escape(this.t('graph.via'))} «${titles.map(x => this.escape(x)).join('», «')}»${edges.length > 1 ? ` ×${edges.length}` : ''}`
+            : (edges.length > 1 ? `×${edges.length}` : '');
+        const folder = FlowGraph.folderPath(g, n.folder) || this.t('graph.root');
+        const url = this.flowUrl(n, n.type);
+        const link = url ? `<a href="${this.escape(url)}" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-blue-600" title="${this.escape(this.t('openInHomey'))}">↗</a>` : '';
+        return `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <button type="button" data-select-flow="${this.escape(n.id)}" class="font-medium ${cyclic ? 'text-red-700' : (n.enabled ? 'text-blue-700' : 'text-gray-500')} hover:underline text-left">${this.escape(n.name || '(unnamed)')}</button>
+                ${tags.join('')}
+                ${link}
+            </div>
+            <div class="text-xs text-gray-500">${this.escape(folder)}${via ? ` · ${via}` : ''}</div>`;
+    }
+
+    // Recursive chain of starters (dir 'up') or started flows (dir 'down').
+    // A flow already on the current path is marked as a circular reference and
+    // not expanded again. A node budget keeps very dense graphs responsive.
+    renderStartChain(rootId, dir) {
+        const g = this.graph;
+        let budget = 400;
+        let truncated = false;
+        const neighbours = (id) => {
+            const groups = new Map();
+            for (const e of (dir === 'up' ? (g.in.get(id) || []) : (g.out.get(id) || []))) {
+                const otherId = dir === 'up' ? e.from : e.to;
+                if (!groups.has(otherId)) groups.set(otherId, { id: otherId, missing: e.missing, edges: [] });
+                groups.get(otherId).edges.push(e);
+            }
+            return [...groups.values()].sort((a, b) => (a.missing - b.missing)
+                || FlowGraph.collator.compare(this.graphFlowName(a.id), this.graphFlowName(b.id)));
+        };
+        const level = (id, path) => {
+            const items = [];
+            for (const group of neighbours(id)) {
+                if (budget <= 0) { truncated = true; break; }
+                budget--;
+                const cyclic = path.includes(group.id);
+                const children = cyclic || group.missing ? '' : level(group.id, [...path, group.id]);
+                items.push(`<li>${this.renderChainNode(group, cyclic)}${children}</li>`);
+            }
+            return items.length ? `<ul class="chain-list">${items.join('')}</ul>` : '';
+        };
+        const html = level(rootId, [rootId]);
+        return truncated ? html + `<div class="text-xs text-amber-700 mt-2">${this.escape(this.t('graph.truncated'))}</div>` : html;
+    }
+
+    renderFlowDetail() {
+        const el = document.getElementById('flow-detail');
+        const g = this.graph;
+        const n = g && g.nodes.get(this.graphSelected);
+        if (!n) {
+            el.innerHTML = `<div class="text-center text-gray-500 py-12">${this.escape(this.t('graph.selectHint'))}</div>`;
+            return;
+        }
+        const typeLabel = n.type === 'advanced' ? this.t('flowType.advanced') : this.t('flowType.standard');
+        const url = this.flowUrl(n, n.type);
+        const link = url ? `<a href="${this.escape(url)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap">${this.escape(this.t('openInHomey'))} ↗</a>` : '';
+        const folder = FlowGraph.folderPath(g, n.folder) || this.t('graph.root');
+
+        const cyc = g.nodeCycles.get(n.id);
+        const cycleHtml = cyc
+            ? `<div class="mt-4 border rounded-lg p-3 text-sm ${cyc.active ? 'bg-red-50 border-red-300 text-red-900' : 'bg-amber-50 border-amber-300 text-amber-900'}">
+                   <div class="font-semibold">⚠ ${this.escape(this.t('graph.inCycle'))}${cyc.active ? '' : ` <span class="badge badge-warn" title="${this.escape(this.t('graph.cycleInactiveHelp'))}">${this.escape(this.t('graph.cycleInactive'))}</span>`}</div>
+                   <div class="mt-1">${this.graphPathHtml(cyc.path)}</div>
+               </div>`
+            : '';
+
+        const section = (dir) => {
+            const direct = new Set((dir === 'up' ? (g.in.get(n.id) || []) : (g.out.get(n.id) || []))
+                .map(e => dir === 'up' ? e.from : e.to)).size;
+            const total = FlowGraph.reachable(g, n.id, dir).size;
+            const title = dir === 'up' ? this.t('graph.startedBy') : this.t('graph.starts');
+            let body;
+            if (direct) {
+                body = this.renderStartChain(n.id, dir);
+            } else if (dir === 'up' && n.triggerable === false) {
+                body = `<p class="text-sm text-gray-500">${this.escape(this.t('graph.notTriggerable'))}</p>`;
+            } else {
+                body = `<p class="text-sm text-gray-500">${this.escape(this.t(dir === 'up' ? 'graph.noStarters' : 'graph.noStarts'))}</p>`;
+            }
+            const counts = direct ? `<span class="text-xs font-normal text-gray-500">${direct} ${this.escape(this.t('graph.direct'))} · ${total} ${this.escape(this.t('graph.inChain'))}</span>` : '';
+            return `<div class="mt-5">
+                    <h3 class="font-semibold text-gray-900 mb-1 flex flex-wrap items-baseline gap-2">${this.escape(title)} ${counts}</h3>
+                    ${body}
+                </div>`;
+        };
+
+        el.innerHTML = `
+            <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="text-lg font-semibold text-gray-900 break-words">${this.escape(n.name || '(unnamed)')}</div>
+                    <div class="text-xs text-gray-500">${this.escape(typeLabel)}${n.enabled ? '' : ` · ${this.escape(this.t('graph.disabled'))}`}</div>
+                    <div class="text-xs text-gray-500 mt-1">${this.escape(this.t('graph.folder'))}: ${this.escape(folder)}</div>
+                </div>
+                ${link}
+            </div>
+            ${cycleHtml}
+            ${section('up')}
+            ${section('down')}
+        `;
+    }
 
     escape(s) {
         return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

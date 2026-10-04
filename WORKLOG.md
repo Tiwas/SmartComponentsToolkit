@@ -29,6 +29,11 @@
   - A missing `getAdvancedFlows` method counts as an incomplete flow list, and failed folder loading shows its own warning instead of silently flattening the tree.
   - Folder toggles are ignored while the tree is filtered (folders are forced open then). A language switch re-renders the warning and the Flow tree even when the scan returned no flows. Delay units are translated (Norwegian "t", German "Std./Min./Sek.", Dutch "u").
   - One pointer rule (`FlowGraph.pointerGroups`) for the chain, counts and filter, with counts cached per scan. The graph reads card URIs with the same rule as the card checks (`card.id || card.uri`), so it no longer invents links from cards the checks ignore.
+- Third adversarial pass:
+  - A Homey that answers 404 for Advanced Flows (no Advanced Flow support) is treated as a complete, empty list, so it does not show the incomplete-scan warning on every scan; other failures still do.
+  - The chain reserves the direct pointers for the top level. A flow whose pointers are listed elsewhere says "shown elsewhere in this chain", and a row whose pointers were left out by the 400-node limit says "chain cut off here", so an empty row never looks like "nobody points to this flow".
+  - On narrow screens every flow click (tree, loop alert, chain) brings the detail panel into view. While the tree is filtered, folder headers are not clickable and Expand/Collapse all are disabled.
+  - Delays are rounded (0.07 h shows 252 s, not 252.00000000000003 s). Closed folders no longer build hidden HTML, folder paths are cached per scan, and the unused `FlowGraph.pointers` helper is gone.
 - `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
 
 ### Verification

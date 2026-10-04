@@ -407,7 +407,8 @@ const I18N = {
         'graph.cycleInactive': 'inactive',
         'graph.cycleInactiveHelp': 'The loop goes through a disabled flow or a card that is not connected, so it does not run right now.',
         'graph.alreadyInChain': 'already in this chain',
-        'graph.seeAbove': 'shown above',
+        'graph.seeAbove': 'shown elsewhere in this chain',
+        'graph.cutOff': 'chain cut off here',
         'unit.hours': 'h',
         'unit.minutes': 'min',
         'unit.seconds': 's',
@@ -599,7 +600,8 @@ const I18N = {
         'graph.cycleInactive': 'inaktiv',
         'graph.cycleInactiveHelp': 'Løkken går via en deaktivert flow eller et kort som ikke er koblet til, så den kjører ikke nå.',
         'graph.alreadyInChain': 'allerede i kjeden',
-        'graph.seeAbove': 'vist over',
+        'graph.seeAbove': 'vist et annet sted i kjeden',
+        'graph.cutOff': 'kjeden er kuttet her',
         'unit.hours': 't',
         'unit.minutes': 'min',
         'unit.seconds': 's',
@@ -791,7 +793,8 @@ const I18N = {
         'graph.cycleInactive': 'inaktiv',
         'graph.cycleInactiveHelp': 'Die Schleife führt über einen deaktivierten Flow oder eine nicht verbundene Karte und läuft deshalb derzeit nicht.',
         'graph.alreadyInChain': 'bereits in dieser Kette',
-        'graph.seeAbove': 'oben gezeigt',
+        'graph.seeAbove': 'an anderer Stelle in dieser Kette gezeigt',
+        'graph.cutOff': 'Kette hier gekürzt',
         'unit.hours': 'Std.',
         'unit.minutes': 'Min.',
         'unit.seconds': 'Sek.',
@@ -983,7 +986,8 @@ const I18N = {
         'graph.cycleInactive': 'inactief',
         'graph.cycleInactiveHelp': 'De lus loopt via een uitgeschakelde flow of een niet-verbonden kaart en draait daarom nu niet.',
         'graph.alreadyInChain': 'al in deze keten',
-        'graph.seeAbove': 'hierboven getoond',
+        'graph.seeAbove': 'elders in deze keten getoond',
+        'graph.cutOff': 'keten hier ingekort',
         'unit.hours': 'u',
         'unit.minutes': 'min',
         'unit.seconds': 's',
@@ -1073,7 +1077,8 @@ const FlowGraph = {
     delaySeconds(delay) {
         if (!delay || typeof delay !== 'object') return null;
         const seconds = Number(delay.number) * Number(delay.multiplier || 1);
-        return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+        // Round away floating-point noise such as 0.07 h → 252.00000000000003 s.
+        return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 1000) / 1000 : null;
     },
 
     // An Advanced Flow card only runs when a path leads to it from a trigger or
@@ -1093,7 +1098,7 @@ const FlowGraph = {
             const key = queue.shift();
             const card = cards[key] || {};
             const own = card.type === 'delay' ? (this.delaySeconds(card.args && card.args.delay) || 0) : 0;
-            const total = delays.get(key) + own;
+            const total = Math.round((delays.get(key) + own) * 1000) / 1000;
             for (const [field, value] of Object.entries(card)) {
                 if (!field.startsWith('output') || !Array.isArray(value)) continue;
                 for (const next of value) {
@@ -1359,9 +1364,6 @@ const FlowGraph = {
         return [...groups.values()];
     },
 
-    pointers(graph, id) {
-        return new Set(this.pointerGroups(graph, id).map(group => group.id));
-    },
 
     // Every flow that points to `id`, directly or through other flows.
     referrers(graph, id) {
@@ -1564,7 +1566,7 @@ class FlowDoctor {
             const flowBtn = e.target.closest('[data-select-flow]');
             if (flowBtn) {
                 const fromTree = !!flowBtn.closest('#flow-tree');
-                this.selectGraphFlow(flowBtn.getAttribute('data-select-flow'), { reveal: !fromTree, showDetail: fromTree });
+                this.selectGraphFlow(flowBtn.getAttribute('data-select-flow'), { reveal: !fromTree, showDetail: true });
             }
         });
         document.getElementById('results-list').addEventListener('click', (e) => {
@@ -2153,7 +2155,13 @@ class FlowDoctor {
             let foldersComplete = true;
             const [flows, advFlows, apps, triggers, conditions, actions, devices, folders] = await Promise.all([
                 flowList(this.api.flow.getFlows()),
-                this.api.flow.getAdvancedFlows ? flowList(this.api.flow.getAdvancedFlows()) : flowList(Promise.reject(new Error('getAdvancedFlows unavailable'))),
+                this.api.flow.getAdvancedFlows
+                    // 404: this Homey has no Advanced Flows, so an empty list is complete.
+                    ? flowList(this.api.flow.getAdvancedFlows().catch(err => {
+                        if (err && (err.statusCode === 404 || err.code === 404)) return {};
+                        throw err;
+                    }))
+                    : flowList(Promise.reject(new Error('getAdvancedFlows unavailable'))),
                 this.api.apps.getApps().catch(() => ({})),
                 this.api.flow.getFlowCardTriggers ? this.api.flow.getFlowCardTriggers().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardConditions ? this.api.flow.getFlowCardConditions().catch(() => ({})) : Promise.resolve({}),
@@ -2453,6 +2461,7 @@ class FlowDoctor {
             this.results = results;
             this.graph = graph;
             this.graphTree = null;
+            this.graphFolderPaths = null;
             this.flowListsComplete = flowListsComplete;
             this.foldersComplete = foldersComplete;
             this.appsList = appsList;
@@ -2862,6 +2871,12 @@ class FlowDoctor {
         return this.t(I18N.en[key] ? key : 'graph.kind.' + edge.kind);
     }
 
+    graphFolderPath(folderId) {
+        if (!this.graphFolderPaths) this.graphFolderPaths = new Map();
+        if (!this.graphFolderPaths.has(folderId)) this.graphFolderPaths.set(folderId, FlowGraph.folderPath(this.graph, folderId));
+        return this.graphFolderPaths.get(folderId) || this.t('graph.root');
+    }
+
     graphFlowName(id) {
         const n = this.graph && this.graph.nodes.get(id);
         return n ? (n.name || this.t('unnamed')) : id;
@@ -2929,21 +2944,30 @@ class FlowDoctor {
         };
 
         // Returns { html, count } so folders without matches can be hidden while filtering.
+        // Total flows per folder (including subfolders), so closed folders need no HTML.
+        const totalFlows = (folder) => {
+            if (!this.graphFolderTotals.has(folder)) {
+                this.graphFolderTotals.set(folder, folder.flows.length + folder.folders.reduce((sum, sub) => sum + totalFlows(sub), 0));
+            }
+            return this.graphFolderTotals.get(folder);
+        };
         const folderBody = (folder, depth) => {
             let count = 0;
             const parts = [];
             for (const sub of folder.folders) {
+                // While filtering, every folder with matches is shown open and cannot be toggled.
                 const open = filtering || this.graphExpanded.has(sub.id);
-                const body = folderBody(sub, depth + 1);
+                const body = open ? folderBody(sub, depth + 1) : { html: '', count: totalFlows(sub) };
                 if (filtering && !body.count) continue;
                 count += body.count;
-                parts.push(`<div>
-                        <button type="button" data-toggle-folder="${this.escape(sub.id)}" class="w-full flex items-center gap-2 py-1 pr-1 rounded text-left hover:bg-gray-100" style="${indent(depth)}">
-                            <span class="w-4 text-center shrink-0 text-gray-500">${open ? '▾' : '▸'}</span>
+                const header = `<span class="w-4 text-center shrink-0 text-gray-500">${open ? '▾' : '▸'}</span>
                             <span class="truncate font-medium text-gray-900">${this.escape(sub.name || this.t('unnamed'))}</span>
-                            <span class="text-xs text-gray-400">${body.count}</span>
-                        </button>
-                        ${open ? body.html : ''}
+                            <span class="text-xs text-gray-400">${body.count}</span>`;
+                parts.push(`<div>
+                        ${filtering
+                            ? `<div class="w-full flex items-center gap-2 py-1 pr-1" style="${indent(depth)}">${header}</div>`
+                            : `<button type="button" data-toggle-folder="${this.escape(sub.id)}" class="w-full flex items-center gap-2 py-1 pr-1 rounded text-left hover:bg-gray-100" style="${indent(depth)}">${header}</button>`}
+                        ${body.html}
                     </div>`);
             }
             for (const n of folder.flows) {
@@ -2954,7 +2978,16 @@ class FlowDoctor {
             return { html: parts.join(''), count };
         };
 
-        if (!this.graphTree) this.graphTree = FlowGraph.folderTree(g);
+        if (!this.graphTree) {
+            this.graphTree = FlowGraph.folderTree(g);
+            this.graphFolderTotals = new Map();
+        }
+        ['graph-expand-all', 'graph-collapse-all'].forEach(id => {
+            const btn = document.getElementById(id);
+            btn.disabled = filtering;
+            btn.classList.toggle('opacity-40', filtering);
+            btn.classList.toggle('cursor-default', filtering);
+        });
         const tree = folderBody(this.graphTree, 1);
         el.innerHTML = `<div class="flex items-center gap-2 py-1 font-semibold text-gray-900"><span class="text-gray-400">●</span> ${this.escape(this.t('graph.root'))}</div>`
             + (tree.count ? tree.html : `<div class="text-center text-gray-500 py-8">${this.escape(this.t('graph.noFlows'))}</div>`);
@@ -2997,8 +3030,9 @@ class FlowDoctor {
 
     // One row in the "Who points to this flow" chain: a flow plus the card(s) it points with.
     // state: null, 'loop-active' / 'loop-inactive' (the path shown is a loop of start
-    // links), 'repeat' (already in this chain through an Enable/Disable link) or
-    // 'shown' (expanded earlier in this view).
+    // links), 'repeat' (already in this chain through an Enable/Disable link),
+    // 'shown' (its pointers are listed elsewhere in this view) or 'cut' (its pointers
+    // were left out because the view is too large).
     renderChainNode(group, state) {
         const g = this.graph;
         const edges = group.edges;
@@ -3010,7 +3044,9 @@ class FlowDoctor {
         } else if (state === 'repeat') {
             tags.push(`<span class="badge bg-gray-100 text-gray-600">↻ ${this.escape(this.t('graph.alreadyInChain'))}</span>`);
         } else if (state === 'shown') {
-            tags.push(`<span class="badge bg-gray-100 text-gray-600">↑ ${this.escape(this.t('graph.seeAbove'))}</span>`);
+            tags.push(`<span class="badge bg-gray-100 text-gray-600">↕ ${this.escape(this.t('graph.seeAbove'))}</span>`);
+        } else if (state === 'cut') {
+            tags.push(`<span class="badge badge-warn">… ${this.escape(this.t('graph.cutOff'))}</span>`);
         }
         if (n.type === 'advanced') tags.push(`<span class="badge bg-gray-100 text-gray-600">${this.escape(this.t('graph.advanced'))}</span>`);
         if (!n.enabled) tags.push(`<span class="badge badge-info">${this.escape(this.t('graph.disabled'))}</span>`);
@@ -3022,7 +3058,7 @@ class FlowDoctor {
         }
         const titles = [...new Set(edges.map(e => this.graphCardLabel(e)))];
         const via = `${this.escape(this.t('graph.via'))} «${titles.map(x => this.escape(x)).join('», «')}»${edges.length > 1 ? ` ×${edges.length}` : ''}`;
-        const folder = FlowGraph.folderPath(g, n.folder) || this.t('graph.root');
+        const folder = this.graphFolderPath(n.folder);
         const url = this.flowUrl(n, n.type);
         const link = url ? `<a href="${this.escape(url)}" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-blue-600" title="${this.escape(this.t('openInHomey'))}">↗</a>` : '';
         return `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -3041,36 +3077,49 @@ class FlowDoctor {
         const g = this.graph;
         let budget = 400;
         let truncated = false;
-        const expanded = new Set();
         const pointers = (id) => FlowGraph.pointerGroups(g, id)
             .sort((a, b) => FlowGraph.collator.compare(this.graphFlowName(a.id), this.graphFlowName(b.id)));
+        const direct = new Set(pointers(rootId).map(group => group.id));
+        const expanded = new Set();   // flows whose pointers are listed in this view
+        const cut = new Set();        // flows whose pointers were cut off by the budget
+        // Lists the pointers of `id`. Returns whether the list is complete.
         // path[j + 1] points to path[j]; steps[j] says whether that step has a start link
         // and whether one of those currently fires.
-        const level = (id, path, steps) => {
-            const items = [];
+        const level = (id, path, steps, items) => {
+            const top = path.length === 1;
             for (const group of pointers(id)) {
                 // The direct pointers are always listed; the budget only cuts deeper levels.
-                if (budget <= 0 && path.length > 1) { truncated = true; break; }
+                if (!top && budget <= 0) { truncated = true; return false; }
                 budget--;
                 const step = { start: group.edges.some(e => e.kind === 'start'), active: group.edges.some(e => e.active) };
                 const at = path.indexOf(group.id);
                 let state = null;
-                let children = '';
+                const childItems = [];
                 if (at >= 0) {
                     const loopSteps = [...steps.slice(at), step];
                     if (!loopSteps.every(x => x.start)) state = 'repeat';
                     else state = loopSteps.every(x => x.active) ? 'loop-active' : 'loop-inactive';
+                } else if (!top && direct.has(group.id)) {
+                    state = 'shown';   // listed with its own chain at the top level
                 } else if (expanded.has(group.id)) {
-                    state = 'shown';
-                } else {
+                    state = cut.has(group.id) ? 'cut' : 'shown';
+                } else if (g.pointerCount.has(group.id)) {
                     expanded.add(group.id);
-                    children = level(group.id, [...path, group.id], [...steps, step]);
+                    const complete = budget > 0 && level(group.id, [...path, group.id], [...steps, step], childItems);
+                    if (!complete) {
+                        truncated = true;
+                        cut.add(group.id);
+                        state = 'cut';
+                    }
                 }
+                const children = childItems.length ? `<ul class="chain-list">${childItems.join('')}</ul>` : '';
                 items.push(`<li>${this.renderChainNode(group, state)}${children}</li>`);
             }
-            return items.length ? `<ul class="chain-list">${items.join('')}</ul>` : '';
+            return true;
         };
-        const html = level(rootId, [rootId], []);
+        const items = [];
+        level(rootId, [rootId], [], items);
+        const html = items.length ? `<ul class="chain-list">${items.join('')}</ul>` : '';
         return truncated ? html + `<div class="text-xs text-amber-700 mt-2">${this.escape(this.t('graph.truncated'))}</div>` : html;
     }
 
@@ -3085,7 +3134,7 @@ class FlowDoctor {
         const typeLabel = n.type === 'advanced' ? this.t('flowType.advanced') : this.t('flowType.standard');
         const url = this.flowUrl(n, n.type);
         const link = url ? `<a href="${this.escape(url)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap">${this.escape(this.t('openInHomey'))} ↗</a>` : '';
-        const folder = FlowGraph.folderPath(g, n.folder) || this.t('graph.root');
+        const folder = this.graphFolderPath(n.folder);
 
         const cyc = g.nodeCycles.get(n.id);
         const cycleHtml = cyc

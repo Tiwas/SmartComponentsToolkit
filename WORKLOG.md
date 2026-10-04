@@ -23,6 +23,12 @@
   - All direct pointers are always listed; the 400-node limit only cuts deeper levels. A flow that was already expanded in the same chain shows "shown above" instead of repeating its ancestors.
   - A failed flow list now shows a warning above the tabs, and the bug report sends `missingTargets: null` with `flowListsComplete: false`.
   - The "Flow tree" button in the Flows tab scrolls the tab into view. The folder tree is built once per scan, and a folder in a corrupt parent loop shows the same path as its place in the tree.
+- Second adversarial pass:
+  - Loop detection (Tarjan) is iterative, so a very long chain of flows can no longer overflow the call stack and fail the whole scan (a 20 000-flow chain overflowed the recursive version).
+  - The loop badge in the chain is coloured from the links on the path shown, not from the flow's overall loop status.
+  - A missing `getAdvancedFlows` method counts as an incomplete flow list, and failed folder loading shows its own warning instead of silently flattening the tree.
+  - Folder toggles are ignored while the tree is filtered (folders are forced open then). A language switch re-renders the warning and the Flow tree even when the scan returned no flows. Delay units are translated (Norwegian "t", German "Std./Min./Sek.", Dutch "u").
+  - One pointer rule (`FlowGraph.pointerGroups`) for the chain, counts and filter, with counts cached per scan. The graph reads card URIs with the same rule as the card checks (`card.id || card.uri`), so it no longer invents links from cards the checks ignore.
 - `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
 
 ### Verification

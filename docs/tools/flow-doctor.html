@@ -408,6 +408,10 @@ const I18N = {
         'graph.cycleInactiveHelp': 'The loop goes through a disabled flow or a card that is not connected, so it does not run right now.',
         'graph.alreadyInChain': 'already in this chain',
         'graph.seeAbove': 'shown above',
+        'unit.hours': 'h',
+        'unit.minutes': 'min',
+        'unit.seconds': 's',
+        'warn.foldersIncomplete': 'Flow folders could not be loaded, so the Flow tree shows every flow at the top level. Rescan to try again.',
         'warn.flowListsIncomplete': 'Not all flows could be loaded (standard or Advanced Flows). The results are incomplete; deleted-flow findings are skipped. Rescan to try again.',
         'graph.moreInLoop': 'more flows in the same loop group',
         'graph.noCycles': 'No circular references found.',
@@ -596,6 +600,10 @@ const I18N = {
         'graph.cycleInactiveHelp': 'Løkken går via en deaktivert flow eller et kort som ikke er koblet til, så den kjører ikke nå.',
         'graph.alreadyInChain': 'allerede i kjeden',
         'graph.seeAbove': 'vist over',
+        'unit.hours': 't',
+        'unit.minutes': 'min',
+        'unit.seconds': 's',
+        'warn.foldersIncomplete': 'Flow-mappene kunne ikke lastes, så Flow-treet viser alle flows på øverste nivå. Skann på nytt for å prøve igjen.',
         'warn.flowListsIncomplete': 'Ikke alle flows kunne lastes (standard eller Advanced Flows). Resultatene er ufullstendige, og funn om slettede flows er hoppet over. Skann på nytt for å prøve igjen.',
         'graph.moreInLoop': 'flere flows i samme løkkegruppe',
         'graph.noCycles': 'Ingen sirkulære referanser funnet.',
@@ -784,6 +792,10 @@ const I18N = {
         'graph.cycleInactiveHelp': 'Die Schleife führt über einen deaktivierten Flow oder eine nicht verbundene Karte und läuft deshalb derzeit nicht.',
         'graph.alreadyInChain': 'bereits in dieser Kette',
         'graph.seeAbove': 'oben gezeigt',
+        'unit.hours': 'Std.',
+        'unit.minutes': 'Min.',
+        'unit.seconds': 'Sek.',
+        'warn.foldersIncomplete': 'Die Flow-Ordner konnten nicht geladen werden, daher zeigt der Flow-Baum alle Flows auf oberster Ebene. Erneut scannen, um es noch einmal zu versuchen.',
         'warn.flowListsIncomplete': 'Nicht alle Flows konnten geladen werden (Standard- oder Advanced Flows). Die Ergebnisse sind unvollständig; Hinweise auf gelöschte Flows werden übersprungen. Erneut scannen, um es noch einmal zu versuchen.',
         'graph.moreInLoop': 'weitere Flows in derselben Schleifengruppe',
         'graph.noCycles': 'Keine Zirkelbezüge gefunden.',
@@ -972,6 +984,10 @@ const I18N = {
         'graph.cycleInactiveHelp': 'De lus loopt via een uitgeschakelde flow of een niet-verbonden kaart en draait daarom nu niet.',
         'graph.alreadyInChain': 'al in deze keten',
         'graph.seeAbove': 'hierboven getoond',
+        'unit.hours': 'u',
+        'unit.minutes': 'min',
+        'unit.seconds': 's',
+        'warn.foldersIncomplete': 'De flowmappen konden niet worden geladen, daarom toont de flow-boom alle flows op het hoogste niveau. Scan opnieuw om het nog eens te proberen.',
         'warn.flowListsIncomplete': 'Niet alle flows konden worden geladen (standaard of Advanced Flows). De resultaten zijn onvolledig; meldingen over verwijderde flows worden overgeslagen. Scan opnieuw om het nog eens te proberen.',
         'graph.moreInLoop': 'meer flows in dezelfde lusgroep',
         'graph.noCycles': 'Geen kringverwijzingen gevonden.',
@@ -1041,12 +1057,10 @@ const FlowGraph = {
 
     collator: new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
 
+    // Same rule as the card checks in scan(): homey-api 3.x keeps the full URI on card.id.
     cardUri(card) {
-        if (!card) return '';
-        const id = typeof card.id === 'string' ? card.id : '';
-        if (id.startsWith('homey:')) return id;
-        const owner = card.ownerUri || card.uri || '';
-        return owner && id ? `${owner}:${id}` : id;
+        const uri = card && (card.id || card.uri);
+        return typeof uri === 'string' ? uri : '';
     },
 
     flowArgId(card) {
@@ -1167,6 +1181,11 @@ const FlowGraph = {
         }
 
         const graph = { nodes, folders: folderMap, edges, out, in: inbound };
+        graph.pointerCount = new Map();
+        for (const id of nodes.keys()) {
+            const count = this.pointerGroups(graph, id).length;
+            if (count) graph.pointerCount.set(id, count);
+        }
         this.attachCycles(graph);
         return graph;
     },
@@ -1214,33 +1233,43 @@ const FlowGraph = {
         const stack = [];
         const onStack = new Set();
         const components = [];
-        const visit = (v) => {
+        const enter = (v) => {
             index.set(v, counter);
             low.set(v, counter);
             counter++;
             stack.push(v);
             onStack.add(v);
-            for (const e of (graph.out.get(v) || [])) {
-                if (!this.isLoopLink(e)) continue;
-                if (!index.has(e.to)) {
-                    visit(e.to);
-                    low.set(v, Math.min(low.get(v), low.get(e.to)));
-                } else if (onStack.has(e.to)) {
-                    low.set(v, Math.min(low.get(v), index.get(e.to)));
+            return { v, next: (graph.out.get(v) || []).filter(e => this.isLoopLink(e)).map(e => e.to), i: 0 };
+        };
+        // Iterative depth-first search, so a very long chain of flows cannot overflow the call stack.
+        for (const root of graph.nodes.keys()) {
+            if (index.has(root)) continue;
+            const work = [enter(root)];
+            while (work.length) {
+                const frame = work[work.length - 1];
+                if (frame.i < frame.next.length) {
+                    const w = frame.next[frame.i++];
+                    if (!index.has(w)) work.push(enter(w));
+                    else if (onStack.has(w)) low.set(frame.v, Math.min(low.get(frame.v), index.get(w)));
+                    continue;
+                }
+                work.pop();
+                if (work.length) {
+                    const parent = work[work.length - 1].v;
+                    low.set(parent, Math.min(low.get(parent), low.get(frame.v)));
+                }
+                if (low.get(frame.v) === index.get(frame.v)) {
+                    const component = [];
+                    let w;
+                    do {
+                        w = stack.pop();
+                        onStack.delete(w);
+                        component.push(w);
+                    } while (w !== frame.v);
+                    components.push(component);
                 }
             }
-            if (low.get(v) === index.get(v)) {
-                const component = [];
-                let w;
-                do {
-                    w = stack.pop();
-                    onStack.delete(w);
-                    component.push(w);
-                } while (w !== v);
-                components.push(component);
-            }
-        };
-        for (const id of graph.nodes.keys()) if (!index.has(id)) visit(id);
+        }
 
         graph.cycles = [];
         graph.nodeCycles = new Map();
@@ -1319,9 +1348,19 @@ const FlowGraph = {
         return root;
     },
 
-    // Flows that point directly to `id`, excluding the flow itself.
+    // Flows that point directly to `id` (never the flow itself), each with its links.
+    pointerGroups(graph, id) {
+        const groups = new Map();
+        for (const e of (graph.in.get(id) || [])) {
+            if (e.from === id) continue;
+            if (!groups.has(e.from)) groups.set(e.from, { id: e.from, edges: [] });
+            groups.get(e.from).edges.push(e);
+        }
+        return [...groups.values()];
+    },
+
     pointers(graph, id) {
-        return new Set((graph.in.get(id) || []).map(e => e.from).filter(from => from !== id));
+        return new Set(this.pointerGroups(graph, id).map(group => group.id));
     },
 
     // Every flow that points to `id`, directly or through other flows.
@@ -1432,7 +1471,8 @@ class FlowDoctor {
                 this.applyI18n();
                 document.getElementById('language-dropdown').classList.remove('active');
                 if (document.getElementById('homey-select-screen').classList.contains('active')) this.showHomeySelector();
-                if (this.results.length) { this.populateAppFilter(); this.renderScanWarning(); this.renderFlows(); this.renderApps(); this.renderGraph(); }
+                if (this.results.length) { this.populateAppFilter(); this.renderFlows(); this.renderApps(); }
+                if (this.graph) { this.renderScanWarning(); this.renderGraph(); }
             });
         });
         document.addEventListener('click', () => document.getElementById('language-dropdown').classList.remove('active'));
@@ -1514,6 +1554,7 @@ class FlowDoctor {
         document.getElementById('tab-graph').addEventListener('click', (e) => {
             const folderBtn = e.target.closest('[data-toggle-folder]');
             if (folderBtn) {
+                if (this.graphFiltering()) return;
                 const id = folderBtn.getAttribute('data-toggle-folder');
                 if (this.graphExpanded.has(id)) this.graphExpanded.delete(id);
                 else this.graphExpanded.add(id);
@@ -2109,15 +2150,17 @@ class FlowDoctor {
             // reported as deleted flows.
             let flowListsComplete = true;
             const flowList = (promise) => promise.catch(() => { flowListsComplete = false; return {}; });
+            let foldersComplete = true;
             const [flows, advFlows, apps, triggers, conditions, actions, devices, folders] = await Promise.all([
                 flowList(this.api.flow.getFlows()),
-                this.api.flow.getAdvancedFlows ? flowList(this.api.flow.getAdvancedFlows()) : Promise.resolve({}),
+                this.api.flow.getAdvancedFlows ? flowList(this.api.flow.getAdvancedFlows()) : flowList(Promise.reject(new Error('getAdvancedFlows unavailable'))),
                 this.api.apps.getApps().catch(() => ({})),
                 this.api.flow.getFlowCardTriggers ? this.api.flow.getFlowCardTriggers().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardConditions ? this.api.flow.getFlowCardConditions().catch(() => ({})) : Promise.resolve({}),
                 this.api.flow.getFlowCardActions ? this.api.flow.getFlowCardActions().catch(() => ({})) : Promise.resolve({}),
                 this.api.devices ? this.api.devices.getDevices().catch(() => ({})) : Promise.resolve({}),
-                this.api.flow.getFlowFolders ? this.api.flow.getFlowFolders().catch(() => ({})) : Promise.resolve({}),
+                (this.api.flow.getFlowFolders ? this.api.flow.getFlowFolders() : Promise.reject(new Error('getFlowFolders unavailable')))
+                    .catch(() => { foldersComplete = false; return {}; }),
             ]);
 
             const installedApps = {};
@@ -2411,6 +2454,7 @@ class FlowDoctor {
             this.graph = graph;
             this.graphTree = null;
             this.flowListsComplete = flowListsComplete;
+            this.foldersComplete = foldersComplete;
             this.appsList = appsList;
             this.appToFlows = appToFlows;
             this.appToDevices = appToDevices;
@@ -2787,9 +2831,11 @@ class FlowDoctor {
 
     renderScanWarning() {
         const el = document.getElementById('scan-warning');
-        const incomplete = this.flowListsComplete === false;
-        el.classList.toggle('hidden', !incomplete);
-        el.textContent = incomplete ? `⚠ ${this.t('warn.flowListsIncomplete')}` : '';
+        const messages = [];
+        if (this.flowListsComplete === false) messages.push(this.t('warn.flowListsIncomplete'));
+        if (this.foldersComplete === false) messages.push(this.t('warn.foldersIncomplete'));
+        el.classList.toggle('hidden', !messages.length);
+        el.innerHTML = messages.map(m => `<div>⚠ ${this.escape(m)}</div>`).join('');
     }
 
     renderGraph() {
@@ -2848,15 +2894,20 @@ class FlowDoctor {
             </div>`;
     }
 
+    graphFiltering() {
+        return !!(document.getElementById('graph-search').value || '').trim()
+            || document.getElementById('graph-only-linked').checked;
+    }
+
     renderFlowTree() {
         const el = document.getElementById('flow-tree');
         const g = this.graph;
         if (!g) { el.innerHTML = ''; return; }
         const search = (document.getElementById('graph-search').value || '').toLowerCase().trim();
         const onlyLinked = document.getElementById('graph-only-linked').checked;
-        const filtering = !!search || onlyLinked;
+        const filtering = this.graphFiltering();
         const matches = (n) => (!search || n.name.toLowerCase().includes(search))
-            && (!onlyLinked || FlowGraph.pointers(g, n.id).size > 0);
+            && (!onlyLinked || g.pointerCount.has(n.id));
         const indent = (depth) => `padding-left:${depth * 1.1}rem`;
 
         const flowRow = (n, depth) => {
@@ -2864,7 +2915,7 @@ class FlowDoctor {
             const tone = selected ? 'bg-blue-100 text-blue-900' : `hover:bg-gray-100 ${n.enabled ? 'text-gray-800' : 'text-gray-400'}`;
             const badges = [];
             if (n.type === 'advanced') badges.push(`<span class="badge bg-gray-100 text-gray-600">${this.escape(this.t('graph.advanced'))}</span>`);
-            const pointers = FlowGraph.pointers(g, n.id).size;
+            const pointers = g.pointerCount.get(n.id) || 0;
             const pointersTitle = pointers === 1 ? this.t('graph.pointedByOne') : this.t('graph.pointedByCount').replace('{n}', pointers);
             if (pointers) badges.push(`<span class="badge badge-info" title="${this.escape(pointersTitle)}">← ${pointers}</span>`);
             const cyc = g.nodeCycles.get(n.id);
@@ -2918,7 +2969,7 @@ class FlowDoctor {
             const searchInput = document.getElementById('graph-search');
             const name = g.nodes.get(id).name.toLowerCase();
             if (searchInput.value && !name.includes(searchInput.value.toLowerCase().trim())) searchInput.value = '';
-            if (document.getElementById('graph-only-linked').checked && !FlowGraph.pointers(g, id).size) {
+            if (document.getElementById('graph-only-linked').checked && !g.pointerCount.has(id)) {
                 document.getElementById('graph-only-linked').checked = false;
             }
         }
@@ -2939,22 +2990,23 @@ class FlowDoctor {
     }
 
     formatDelay(seconds) {
-        if (seconds % 3600 === 0) return `${seconds / 3600} h`;
-        if (seconds % 60 === 0) return `${seconds / 60} min`;
-        return `${seconds} s`;
+        if (seconds % 3600 === 0) return `${seconds / 3600} ${this.t('unit.hours')}`;
+        if (seconds % 60 === 0) return `${seconds / 60} ${this.t('unit.minutes')}`;
+        return `${seconds} ${this.t('unit.seconds')}`;
     }
 
     // One row in the "Who points to this flow" chain: a flow plus the card(s) it points with.
-    // state: null, 'loop' (a loop of start links), 'repeat' (already in this chain
-    // through an Enable/Disable link) or 'shown' (expanded earlier in this view).
+    // state: null, 'loop-active' / 'loop-inactive' (the path shown is a loop of start
+    // links), 'repeat' (already in this chain through an Enable/Disable link) or
+    // 'shown' (expanded earlier in this view).
     renderChainNode(group, state) {
         const g = this.graph;
         const edges = group.edges;
         const n = g.nodes.get(group.id);
         const tags = [];
-        if (state === 'loop') {
-            const loop = g.nodeCycles.get(group.id);
-            tags.push(`<span class="badge ${loop && loop.active ? 'badge-err' : 'badge-warn'}">↻ ${this.escape(this.t('graph.cycle'))}</span>`);
+        if (state === 'loop-active' || state === 'loop-inactive') {
+            const title = state === 'loop-inactive' ? ` title="${this.escape(this.t('graph.cycleInactiveHelp'))}"` : '';
+            tags.push(`<span class="badge ${state === 'loop-active' ? 'badge-err' : 'badge-warn'}"${title}>↻ ${this.escape(this.t('graph.cycle'))}</span>`);
         } else if (state === 'repeat') {
             tags.push(`<span class="badge bg-gray-100 text-gray-600">↻ ${this.escape(this.t('graph.alreadyInChain'))}</span>`);
         } else if (state === 'shown') {
@@ -2990,33 +3042,29 @@ class FlowDoctor {
         let budget = 400;
         let truncated = false;
         const expanded = new Set();
-        const pointers = (id) => {
-            const groups = new Map();
-            for (const e of (g.in.get(id) || [])) {
-                if (e.from === id) continue;
-                if (!groups.has(e.from)) groups.set(e.from, { id: e.from, edges: [] });
-                groups.get(e.from).edges.push(e);
-            }
-            return [...groups.values()].sort((a, b) => FlowGraph.collator.compare(this.graphFlowName(a.id), this.graphFlowName(b.id)));
-        };
-        // path[j + 1] points to path[j]; startSteps[j] says whether that step is a start link.
-        const level = (id, path, startSteps) => {
+        const pointers = (id) => FlowGraph.pointerGroups(g, id)
+            .sort((a, b) => FlowGraph.collator.compare(this.graphFlowName(a.id), this.graphFlowName(b.id)));
+        // path[j + 1] points to path[j]; steps[j] says whether that step has a start link
+        // and whether one of those currently fires.
+        const level = (id, path, steps) => {
             const items = [];
             for (const group of pointers(id)) {
                 // The direct pointers are always listed; the budget only cuts deeper levels.
                 if (budget <= 0 && path.length > 1) { truncated = true; break; }
                 budget--;
-                const hasStart = group.edges.some(e => e.kind === 'start');
+                const step = { start: group.edges.some(e => e.kind === 'start'), active: group.edges.some(e => e.active) };
                 const at = path.indexOf(group.id);
                 let state = null;
                 let children = '';
                 if (at >= 0) {
-                    state = hasStart && startSteps.slice(at).every(Boolean) ? 'loop' : 'repeat';
+                    const loopSteps = [...steps.slice(at), step];
+                    if (!loopSteps.every(x => x.start)) state = 'repeat';
+                    else state = loopSteps.every(x => x.active) ? 'loop-active' : 'loop-inactive';
                 } else if (expanded.has(group.id)) {
                     state = 'shown';
                 } else {
                     expanded.add(group.id);
-                    children = level(group.id, [...path, group.id], [...startSteps, hasStart]);
+                    children = level(group.id, [...path, group.id], [...steps, step]);
                 }
                 items.push(`<li>${this.renderChainNode(group, state)}${children}</li>`);
             }
@@ -3047,7 +3095,7 @@ class FlowDoctor {
                </div>`
             : '';
 
-        const direct = FlowGraph.pointers(g, n.id).size;
+        const direct = g.pointerCount.get(n.id) || 0;
         const total = FlowGraph.referrers(g, n.id).size;
         let body;
         if (direct) {

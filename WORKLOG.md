@@ -1,5 +1,20 @@
 # Worklog
 
+## 2026-10-04 — GitHub Pages deployment through GitHub Actions
+
+### Requested
+- The Flow Doctor update merged in #57 must be live at https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html. Lars checked the Pages and Actions settings, and the site still does not rebuild.
+
+### Findings
+- The built-in "pages build and deployment" run (branch source) last ran on 2026-09-05 at 17:22 UTC, for #39. Nothing merged after that started a run, including the `docs/` changes in #47, #53 and #57. There are no failed runs, so there is no log to debug. The live site therefore still shows the 2026-09-05 version of `docs/`.
+- `docs/` is plain static HTML (no Jekyll front matter, Liquid or `_config.yml`), so it can be published as is.
+
+### Implemented
+- `.github/workflows/pages.yml`: publishes `docs/` with the official Pages actions (`configure-pages`, `upload-pages-artifact`, `deploy-pages`) on every push to `main` that changes `docs/` or the workflow, and on manual start (`workflow_dispatch`).
+- `PROJECT_DOCUMENTATION.md`: notes how `docs/` is published.
+- Needs one setting: Settings → Pages → Build and deployment → Source: "GitHub Actions". With the old "Deploy from a branch" source the deploy step fails.
+- Side effect: `docs/template-structure.md` is no longer turned into HTML by Jekyll and is served as plain Markdown. No page links to it.
+
 ## 2026-10-04 — Flow Doctor: flow tree showing who points to a flow
 
 ### Requested

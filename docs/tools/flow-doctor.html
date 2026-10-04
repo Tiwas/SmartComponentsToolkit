@@ -1050,30 +1050,34 @@ const FlowGraph = {
     },
 
     // An Advanced Flow card only runs when a path leads to it from a trigger or
-    // the "start" card. Returns the keys of the cards that can run.
-    reachableCards(cards) {
-        const reached = new Set();
+    // the "start" card. Returns a Map of the cards that can run to the shortest
+    // total delay (seconds) of the "delay" cards on the way there.
+    cardDelays(cards) {
+        const delays = new Map();
         const queue = [];
         for (const [key, card] of Object.entries(cards || {})) {
             const type = String((card && card.type) || '');
             if (type === 'start' || type.endsWith('trigger')) {
-                reached.add(key);
+                delays.set(key, 0);
                 queue.push(key);
             }
         }
         while (queue.length) {
-            const card = cards[queue.shift()] || {};
+            const key = queue.shift();
+            const card = cards[key] || {};
+            const own = card.type === 'delay' ? (this.delaySeconds(card.args && card.args.delay) || 0) : 0;
+            const total = delays.get(key) + own;
             for (const [field, value] of Object.entries(card)) {
                 if (!field.startsWith('output') || !Array.isArray(value)) continue;
                 for (const next of value) {
-                    if (cards[next] && !reached.has(next)) {
-                        reached.add(next);
+                    if (cards[next] && (!delays.has(next) || total < delays.get(next))) {
+                        delays.set(next, total);
                         queue.push(next);
                     }
                 }
             }
         }
-        return reached;
+        return delays;
     },
 
     build({ flows = {}, advancedFlows = {}, folders = {} } = {}) {
@@ -1128,10 +1132,10 @@ const FlowGraph = {
         for (const flow of Object.values(advancedFlows || {})) {
             if (!flow || !flow.id) continue;
             const cards = flow.cards || {};
-            const reachable = this.reachableCards(cards);
+            const delays = this.cardDelays(cards);
             for (const [key, card] of Object.entries(cards)) {
                 if (!card || (card.type && card.type !== 'action')) continue;
-                addEdge(flow.id, card, { connected: reachable.has(key) });
+                addEdge(flow.id, card, { connected: delays.has(key), delaySeconds: delays.get(key) || null });
             }
         }
 

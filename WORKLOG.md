@@ -16,6 +16,7 @@
 - Translations: all new strings in en/no/de/nl. Card names use the tool's own labels instead of Homey's card titles, which follow the Homey's language. Also translated strings that were hard-coded in English: the severity filters and badges, the search placeholders, "disabled", "(unnamed)", the API reset confirmation and two error messages.
 - `docs/index.html`: Flow Doctor card text mentions the new feature.
 - Review fix: when `getFlows()` or `getAdvancedFlows()` fails, the scan still goes on with an empty list, but deleted-flow findings are now skipped. Before, a transient API error reported valid flows (for example an Advanced Flow started from a standard flow) as deleted.
+- Review fix: delays in Advanced Flows live on separate `delay` cards (`args.delay`, same shape as a standard-flow card delay, checked on Lars's Homey). The link from an Advanced Flow now gets the shortest total delay on the path from a trigger or the start card to the Start/Enable/Disable card, so the delay badge also shows for Advanced Flows. A path without any delay means no badge.
 - `AI_RULES.md` §7: no AI attribution in commits, PRs, comments, code, docs or branch names. The repo conventions file now points to `AI_RULES.md`.
 
 ### Verification

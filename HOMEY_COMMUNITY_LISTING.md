@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.32 test - Stability, long waits + Circadian time fix]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.33 test - Flow name card, Circadian time fix]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.32
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.33
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,21 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.33 (test channel)
+
+- **Get the name of [this Flow] (Then card, Advanced Flow).** Returns the name, id and folder of the Flow the card is in as tags, so a notification or log line can say which Flow sent it. No more typing the Flow name by hand.
+- **Pick once, rename freely:** click the field and pick the only choice, *this Flow*. The name is read every time the card runs, so it follows when you rename the Flow.
+- **Copies are caught:** if you copy the card or duplicate the Flow, *Flow name* shows *[Duplicate]*, *Has error* is yes and the *Error message* tag names the Flows, until you pick *this Flow* again in the copy. A Flow that is not saved yet gives *[Unknown – save the Flow]*. The card always continues on its normal output, so put a Logic condition on *Has error* to branch.
+- Translated into all 11 app languages.
+
+```
+WHEN: This Flow is started
+THEN: Get the name of this Flow
+THEN: Create a notification with "[Flow name] ran"
+```
+
+<a href="https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html#action-flow-name" target="_blank">Get this Flow's name — reference</a>
 
 ### v1.10.32 (test channel)
 
@@ -120,9 +135,28 @@ THEN: Set fan speed to Mapped value
 
 ---
 
+## 🔎 Debugging across Flows — *Get the name of this Flow* + Flow Doctor
+
+When Flows start each other, or several Flows send notifications, log lines or variables to the same place, it is hard to see which Flow actually did what.
+
+**New card: *Get the name of [this Flow]*** (Advanced Flow, test v1.10.33)
+- Put it in any Advanced Flow and use the *Flow name* tag in notifications, timeline entries, log lines or values you pass on to a shared Flow. You see at once which Flow sent each message.
+- No hard-coded names that go stale: the name is read every time the card runs, so it follows when you rename the Flow. *Flow id* and *Folder* tags are there too, for example to group log lines by folder.
+- A log never names the wrong Flow: if you copy the card or duplicate the Flow, *Flow name* shows *[Duplicate]*, *Has error* turns yes and *Error message* names the Flows until you pick *this Flow* again in the copy.
+
+**Flow Doctor: Flow tree and loop check**
+- The new *Flow tree* tab shows all your Flows in their folders. Select one to see every Flow that starts, enables or disables it, through the whole chain, with flags for disabled Flows, unconnected cards, *else* branches and delays.
+- **Circular references:** Flow Doctor warns about Flows that start each other in a loop, which can keep running forever. It tells active loops from inactive ones (through a disabled Flow or an unconnected card). The Flows view also reports references to deleted Flows.
+
+Together they cover both sides: Flow Doctor shows how your Flows are wired, and the new card shows at run time which Flow actually ran.
+
+<a href="https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html#action-flow-name" target="_blank">Get this Flow's name — reference</a> · <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html" target="_blank">Open Flow Doctor</a>
+
+---
+
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.32 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.33 is available on the test channel.
 
 ### Circadian Light Group highlights
 
@@ -196,6 +230,7 @@ Choose how the device knows how bright it is outside:
 | **Evaluate Expression** | Range checking and value mapping with AND/OR logic. |
 | **Math Compare** | Compare a calculated number, e.g. `Temperature + 3` against a threshold. |
 | **Gradient Map** | Map a number from one range to another and pass the `Mapped value` tag to the next card. |
+| **Get this Flow's name** | Return the name, id and folder of the Advanced Flow the card is in as tags, e.g. for notifications and logs. |
 
 <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/devices.html" target="_blank">→ Complete Device Guide</a>
 

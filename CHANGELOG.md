@@ -6,6 +6,12 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.33] - October 2026 (Test channel)
+
+### Added
+- New Advanced Flow card *Get the name of [this Flow]* ([#66](https://github.com/Tiwas/SmartComponentsToolkit/pull/66)). It returns the name, id and folder of the Flow it is in as tags, plus *Has error* (yes/no) and *Error message* tags, for example to show in notifications and logs which Flow sent them. Click the field and pick *this Flow* once. The name is read each time the card runs, so it follows a rename. A copied card or duplicated Flow gives *[Duplicate]* in *Flow name* until you pick *this Flow* again in the copy, and a Flow that is not saved yet gives *[Unknown – save the Flow]*. In those cases *Has error* is yes, so a Logic condition can branch. The card and its messages are translated into all 11 app languages. See the [Flow card reference](https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html#action-flow-name).
+- The stable and test badges in the README and on the documentation site now read the versions from the Homey App Store, so they no longer go stale.
+
 ## [1.10.32] - September 2026 (Test channel)
 
 ### Fixed

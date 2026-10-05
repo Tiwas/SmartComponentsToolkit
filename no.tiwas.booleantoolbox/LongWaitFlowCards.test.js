@@ -724,7 +724,7 @@ describe("Flow card wait limit (issue #46)", () => {
 
     });
 
-    describe("background wait IDs and setup time (Codex review)", () => {
+    describe("background wait IDs and setup time", () => {
         const deviceValue = (value) => ({ capabilitiesObj: { onoff: { value } } });
         const gateFinished = () => ctx.trigger("conditional_gate_wait_finished").trigger;
         const capabilityFinished = () => ctx.trigger("wait_until_finished").trigger;
@@ -921,7 +921,7 @@ describe("Flow card wait limit (issue #46)", () => {
 
     });
 
-    describe("disabled waiters stay waiting (Codex review)", () => {
+    describe("disabled waiters stay waiting", () => {
         const control = (waiterId, action) =>
             ctx.action("control_waiter").runListener({ waiter_id: waiterId, action }, {});
         const gateFinished = () => ctx.trigger("conditional_gate_wait_finished").trigger;
@@ -1044,7 +1044,7 @@ describe("Flow card wait limit (issue #46)", () => {
         });
     });
 
-    describe("listener installed before the initial value check (Codex review)", () => {
+    describe("listener installed before the initial value check", () => {
         function changeValueDuringListenerSetup(value) {
             const apiDevice = { makeCapabilityInstance: null };
             apiDevice.makeCapabilityInstance = jest.fn(async (capability, listener) => {
@@ -1201,7 +1201,7 @@ describe("Flow card wait limit (issue #46)", () => {
         });
     });
 
-    describe("guard counts from the start of the card run (Codex review)", () => {
+    describe("guard counts from the start of the card run", () => {
         test("a slow device lookup is subtracted from the 55 s guard", async () => {
             ctx.app.getApiDevice.mockImplementationOnce(() => new Promise((resolve) => {
                 setTimeout(() => resolve({ capabilitiesObj: { onoff: { value: false } } }), 10000);

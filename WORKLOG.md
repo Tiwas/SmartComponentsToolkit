@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-10-05 — Remove assistant names and attribution
+
+### Requested
+- Lars asked to remove AI attribution from pull requests and the repo, following `AI_RULES.md` §7. Reviews stay; Lars decides about comments himself.
+
+### Implemented
+- Pull request descriptions #47–#57: removed "Generated with …" footers, session links and "(CLAUDE.md …)" headings. A read-only check of all 33 PR titles and descriptions found no remaining attribution.
+- Repo files: neutral wording in four `WORKLOG.md` lines; "(Codex review)" removed from four test names in `LongWaitFlowCards.test.js`; the two source images in `assets/images_logic_device/` and `assets/images_logic_unit/` renamed to `source.png`, with `.homeyignore` updated so they stay out of the app bundle; neutral `.gitignore` comment.
+- Kept on purpose: the `.claude/` and `.codex-logs/` ignore patterns (they keep local tool files out of git and the bundle), the rule text in `AI_RULES.md`, the repo conventions file itself, and `DOCUMENTATION_PROMPT_TEMPLATE.md` (deleting files needs Lars's confirmation under rule 5).
+
+### Not done
+- Rewriting the commit history of `main` (trailers, merge messages with tool branch names, commits authored by an assistant identity) was not possible from the working environment. It would change about 470 commit ids and move four tags, and the original commits stay visible on the pull request pages anyway.
+
+### Verification
+- `npx jest --runInBand`: 23 suites, 358 tests passed.
+
 ## 2026-10-04 — GitHub Pages deployment through GitHub Actions
 
 ### Requested
@@ -80,7 +96,7 @@
   - Repair, `get_lux_sensors` returns `[]` while `get_config` has lux anchors with `sensor-x`/`sensor-y` and outdoor `sensor-outdoor`: the selects show "Ukjent sensor (sensor-x)" and Save keeps all three ids; the whole config (with `_meta`, a solar anchor and a device) is saved unchanged. Also passes when `get_lux_sensors` fails (English label "Unknown sensor (sensor-x)").
   - Repair: listed sensors are preselected with no extra option; picking a listed sensor or "Select lux sensor..." replaces the unknown id; changing another anchor's mode and switching provider (both re-render) keeps the ids; the outdoor id is kept while another provider hides the select; an id containing markup is escaped (no injected element) and saved unchanged.
   - Pair: `get_lux_sensors` `[]` → Create keeps `sensor-x`/`sensor-y` and the whole config; listed sensors get no extra option.
-  - `docs/tools/clg-editor.html` (companion tool per CLAUDE.md): the config with sensor ids round-trips unchanged. It does not edit sensor ids, so no change was needed; the config schema did not change.
+  - `docs/tools/clg-editor.html` (companion tool per the repo conventions): the config with sensor ids round-trips unchanged. It does not edit sensor ids, so no change was needed; the config schema did not change.
 - Not tested on a real Homey.
 
 ## 2026-09-30 — Circadian Light Group editors keep lux anchors
@@ -106,7 +122,7 @@
   - Repair: a config with two lux anchors, a solar anchor, a time anchor, and `_meta` survives load → Save unchanged, with and without the optional morning profile from #53; sensors are preselected.
   - Repair: switching time anchors to lux (with an unsaved time edit carried over as the fallback), then changing another anchor's mode, then Save keeps both lux anchors exactly; a lux anchor with no sensor saves `sensorDeviceId: null`; lux → time uses the lux fallback time; threshold 0 survives.
   - Pair: switching an anchor to lux and pressing Create keeps it; generated lux anchors survive load → Create unchanged.
-  - `docs/tools/clg-editor.html` (companion tool per CLAUDE.md): the lux config round-trips unchanged. No change needed there, and the config schema did not change.
+  - `docs/tools/clg-editor.html` (companion tool per the repo conventions): the lux config round-trips unchanged. No change needed there, and the config schema did not change.
 
 ### Follow-ups
 - If a lux anchor's sensor is missing from `get_lux_sensors` (device deleted or the lookup failed), the sensor select falls back to "Select lux sensor..." and Save writes `sensorDeviceId: null`. The outdoor lux sensor select has the same existing behaviour; not changed here.
@@ -195,10 +211,10 @@
 ## 2026-09-29 — Test release v1.10.30
 
 ### Requested
-- Ship the fixes for #44 (app resets) and #46 (Conditional Gate 60 s timeout) after Codex approval and live testing on the configured Homey, with a descriptive changelog that links the changed guides.
+- Ship the fixes for #44 (app resets) and #46 (Conditional Gate 60 s timeout) after review approval and live testing on the configured Homey, with a descriptive changelog that links the changed guides.
 
 ### Implemented
-- Merged PR #48 (#44) and PR #47 (#46) after Codex reported no major issues on their final commits.
+- Merged PR #48 (#44) and PR #47 (#46) after review found no major issues on their final commits.
 - Bumped the app to 1.10.30 (manifest, package files) with English and Norwegian changelog text linking the Conditional Gates and Waiter Gates guides; updated CHANGELOG.md, the README test badge and summary, and the Homey Community listing source.
 
 ### Verification
@@ -279,7 +295,7 @@
 - `npm run test:package`: publish-level validation passed; bundle contains 766 files (7.60 MB) and all 17 manifest assets were verified.
 
 ### Follow-ups
-- Live test on Lars's Homey Pro (combined #47 + #48 build via `homey app run --remote`): in-card `conditional_gate_start` (2 min) ended through its error output exactly 55 s after the run started; `conditional_gate_start_wait` + GO after 65 s fired `conditional_gate_wait_finished` (opened, GO, 65 s) and the trigger Flow ran; `wait_until_start` matched after 81.6 s and `wait_until_finished` fired MATCHED. Temporary `[Claude test]` Flows were disabled afterwards.
+- Live test on Lars's Homey Pro (combined #47 + #48 build via `homey app run --remote`): in-card `conditional_gate_start` (2 min) ended through its error output exactly 55 s after the run started; `conditional_gate_start_wait` + GO after 65 s fired `conditional_gate_wait_finished` (opened, GO, 65 s) and the trigger Flow ran; `wait_until_start` matched after 81.6 s and `wait_until_finished` fired MATCHED. Temporary test Flows were disabled afterwards.
 - Known limitation: gate states and pending waits are in memory and are lost on app restart; a pending background wait then never fires its trigger.
 - CHANGELOG / `.homeychangelog.json` / version bump left for the release step.
 

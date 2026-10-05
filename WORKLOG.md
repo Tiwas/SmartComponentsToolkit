@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-10-05 — Release prep for test v1.10.33
+
+### Requested
+- Lars asked for the Flow name card (#66) to be published to the test channel, with HOMEY_COMMUNITY_LISTING.md updated. He also asked for a section on debugging across Flows above "Circadian Light Group — now on stable", covering the new card and the Flow Doctor loop check. Separately, he asked whether the outdated version badges could be read from the Homey store.
+
+### Implemented
+- Version 1.10.33 (`homey app version`, `npm version`), with the store changelog in English and Norwegian (`.homeychangelog.json`) linking to the Flow card reference.
+- `CHANGELOG.md`: 1.10.33 section.
+- `README.md`: new summary. The stable and test badges are now shields.io dynamic badges that read `liveVersion` / `testVersion` from the public Homey App Store API (`https://apps-api.athom.com/api/v1/app/no.tiwas.booleantoolbox`), so they need no manual bump. The stable badge said 1.10.9, while the store has 1.10.16.
+- `docs/index.html`: the header badges (stable 1.10.9 / test 1.10.25) are the same dynamic badges in the site colours. The Circadian Light Group labels (`docs/index.html`, `docs/docs/circadian-light-group.html`) now say "Stable since v1.10.16" instead of "v1.10.25 test". The Composite Device install link (`docs/docs/composite-device.html`) has no version number. The "v1.10.22 test" label on Composite Device in `docs/docs/devices.html` is still correct and was not changed.
+- `HOMEY_COMMUNITY_LISTING.md`:
+  - The title and header say test v1.10.33.
+  - "What's new" has a v1.10.33 section with an example.
+  - A new "Debugging across Flows" section above the Circadian Light Group section covers the card and Flow Doctor's Flow tree and circular-reference check (#57).
+  - The Flow card table has a row for the new card.
+
+### Verification
+- The badge sources are checked: the API answers with `Access-Control-Allow-Origin: *`, and the shields.io badges render "v1.10.16 stable" and "v1.10.32 test".
+- The dev run of 1.10.33 (with `has_error` and all translations) is installed on Lars's New Homey for his editor test before publishing.
+
 ## 2026-10-05 — "Get this Flow's name" card (`flow_whoami`)
 
 ### Requested

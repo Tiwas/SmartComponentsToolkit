@@ -68,6 +68,9 @@ Math Compare
 Gradient Map
   Map a number from one range to another, clamp out-of-range values, round the result, and expose it as a Flow tag.
 
+Get this Flow's name
+  Return the name, id and folder of the Advanced Flow the card is in as Flow tags. Pick "this Flow" once in the card; the name follows when the Flow is renamed.
+
 Evaluate Expression
   Evaluate range rules with AND/OR logic and return output and error tags.
 

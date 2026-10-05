@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Erreur lors du déclenchement du délai d'attente:"
+  },
+  "flow_identity": {
+    "choice_name": "ce Flow",
+    "choice_description": "Donne à cette carte son propre ID",
+    "markers": {
+      "missing": "[Non choisi]",
+      "not_found": "[Inconnu – enregistrez le Flow]",
+      "copied": "[Doublon]"
+    },
+    "errors": {
+      "missing": "Cliquez sur le champ de la carte et choisissez « ce Flow ».",
+      "not_found": "Cette carte est introuvable dans un Flow enregistré. Enregistrez le Flow et relancez-le.",
+      "copied": "Cette carte a été copiée : le même ID se trouve dans plusieurs Flows. Ouvrez la carte dans la copie et choisissez à nouveau « ce Flow ». Flows :"
+    }
   }
 }

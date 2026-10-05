@@ -104,6 +104,7 @@
                         <li><a href="#action-evaluate" class="hover:text-purple-600">→ Evaluate formula</a></li>
                         <li><a href="#action-evaluate-expression" class="hover:text-purple-600">→ Evaluate expression</a></li>
                         <li><a href="#action-gradient-map" class="hover:text-purple-600">→ Gradient Map</a></li>
+                        <li><a href="#action-flow-name" class="hover:text-purple-600">→ Get this Flow's name</a></li>
                         <li><a href="#action-modify-gate" class="hover:text-purple-600">→ Modify Conditional Gate</a></li>
                         <li><a href="#action-start-gate-wait" class="hover:text-purple-600">→ Start waiting for Conditional Gate GO</a></li>
                         <li><a href="#action-wait" class="hover:text-purple-600">→ Wait</a></li>
@@ -622,6 +623,45 @@
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
                     <p class="text-blue-800 text-sm">If a flow has more than one Map card, choose the <code>Mapped value</code> tag from the Map card on the same branch as the fan-speed action.</p>
+                </div>
+            </div>
+
+            <!-- Get this Flow's name -->
+            <div id="action-flow-name" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Get the name of [this Flow]</h3>
+                <p class="text-gray-700 mb-4">Returns the name, id and folder of the Advanced Flow the card is in, as tags for the next cards. The card and its messages are translated into all of the app's languages. Useful in notifications and logs, so you can see which Flow sent them without typing the name by hand. Advanced Flow only: Homey does not show THEN cards with tags in standard Flows.</p>
+
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">flow</span> - Click the field and pick the only choice, <em>this Flow</em>. Required.</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">Flow name</span> - The Flow's current name, or a marker such as <code>[Duplicate]</code> when the Flow cannot be named</li>
+                        <li><span class="code-inline">Flow id</span> - The Flow's id (empty when the Flow cannot be named)</li>
+                        <li><span class="code-inline">Folder</span> - Name of the folder the Flow is in (empty when it is not in a folder)</li>
+                        <li><span class="code-inline">Has error</span> - Yes/no: yes when the Flow cannot be named</li>
+                        <li><span class="code-inline">Error message</span> - Empty when all is well, otherwise what to do</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">How it finds the Flow:</p>
+                    <p class="text-gray-700">Homey does not tell a card which Flow it runs in, and apps may read Flows but not change them. When you pick <em>this Flow</em>, the card gets its own id, and Homey saves it with the Flow. Each time the card runs, the app looks up which Flow holds that id and reads its current name, so renaming the Flow needs nothing.</p>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+                    <p class="font-semibold text-purple-700 mb-2">When the Flow cannot be named:</p>
+                    <ul class="space-y-2 text-gray-700">
+                        <li><code>[Duplicate]</code> - The card has been copied, or the Flow duplicated, so the same id is in several Flows. <code>Error message</code> names them. Open the card in the copy and pick <em>this Flow</em> again.</li>
+                        <li><code>[Unknown – save the Flow]</code> - The id is not in any saved Flow, for example when you test a Flow before saving it.</li>
+                        <li><code>[Not set]</code> - Nothing is picked in the field.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">In these cases the card still continues on its normal output, because Homey drops a card's tags when it takes the error output. The error output is only used when the app cannot read the Flows at all. To branch on a problem, add a Logic condition on <code>Has error</code> after the card.</p>
                 </div>
             </div>
 

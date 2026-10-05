@@ -746,5 +746,19 @@
   },
   "timeout": {
     "error": "Error triggering timeout:"
+  },
+  "flow_identity": {
+    "choice_name": "this Flow",
+    "choice_description": "Gives this card its own id",
+    "markers": {
+      "missing": "[Not set]",
+      "not_found": "[Unknown – save the Flow]",
+      "copied": "[Duplicate]"
+    },
+    "errors": {
+      "missing": "Click the field on the card and pick \"this Flow\".",
+      "not_found": "Could not find this card in a saved Flow. Save the Flow and run it again.",
+      "copied": "This card has been copied, so the same id is in several Flows. Open the card in the copy and pick \"this Flow\" again. Flows:"
+    }
   }
 }

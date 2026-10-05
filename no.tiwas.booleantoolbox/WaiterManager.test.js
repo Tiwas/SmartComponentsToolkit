@@ -247,17 +247,22 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
   });
 
   test('re-initializing a waiter settles the superseded Flow run once with false', async () => {
-    await manager.createWaiter('Wait_OSB_Motion', { timeoutValue: 120000, timeoutUnit: 'ms' }, { flowId: 'unknown' });
+    const cardContext = { flowId: WaiterManager.CARD_FLOW_ID, flowToken: null };
+    await manager.createWaiter('Wait_OSB_Motion', { timeoutValue: 120000, timeoutUnit: 'ms' }, cardContext);
     const first = manager.waiters.get('Wait_OSB_Motion');
     first.resolver = jest.fn();
 
-    await manager.createWaiter('Wait_OSB_Motion', { timeoutValue: 120000, timeoutUnit: 'ms' }, { flowId: 'unknown' });
+    await manager.createWaiter('Wait_OSB_Motion', { timeoutValue: 120000, timeoutUnit: 'ms' }, cardContext);
     const second = manager.waiters.get('Wait_OSB_Motion');
     second.resolver = jest.fn();
 
     expect(first.resolver).toHaveBeenCalledTimes(1);
     expect(first.resolver).toHaveBeenCalledWith(false);
     expect(second).not.toBe(first);
+    // The takeover is visible in the normal log, but not as a warning, so the
+    // Waiter ID never reaches a diagnostic report.
+    expect(manager.logger.info).toHaveBeenCalledWith(expect.stringContaining('"Wait_OSB_Motion" was already waiting'));
+    expect(manager.logger.warn).not.toHaveBeenCalled();
 
     // The replaced waiter's timeout was cleared and never touches its successor.
     await jest.advanceTimersByTimeAsync(119999);
@@ -268,6 +273,14 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
     await jest.advanceTimersByTimeAsync(1);
     expect(second.resolver).toHaveBeenCalledWith(false);
     expect(manager.waiters.has('Wait_OSB_Motion')).toBe(false);
+  });
+
+  test('an in-card wait cannot take over the ID of a background wait', async () => {
+    await manager.createWaiter('shared_id', { timeoutValue: 0, timeoutUnit: 'ms' }, { flowId: WaiterManager.BACKGROUND_FLOW_ID });
+
+    await expect(manager.createWaiter('shared_id', { timeoutValue: 0, timeoutUnit: 'ms' }, { flowId: WaiterManager.CARD_FLOW_ID }))
+      .rejects.toThrow('Waiter ID "shared_id" already exists');
+    expect(manager.waiters.get('shared_id').flowId).toBe(WaiterManager.BACKGROUND_FLOW_ID);
   });
 
   test('removeWaiterIfCurrent leaves a successor with the same ID alone', async () => {

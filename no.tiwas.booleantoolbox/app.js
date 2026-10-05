@@ -1579,10 +1579,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                                     return;
                                 }
 
-                                // Create waiter with flow context
+                                // Homey gives a Flow card no Flow id, so every in-card wait
+                                // shares one context; it only separates in-card waits from
+                                // background waits.
                                 const flowContext = {
-                                    flowId: state?.flowId || 'unknown',
-                                    flowToken: state?.flowToken || null
+                                    flowId: WaiterManager.CARD_FLOW_ID,
+                                    flowToken: null
                                 };
 
                                 const config = remainingTimeoutMs === null
@@ -1737,7 +1739,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
                             const actualId = await this.waiterManager.createWaiter(
                                 uniqueWaiterId,
                                 config,
-                                { flowId: state?.flowId, flowToken: state?.flowToken },
+                                { flowId: WaiterManager.CARD_FLOW_ID, flowToken: null },
                                 null,
                                 virtualGateConfig
                             );

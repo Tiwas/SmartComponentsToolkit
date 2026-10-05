@@ -67,8 +67,14 @@ class WaiterManager {
         if (!id || id.trim() === '') id = this.generateWaiterId();
 
         const existing = this.waiters.get(id);
+        // flowContext.flowId only tells in-card waits (CARD_FLOW_ID) from background
+        // waits (BACKGROUND_FLOW_ID): Homey gives a Flow card no Flow id. A new wait
+        // of the same kind takes over the ID, also when it comes from another Flow,
+        // and the earlier wait ends on its NO path (documented in waiter-gates.html).
         if (existing && existing.flowId === flowContext.flowId) {
-            this.logger.debug(`♻️  Re-initializing existing waiter: ${id}`);
+            // INFO, not WARN: warnings go into diagnostic reports, which must not
+            // carry user labels such as Waiter IDs.
+            this.logger.info(`♻️  Waiter ID "${id}" was already waiting; the earlier wait ends on its NO path`);
             const previousResolver = existing.resolver;
             this.removeWaiterById(id);
             // Settle the superseded Flow card run through its NO/false path so it
@@ -548,4 +554,6 @@ WaiterManager.FLOW_CARD_SAFE_WAIT_MS = 55000;
 // moment as the guard: the timeout (NO path) wins over the limit error.
 WaiterManager.FLOW_CARD_TIMEOUT_TIE_MS = 50;
 WaiterManager.BACKGROUND_FLOW_ID = 'background';
+// Context for waits inside a Flow card (Homey gives the card no Flow id).
+WaiterManager.CARD_FLOW_ID = 'card';
 module.exports = WaiterManager;

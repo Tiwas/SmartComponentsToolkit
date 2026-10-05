@@ -1,5 +1,22 @@
 # Worklog
 
+## 2026-10-05 — Waiter flow context cleanup
+
+### Requested
+- Lars asked whether the waiter check that compares Flow ids is wrong, and then asked for it to be cleaned up.
+
+### Findings
+- The behaviour matches the docs (`docs/docs/waiter-gates.html`): the same Waiter ID started again takes over and the earlier wait takes the NO path, and an in-card wait and a background wait cannot share an ID. Only the code was misleading. It read `state?.flowId`, which Homey never supplies, so every in-card capability wait used `'unknown'`, and the Conditional Gate in-card wait used `undefined`.
+
+### Implemented
+- `lib/WaiterManager.js`: new `WaiterManager.CARD_FLOW_ID` (`'card'`), next to `BACKGROUND_FLOW_ID`. A comment in `createWaiter` explains that the context only separates in-card waits from background waits. The takeover is logged at INFO instead of DEBUG. It is not logged at WARN, because warnings go into diagnostic reports, and those must not carry Waiter IDs.
+- `app.js`: the in-card capability wait and the Conditional Gate in-card wait pass `{ flowId: WaiterManager.CARD_FLOW_ID, flowToken: null }` instead of reading `state`.
+- No change in behaviour. Gate in-card waits use unique IDs, so their context never takes part in a comparison.
+- `PROJECT_DOCUMENTATION.md`: a Waiter IDs note.
+
+### Verification
+- Jest: 24 suites / 373 tests pass. The takeover test now asserts the INFO log (and no WARN), and a new test checks that an in-card wait cannot take a background wait's ID.
+
 ## 2026-10-05 — Test v1.10.33 released
 
 ### Requested

@@ -19,6 +19,7 @@ npm-debug.log
 patch-files/
 *.backup/
 *.old/
+coverage/
 
 # Old version
 no.tiwas.booleantoolbox.old/
@@ -38,7 +39,7 @@ codebase-manifest.*
 *.tar.gz
 *.old
 
-# Project Documentation (AI-generated, kept local)
+# Project Documentation (kept local)
 PROJECT_DOCUMENTATION.md
 
 # Dashboard apps

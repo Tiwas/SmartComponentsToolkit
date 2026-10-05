@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.33 test - Flow name card, Circadian time fix]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.34 test - Flow name card, Circadian time fix]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.33
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.34
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,10 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.34 (test channel)
+
+- **Clearer waiter log:** when a wait takes over a Waiter ID that is already waiting, the app log now says so. The earlier wait still ends on its NO path, as before. Internal clean-up only; nothing changes in your Flows. <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html" target="_blank">Waiter Gates guide</a>
 
 ### v1.10.33 (test channel)
 
@@ -139,7 +143,7 @@ THEN: Set fan speed to Mapped value
 
 When Flows start each other, or several Flows send notifications, log lines or variables to the same place, it is hard to see which Flow actually did what.
 
-**New card: *Get the name of [this Flow]*** (Advanced Flow, test v1.10.33)
+**New card: *Get the name of [this Flow]*** (Advanced Flow, test v1.10.33 and later)
 - Put it in any Advanced Flow and use the *Flow name* tag in notifications, timeline entries, log lines or values you pass on to a shared Flow. You see at once which Flow sent each message.
 - No hard-coded names that go stale: the name is read every time the card runs, so it follows when you rename the Flow. *Flow id* and *Folder* tags are there too, for example to group log lines by folder.
 - A log never names the wrong Flow: if you copy the card or duplicate the Flow, *Flow name* shows *[Duplicate]*, *Has error* turns yes and *Error message* names the Flows until you pick *this Flow* again in the copy.
@@ -156,7 +160,7 @@ Together they cover both sides: Flow Doctor shows how your Flows are wired, and 
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.33 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.34 is available on the test channel.
 
 ### Circadian Light Group highlights
 

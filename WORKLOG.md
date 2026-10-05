@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-10-05 — Release prep for test v1.10.34
+
+### Requested
+- Lars deleted the Flow name card test Flows. He asked for a new test version on the Homey, installed on his own Homey, and for HOMEY_COMMUNITY_LISTING.md to be updated, but not the forum post itself.
+
+### Implemented
+- Version 1.10.34 (`homey app version`, `npm version`), with the store changelog in English and Norwegian linking to the Waiter Gates guide. It ships the waiter clean-up from #69: waits inside a card use `WaiterManager.CARD_FLOW_ID` instead of a Flow id Homey never supplies, and a takeover of a Waiter ID is logged at INFO. Behaviour does not change.
+- `CHANGELOG.md`: 1.10.34 section. `README.md`: summary and Circadian Light Group heading. The badges are dynamic and need no change.
+- `HOMEY_COMMUNITY_LISTING.md`:
+  - The title and header say test v1.10.34.
+  - "What's new" has a v1.10.34 section.
+  - The Flow name card is labelled "test v1.10.33 and later".
+  - The Circadian Light Group line says v1.10.34.
+- The forum post on community.homey.app is not changed.
+
+### Verification
+- Jest: 24 suites / 374 tests pass. `homey app validate --level publish` passes.
+- Installed on Lars's New Homey with `homey app install` before publishing: 1.10.34 is `running`, and all 11 app devices are available.
+- Live waiter test through `runFlowCardCondition` on `wait_until_becomes_true`, with "Logic Device_test" onoff and a target that does not match. A 20 s wait was taken over 1.5 s later by a 3 s wait with the same Waiter ID. The first returned NO after 1.7 s, and the second returned NO at its own timeout, after 4.7 s.
+- `flow_whoami` still works: an unsaved id returns `[Unknown – save the Flow]` with `has_error: true`.
+
 ## 2026-10-05 — Waiter flow context cleanup
 
 ### Requested

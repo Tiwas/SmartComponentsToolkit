@@ -6,6 +6,11 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.34] - October 2026 (Test channel)
+
+### Changed
+- Waiter Gates: when a new wait takes over a Waiter ID that is already waiting, the app log now says so ([#69](https://github.com/Tiwas/SmartComponentsToolkit/pull/69)). The earlier wait still ends on its NO path, as documented in the [Waiter Gates guide](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html). Waits inside a card no longer read a Flow id that Homey never supplies; a fixed context now tells them apart from background waits. Nothing changes in your Flows.
+
 ## [1.10.33] - October 2026 (Test channel)
 
 ### Added

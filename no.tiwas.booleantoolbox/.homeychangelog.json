@@ -154,5 +154,9 @@
   "1.10.33": {
     "en": "New Advanced Flow card: \"Get the name of [this Flow]\". It returns the Flow's name, id and folder as tags, plus \"Has error\" (yes/no) and \"Error message\", so notifications and logs can show which Flow sent them. Pick \"this Flow\" once in the card; the name follows when you rename the Flow. If you copy the card or duplicate the Flow, Flow name shows [Duplicate] and Has error is yes until you pick \"this Flow\" again in the copy. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html#action-flow-name",
     "no": "Nytt kort for avanserte flows: «Hent navnet på [denne flowen]». Det returnerer flowens navn, id og mappe som tagger, i tillegg til «Har feil» (ja/nei) og «Feilmelding», så varsler og logger kan vise hvilken flow som sendte dem. Velg «denne flowen» én gang i kortet; navnet følger med når du gir flowen nytt navn. Kopierer du kortet eller dupliserer flowen, viser Flow-navn [Duplikat] og Har feil er ja til du velger «denne flowen» på nytt i kopien. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html#action-flow-name"
+  },
+  "1.10.34": {
+    "en": "Waiter Gates: when a new wait takes over a Waiter ID that is already waiting, the app log now says so. The earlier wait still ends on its NO path, as before. Internal clean-up of how waits inside a card and background waits are told apart; nothing changes in your Flows. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html",
+    "no": "Waiter Gates: når en ny venting tar over en Waiter-ID som allerede venter, står det nå i app-loggen. Den forrige ventingen går fortsatt ut på NEI, som før. Intern opprydding i hvordan venting i kortet og venting i bakgrunnen skilles fra hverandre; ingenting endres i flowene dine. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html"
   }
 }

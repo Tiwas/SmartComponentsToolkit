@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Errore nell'attivazione del timeout:"
+  },
+  "flow_identity": {
+    "choice_name": "questo Flow",
+    "choice_description": "Assegna a questa scheda un ID proprio",
+    "markers": {
+      "missing": "[Non scelto]",
+      "not_found": "[Sconosciuto – salva il Flow]",
+      "copied": "[Duplicato]"
+    },
+    "errors": {
+      "missing": "Fai clic sul campo della scheda e scegli \"questo Flow\".",
+      "not_found": "Questa scheda non è stata trovata in un Flow salvato. Salva il Flow ed eseguilo di nuovo.",
+      "copied": "Questa scheda è stata copiata, quindi lo stesso ID è in più Flow. Apri la scheda nella copia e scegli di nuovo \"questo Flow\". Flow:"
+    }
   }
 }

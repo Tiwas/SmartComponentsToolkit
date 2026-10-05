@@ -712,5 +712,19 @@
   },
   "timeout": {
     "error": "Fehler beim Auslösen der Zeitüberschreitung:"
+  },
+  "flow_identity": {
+    "choice_name": "diesem Flow",
+    "choice_description": "Gibt dieser Karte eine eigene ID",
+    "markers": {
+      "missing": "[Nicht gewählt]",
+      "not_found": "[Unbekannt – Flow speichern]",
+      "copied": "[Duplikat]"
+    },
+    "errors": {
+      "missing": "Klicke auf das Feld der Karte und wähle „diesem Flow“.",
+      "not_found": "Diese Karte wurde in keinem gespeicherten Flow gefunden. Speichere den Flow und führe ihn erneut aus.",
+      "copied": "Diese Karte wurde kopiert, daher steht dieselbe ID in mehreren Flows. Öffne die Karte in der Kopie und wähle erneut „diesem Flow“. Flows:"
+    }
   }
 }

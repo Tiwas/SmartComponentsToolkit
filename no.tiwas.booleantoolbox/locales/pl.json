@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Błąd wyzwalania przekroczenia czasu:"
+  },
+  "flow_identity": {
+    "choice_name": "tego Flow",
+    "choice_description": "Nadaje tej karcie własne ID",
+    "markers": {
+      "missing": "[Nie wybrano]",
+      "not_found": "[Nieznany – zapisz Flow]",
+      "copied": "[Duplikat]"
+    },
+    "errors": {
+      "missing": "Kliknij pole na karcie i wybierz „tego Flow”.",
+      "not_found": "Nie znaleziono tej karty w zapisanym Flow. Zapisz Flow i uruchom go ponownie.",
+      "copied": "Ta karta została skopiowana, więc to samo ID jest w kilku Flow. Otwórz kartę w kopii i ponownie wybierz „tego Flow”. Flow:"
+    }
   }
 }

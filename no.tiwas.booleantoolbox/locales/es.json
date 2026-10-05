@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Error al activar el tiempo de espera:"
+  },
+  "flow_identity": {
+    "choice_name": "este Flow",
+    "choice_description": "Da a esta tarjeta su propio ID",
+    "markers": {
+      "missing": "[Sin elegir]",
+      "not_found": "[Desconocido – guarda el Flow]",
+      "copied": "[Duplicado]"
+    },
+    "errors": {
+      "missing": "Haz clic en el campo de la tarjeta y elige \"este Flow\".",
+      "not_found": "No se encontró esta tarjeta en un Flow guardado. Guarda el Flow y vuelve a ejecutarlo.",
+      "copied": "Esta tarjeta se ha copiado, así que el mismo ID está en varios Flows. Abre la tarjeta en la copia y vuelve a elegir \"este Flow\". Flows:"
+    }
   }
 }

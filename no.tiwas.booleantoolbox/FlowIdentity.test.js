@@ -108,6 +108,7 @@ describe("FlowIdentity resolve", () => {
       flow_name: "Lights",
       flow_id: "flow-a",
       folder_name: "Living room",
+      has_error: false,
       error_message: "",
     });
     expect(manager.getAdvancedFlows).toHaveBeenCalledWith({ $cache: false });
@@ -146,6 +147,7 @@ describe("FlowIdentity resolve", () => {
       flow_name: "flow_identity.markers.copied",
       flow_id: "",
       folder_name: "",
+      has_error: true,
       error_message: 'flow_identity.errors.copied "Lights", "Lights (copy)"',
     });
   });
@@ -158,6 +160,7 @@ describe("FlowIdentity resolve", () => {
       flow_name: "flow_identity.markers.missing",
       flow_id: "",
       folder_name: "",
+      has_error: true,
       error_message: "flow_identity.errors.missing",
     });
     expect(manager.getAdvancedFlows).not.toHaveBeenCalled();
@@ -171,6 +174,7 @@ describe("FlowIdentity resolve", () => {
       flow_name: "flow_identity.markers.not_found",
       flow_id: "",
       folder_name: "",
+      has_error: true,
       error_message: "flow_identity.errors.not_found",
     });
   });

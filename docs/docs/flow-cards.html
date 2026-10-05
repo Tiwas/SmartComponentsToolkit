@@ -629,7 +629,7 @@
             <!-- Get this Flow's name -->
             <div id="action-flow-name" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
                 <h3 class="text-xl font-semibold mb-3 text-purple-700">Get the name of [this Flow]</h3>
-                <p class="text-gray-700 mb-4">Returns the name, id and folder of the Advanced Flow the card is in, as tags for the next cards. Useful in notifications and logs, so you can see which Flow sent them without typing the name by hand. Advanced Flow only: Homey does not show THEN cards with tags in standard Flows.</p>
+                <p class="text-gray-700 mb-4">Returns the name, id and folder of the Advanced Flow the card is in, as tags for the next cards. The card and its messages are translated into all of the app's languages. Useful in notifications and logs, so you can see which Flow sent them without typing the name by hand. Advanced Flow only: Homey does not show THEN cards with tags in standard Flows.</p>
 
                 <div class="flow-card">
                     <p class="text-sm text-gray-600 mb-2">Parameters:</p>
@@ -641,6 +641,7 @@
                         <li><span class="code-inline">Flow name</span> - The Flow's current name, or a marker such as <code>[Duplicate]</code> when the Flow cannot be named</li>
                         <li><span class="code-inline">Flow id</span> - The Flow's id (empty when the Flow cannot be named)</li>
                         <li><span class="code-inline">Folder</span> - Name of the folder the Flow is in (empty when it is not in a folder)</li>
+                        <li><span class="code-inline">Has error</span> - Yes/no: yes when the Flow cannot be named</li>
                         <li><span class="code-inline">Error message</span> - Empty when all is well, otherwise what to do</li>
                     </ul>
                 </div>
@@ -660,7 +661,7 @@
                 </div>
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
-                    <p class="text-blue-800 text-sm">In these cases the card still continues on its normal output, because Homey drops a card's tags when it takes the error output. The error output is only used when the app cannot read the Flows at all. To branch on a problem, check whether <code>Error message</code> is empty.</p>
+                    <p class="text-blue-800 text-sm">In these cases the card still continues on its normal output, because Homey drops a card's tags when it takes the error output. The error output is only used when the app cannot read the Flows at all. To branch on a problem, add a Logic condition on <code>Has error</code> after the card.</p>
                 </div>
             </div>
 

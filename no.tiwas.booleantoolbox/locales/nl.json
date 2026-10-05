@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Fout bij activeren time-out:"
+  },
+  "flow_identity": {
+    "choice_name": "deze Flow",
+    "choice_description": "Geeft deze kaart een eigen ID",
+    "markers": {
+      "missing": "[Niet gekozen]",
+      "not_found": "[Onbekend – sla de Flow op]",
+      "copied": "[Duplicaat]"
+    },
+    "errors": {
+      "missing": "Klik op het veld van de kaart en kies \"deze Flow\".",
+      "not_found": "Deze kaart is niet gevonden in een opgeslagen Flow. Sla de Flow op en voer hem opnieuw uit.",
+      "copied": "Deze kaart is gekopieerd, dus dezelfde ID staat in meerdere Flows. Open de kaart in de kopie en kies opnieuw \"deze Flow\". Flows:"
+    }
   }
 }

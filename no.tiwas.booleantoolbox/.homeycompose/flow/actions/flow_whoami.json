@@ -2,15 +2,42 @@
   "id": "flow_whoami",
   "title": {
     "en": "Get this Flow's name",
-    "no": "Hent navnet på denne flowen"
+    "no": "Hent navnet på denne flowen",
+    "da": "Hent navnet på dette flow",
+    "sv": "Hämta namnet på detta flöde",
+    "de": "Namen dieses Flows abrufen",
+    "nl": "Naam van deze Flow ophalen",
+    "fr": "Obtenir le nom de ce Flow",
+    "it": "Ottieni il nome di questo Flow",
+    "es": "Obtener el nombre de este Flow",
+    "fi": "Hae tämän Flown nimi",
+    "pl": "Pobierz nazwę tego Flow"
   },
   "titleFormatted": {
     "en": "Get the name of [[flow]]",
-    "no": "Hent navnet på [[flow]]"
+    "no": "Hent navnet på [[flow]]",
+    "da": "Hent navnet på [[flow]]",
+    "sv": "Hämta namnet på [[flow]]",
+    "de": "Namen von [[flow]] abrufen",
+    "nl": "Haal de naam op van [[flow]]",
+    "fr": "Obtenir le nom de [[flow]]",
+    "it": "Ottieni il nome di [[flow]]",
+    "es": "Obtener el nombre de [[flow]]",
+    "fi": "Hae [[flow]] nimi",
+    "pl": "Pobierz nazwę [[flow]]"
   },
   "hint": {
-    "en": "Returns the name, id and folder of the Advanced Flow this card is in. Click the field and pick the only choice, \"this Flow\". That gives the card its own id, and the Flow's current name is looked up each time the card runs, so renaming the Flow needs nothing. If you duplicate the Flow or copy the card, pick \"this Flow\" again in the copy. When the Flow cannot be named (nothing picked, the Flow is not saved, or the card has been copied), the card still continues: Flow name shows a marker such as [Duplicate] and Error message explains what to do. Error message is empty when all is well.",
-    "no": "Returnerer navn, id og mappe for den avanserte flowen kortet ligger i. Klikk feltet og velg det eneste valget, «denne flowen». Da får kortet sin egen id, og flowens gjeldende navn hentes hver gang kortet kjører, så nytt navn på flowen krever ingenting. Dupliserer du flowen eller kopierer kortet, velger du «denne flowen» på nytt i kopien. Når flowen ikke kan navngis (ingenting valgt, flowen er ikke lagret, eller kortet er kopiert), fortsetter kortet likevel: Flow-navn viser en markør som [Duplikat], og Feilmelding forklarer hva du skal gjøre. Feilmelding er tom når alt er i orden."
+    "en": "Returns the name, id and folder of the Advanced Flow this card is in. Click the field and pick the only choice, \"this Flow\". That gives the card its own id, and the Flow's current name is looked up each time the card runs, so renaming the Flow needs nothing. If you duplicate the Flow or copy the card, pick \"this Flow\" again in the copy. When the Flow cannot be named (nothing picked, the Flow is not saved, or the card has been copied), the card still continues: Flow name shows a marker such as [Duplicate], Has error is yes and Error message explains what to do. Use Has error in a condition to branch.",
+    "no": "Returnerer navn, id og mappe for den avanserte flowen kortet ligger i. Klikk feltet og velg det eneste valget, «denne flowen». Da får kortet sin egen id, og flowens gjeldende navn hentes hver gang kortet kjører, så nytt navn på flowen krever ingenting. Dupliserer du flowen eller kopierer kortet, velger du «denne flowen» på nytt i kopien. Når flowen ikke kan navngis (ingenting valgt, flowen er ikke lagret, eller kortet er kopiert), fortsetter kortet likevel: Flow-navn viser en markør som [Duplikat], Har feil er ja, og Feilmelding forklarer hva du skal gjøre. Bruk Har feil i en betingelse for å forgrene.",
+    "da": "Returnerer navn, id og mappe for det avancerede flow, som kortet ligger i. Klik på feltet, og vælg det eneste valg, \"dette flow\". Så får kortet sit eget id, og flowets aktuelle navn slås op, hver gang kortet kører, så det kræver intet at omdøbe flowet. Dublerer du flowet eller kopierer kortet, vælger du \"dette flow\" igen i kopien. Når flowet ikke kan navngives (intet valgt, flowet er ikke gemt, eller kortet er kopieret), fortsætter kortet alligevel: Flow-navn viser en markør som [Dublet], Har fejl er ja, og Fejlmeddelelse forklarer, hvad du skal gøre. Brug Har fejl i en betingelse til at forgrene.",
+    "sv": "Returnerar namn, id och mapp för det avancerade flöde som kortet ligger i. Klicka på fältet och välj det enda valet, \"detta flöde\". Då får kortet ett eget id, och flödets aktuella namn slås upp varje gång kortet körs, så det krävs inget när flödet byter namn. Om du duplicerar flödet eller kopierar kortet väljer du \"detta flöde\" igen i kopian. När flödet inte kan namnges (inget valt, flödet är inte sparat eller kortet har kopierats) fortsätter kortet ändå: Flödesnamn visar en markör som [Dubblett], Har fel är ja och Felmeddelande förklarar vad du ska göra. Använd Har fel i ett villkor för att förgrena.",
+    "de": "Gibt Name, ID und Ordner des Advanced Flows zurück, in dem diese Karte liegt. Klicke auf das Feld und wähle die einzige Option, „diesem Flow“. Dadurch erhält die Karte eine eigene ID, und der aktuelle Name des Flows wird bei jeder Ausführung nachgeschlagen, sodass ein Umbenennen nichts erfordert. Wenn du den Flow duplizierst oder die Karte kopierst, wähle in der Kopie erneut „diesem Flow“. Kann der Flow nicht benannt werden (nichts gewählt, Flow nicht gespeichert oder Karte kopiert), läuft die Karte trotzdem weiter: Flow-Name zeigt eine Markierung wie [Duplikat], Hat Fehler ist ja, und Fehlermeldung erklärt, was zu tun ist. Verwende Hat Fehler in einer Bedingung zum Verzweigen.",
+    "nl": "Geeft de naam, ID en map van de Advanced Flow waarin deze kaart staat. Klik op het veld en kies de enige optie, \"deze Flow\". Zo krijgt de kaart een eigen ID, en de huidige naam van de Flow wordt bij elke uitvoering opgezocht, dus hernoemen vraagt niets extra. Dupliceer je de Flow of kopieer je de kaart, kies dan in de kopie opnieuw \"deze Flow\". Als de Flow niet benoemd kan worden (niets gekozen, Flow niet opgeslagen of kaart gekopieerd), gaat de kaart toch verder: Flow-naam toont een markering zoals [Duplicaat], Heeft fout is ja en Foutmelding legt uit wat je moet doen. Gebruik Heeft fout in een voorwaarde om te vertakken.",
+    "fr": "Renvoie le nom, l'ID et le dossier de l'Advanced Flow qui contient cette carte. Cliquez sur le champ et choisissez la seule option, « ce Flow ». La carte reçoit ainsi son propre ID, et le nom actuel du Flow est lu à chaque exécution : renommer le Flow ne demande rien. Si vous dupliquez le Flow ou copiez la carte, choisissez à nouveau « ce Flow » dans la copie. Si le Flow ne peut pas être nommé (rien de choisi, Flow non enregistré ou carte copiée), la carte continue quand même : Nom du Flow affiche un marqueur comme [Doublon], A une erreur vaut oui et Message d'erreur explique quoi faire. Utilisez A une erreur dans une condition pour créer une branche.",
+    "it": "Restituisce nome, ID e cartella dell'Advanced Flow in cui si trova questa scheda. Fai clic sul campo e scegli l'unica opzione, \"questo Flow\". Così la scheda ottiene un proprio ID e il nome attuale del Flow viene letto a ogni esecuzione, quindi rinominare il Flow non richiede nulla. Se duplichi il Flow o copi la scheda, scegli di nuovo \"questo Flow\" nella copia. Se il Flow non può essere identificato (nessuna scelta, Flow non salvato o scheda copiata), la scheda prosegue comunque: Nome del Flow mostra un indicatore come [Duplicato], Ha un errore è sì e Messaggio di errore spiega cosa fare. Usa Ha un errore in una condizione per creare una diramazione.",
+    "es": "Devuelve el nombre, el ID y la carpeta del Advanced Flow en el que está esta tarjeta. Haz clic en el campo y elige la única opción, \"este Flow\". Así la tarjeta obtiene su propio ID y el nombre actual del Flow se consulta cada vez que se ejecuta, por lo que renombrar el Flow no requiere nada. Si duplicas el Flow o copias la tarjeta, vuelve a elegir \"este Flow\" en la copia. Si no se puede identificar el Flow (nada elegido, Flow sin guardar o tarjeta copiada), la tarjeta continúa igualmente: Nombre del Flow muestra una marca como [Duplicado], Tiene error es sí y Mensaje de error explica qué hacer. Usa Tiene error en una condición para bifurcar.",
+    "fi": "Palauttaa sen Advanced Flown nimen, tunnuksen ja kansion, jossa tämä kortti on. Napsauta kenttää ja valitse ainoa vaihtoehto, \"tämän Flown\". Näin kortti saa oman tunnuksen, ja Flown nykyinen nimi haetaan joka kerta, kun kortti suoritetaan, joten Flown uudelleennimeäminen ei vaadi mitään. Jos monistat Flown tai kopioit kortin, valitse kopiossa uudelleen \"tämän Flown\". Jos Flow'ta ei voida nimetä (mitään ei ole valittu, Flow'ta ei ole tallennettu tai kortti on kopioitu), kortti jatkaa silti: Flown nimi näyttää merkinnän, kuten [Kaksoiskappale], On virhe on kyllä ja Virheilmoitus kertoo, mitä tehdä. Käytä On virhe -tietoa ehdossa haarautumiseen.",
+    "pl": "Zwraca nazwę, ID i folder Advanced Flow, w którym znajduje się ta karta. Kliknij pole i wybierz jedyną opcję, „tego Flow”. Karta otrzymuje wtedy własne ID, a aktualna nazwa Flow jest odczytywana przy każdym uruchomieniu karty, więc zmiana nazwy Flow niczego nie wymaga. Jeśli zduplikujesz Flow lub skopiujesz kartę, wybierz ponownie „tego Flow” w kopii. Gdy Flow nie da się nazwać (nic nie wybrano, Flow nie jest zapisany lub karta została skopiowana), karta i tak działa dalej: Nazwa Flow pokazuje znacznik, np. [Duplikat], Ma błąd ma wartość tak, a Komunikat o błędzie wyjaśnia, co zrobić. Użyj Ma błąd w warunku, aby rozgałęzić Flow."
   },
   "args": [
     {
@@ -18,11 +45,29 @@
       "name": "flow",
       "title": {
         "en": "Flow",
-        "no": "Flow"
+        "no": "Flow",
+        "da": "Flow",
+        "sv": "Flöde",
+        "de": "Flow",
+        "nl": "Flow",
+        "fr": "Flow",
+        "it": "Flow",
+        "es": "Flow",
+        "fi": "Flow",
+        "pl": "Flow"
       },
       "placeholder": {
         "en": "Pick \"this Flow\"",
-        "no": "Velg «denne flowen»"
+        "no": "Velg «denne flowen»",
+        "da": "Vælg \"dette flow\"",
+        "sv": "Välj \"detta flöde\"",
+        "de": "„diesem Flow“ wählen",
+        "nl": "Kies \"deze Flow\"",
+        "fr": "Choisissez « ce Flow »",
+        "it": "Scegli \"questo Flow\"",
+        "es": "Elige \"este Flow\"",
+        "fi": "Valitse \"tämän Flown\"",
+        "pl": "Wybierz „tego Flow”"
       }
     }
   ],
@@ -32,7 +77,16 @@
       "type": "string",
       "title": {
         "en": "Flow name",
-        "no": "Flow-navn"
+        "no": "Flow-navn",
+        "da": "Flow-navn",
+        "sv": "Flödesnamn",
+        "de": "Flow-Name",
+        "nl": "Flow-naam",
+        "fr": "Nom du Flow",
+        "it": "Nome del Flow",
+        "es": "Nombre del Flow",
+        "fi": "Flown nimi",
+        "pl": "Nazwa Flow"
       },
       "example": "Living room lights"
     },
@@ -41,7 +95,16 @@
       "type": "string",
       "title": {
         "en": "Flow id",
-        "no": "Flow-id"
+        "no": "Flow-id",
+        "da": "Flow-id",
+        "sv": "Flödes-id",
+        "de": "Flow-ID",
+        "nl": "Flow-ID",
+        "fr": "ID du Flow",
+        "it": "ID del Flow",
+        "es": "ID del Flow",
+        "fi": "Flown tunnus",
+        "pl": "ID Flow"
       },
       "example": "6f1c2a3b-0d4e-4f56-8a7b-9c0d1e2f3a4b"
     },
@@ -50,16 +113,52 @@
       "type": "string",
       "title": {
         "en": "Folder",
-        "no": "Mappe"
+        "no": "Mappe",
+        "da": "Mappe",
+        "sv": "Mapp",
+        "de": "Ordner",
+        "nl": "Map",
+        "fr": "Dossier",
+        "it": "Cartella",
+        "es": "Carpeta",
+        "fi": "Kansio",
+        "pl": "Folder"
       },
       "example": "Lights"
+    },
+    {
+      "name": "has_error",
+      "type": "boolean",
+      "title": {
+        "en": "Has error",
+        "no": "Har feil",
+        "da": "Har fejl",
+        "sv": "Har fel",
+        "de": "Hat Fehler",
+        "nl": "Heeft fout",
+        "fr": "A une erreur",
+        "it": "Ha un errore",
+        "es": "Tiene error",
+        "fi": "On virhe",
+        "pl": "Ma błąd"
+      },
+      "example": false
     },
     {
       "name": "error_message",
       "type": "string",
       "title": {
         "en": "Error message",
-        "no": "Feilmelding"
+        "no": "Feilmelding",
+        "da": "Fejlmeddelelse",
+        "sv": "Felmeddelande",
+        "de": "Fehlermeldung",
+        "nl": "Foutmelding",
+        "fr": "Message d'erreur",
+        "it": "Messaggio di errore",
+        "es": "Mensaje de error",
+        "fi": "Virheilmoitus",
+        "pl": "Komunikat o błędzie"
       },
       "example": "Save the Flow and run it again."
     }

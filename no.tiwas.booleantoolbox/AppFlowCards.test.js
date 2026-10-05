@@ -138,6 +138,7 @@ describe("app-level Flow cards", () => {
                 flow_name: "Lights",
                 flow_id: "flow-a",
                 folder_name: "Living room",
+                has_error: false,
                 error_message: "",
             })),
         };
@@ -151,6 +152,7 @@ describe("app-level Flow cards", () => {
             flow_name: "Lights",
             flow_id: "flow-a",
             folder_name: "Living room",
+            has_error: false,
             error_message: "",
         });
     });

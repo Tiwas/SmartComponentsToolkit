@@ -711,5 +711,19 @@
   },
   "timeout": {
     "error": "Fejl ved udløsning af timeout:"
+  },
+  "flow_identity": {
+    "choice_name": "dette flow",
+    "choice_description": "Giver dette kort sit eget id",
+    "markers": {
+      "missing": "[Ikke valgt]",
+      "not_found": "[Ukendt – gem flowet]",
+      "copied": "[Dublet]"
+    },
+    "errors": {
+      "missing": "Klik på feltet på kortet, og vælg \"dette flow\".",
+      "not_found": "Kunne ikke finde dette kort i et gemt flow. Gem flowet, og kør det igen.",
+      "copied": "Dette kort er kopieret, så samme id findes i flere flows. Åbn kortet i kopien, og vælg \"dette flow\" igen. Flows:"
+    }
   }
 }

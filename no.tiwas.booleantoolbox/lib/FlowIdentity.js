@@ -18,9 +18,10 @@ const ARG_NAME = "flow";
  *
  * A duplicated Flow or a copied card carries the same id. The id is then
  * found in several Flows. The card does not guess: "Flow name" gets a marker
- * such as "[Duplicate]" and "Error message" names the Flows. The card does not
- * throw in these cases, because Homey drops a card's tokens when it takes the
- * error output. It only throws when the Flows cannot be read at all.
+ * such as "[Duplicate]", "Has error" is true and "Error message" names the
+ * Flows. The card does not throw in these cases, because Homey drops a card's
+ * tokens when it takes the error output. It only throws when the Flows cannot
+ * be read at all.
  *
  * Action cards with tokens only exist in Advanced Flows, so standard Flows are
  * never read.
@@ -105,7 +106,7 @@ class FlowIdentity {
 
   /**
    * Tokens for a run that cannot name the Flow: a short marker in place of
-   * the name, and the full explanation in "error_message".
+   * the name, "has_error" set, and the full explanation in "error_message".
    */
   problemTokens(kind, detail = "") {
     const message = this.translate(`flow_identity.errors.${kind}`);
@@ -113,6 +114,7 @@ class FlowIdentity {
       flow_name: this.translate(`flow_identity.markers.${kind}`),
       flow_id: "",
       folder_name: "",
+      has_error: true,
       error_message: detail ? `${message} ${detail}` : message,
     };
   }
@@ -136,6 +138,7 @@ class FlowIdentity {
       flow_name: flow.name || "",
       flow_id: flow.id,
       folder_name: await this.getFolderName(flow.folder),
+      has_error: false,
       error_message: "",
     };
   }

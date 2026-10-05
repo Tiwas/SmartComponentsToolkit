@@ -13,16 +13,17 @@
 - Side note, not changed: `app.js` reads `state?.flowId` / `state?.flowToken` when creating waiters, but Homey never supplies them. All waiters therefore share the Flow id `'unknown'`, and the "Waiter ID already exists" guard in `lib/WaiterManager.js` (`createWaiter`) never separates Flows.
 
 ### Implemented
-- `.homeycompose/flow/actions/flow_whoami.json`: "Get the name of [this Flow]" action card. It has a required autocomplete argument `flow` and the tokens `flow_name`, `flow_id`, `folder_name` and `error_message`.
-- `lib/FlowIdentity.js`: the autocomplete offers one choice, "this Flow", with a new random UUID each time the list opens, and Homey stores the picked id with the card. On every run the app reads the Advanced Flows (`$cache: false`, no memory between runs, so a rename shows at once) and finds the Flow holding a card with that id. Nothing picked, no saved Flow, or the id in several Flows (a copied card or duplicated Flow) gives a marker name (`[Not set]`, `[Unknown – save the Flow]`, `[Duplicate]`) and an explanation in `error_message`, on the normal output. It throws only when the Flows cannot be read.
-- `app.js`: registration. `locales/en.json`, `locales/no.json`: `flow_identity` strings.
+- `.homeycompose/flow/actions/flow_whoami.json`: "Get the name of [this Flow]" action card. It has a required autocomplete argument `flow` and the tokens `flow_name`, `flow_id`, `folder_name`, `has_error` (yes/no, so a Logic condition can branch) and `error_message`. The card and all its messages are translated into the 11 app languages (da, de, en, es, fi, fr, it, nl, no, pl, sv).
+- `lib/FlowIdentity.js`: the autocomplete offers one choice, "this Flow", with a new random UUID each time the list opens, and Homey stores the picked id with the card. On every run the app reads the Advanced Flows (`$cache: false`, no memory between runs, so a rename shows at once) and finds the Flow holding a card with that id. Nothing picked, no saved Flow, or the id in several Flows (a copied card or duplicated Flow) gives a marker name (`[Not set]`, `[Unknown – save the Flow]`, `[Duplicate]`), `has_error: true` and an explanation in `error_message`, on the normal output. It throws only when the Flows cannot be read.
+- `app.js`: registration. `locales/*.json`: `flow_identity` strings in all 11 languages.
 - Tests: `FlowIdentity.test.js` (new) and `AppFlowCards.test.js`.
 - Docs: `docs/docs/flow-cards.html` (`#action-flow-name`), `docs/index.html` (action list), `README.txt`, `PROJECT_DOCUMENTATION.md`.
 
 ### Verification
 - Jest: 24 suites / 372 tests pass. `homey app validate --level publish` passes.
 - Live on Lars's New Homey (`homey app run --remote`, plus the API playground with `getFlowCardAutocomplete` and `runFlowCardAction`): the list returns one choice with a new id each time. The card returned the Flow name, and after a rename the new name on the next run. A copied id gave `[Duplicate]` with both Flow names in `error_message`, and an id in no saved Flow gave `[Unknown – save the Flow]`, both on the normal output. After picking again in the copy, each Flow returned its own name.
-- Lars tested in the Flow editor: the card works and the `Flow name` tag can be used in the next card. His feedback (the error branch had no name, and copies only failed) led to the marker and `error_message` design.
+- Lars tested in the Flow editor: the card works and the `Flow name` tag can be used in the next card. His feedback (the error branch had no name, copies only failed, and he wanted a yes/no tag for branching) led to the marker, `has_error` and `error_message` design.
+- Codex had reached its usage limit, so Lars chose a local stand-in review (as for #54). It found nothing significant.
 - Test Flows `c74adfe6-51f8-4c50-b732-852bfde360b0` and `1d61d3c1-14cc-4042-9a05-9707e287bc82` are disabled, not deleted.
 
 ## 2026-10-05 — Composite device source images

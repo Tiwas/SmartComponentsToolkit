@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Fel vid utlösning av timeout:"
+  },
+  "flow_identity": {
+    "choice_name": "detta flöde",
+    "choice_description": "Ger det här kortet ett eget id",
+    "markers": {
+      "missing": "[Inte valt]",
+      "not_found": "[Okänt – spara flödet]",
+      "copied": "[Dubblett]"
+    },
+    "errors": {
+      "missing": "Klicka på fältet på kortet och välj \"detta flöde\".",
+      "not_found": "Hittade inte det här kortet i ett sparat flöde. Spara flödet och kör det igen.",
+      "copied": "Det här kortet har kopierats, så samma id finns i flera flöden. Öppna kortet i kopian och välj \"detta flöde\" igen. Flöden:"
+    }
   }
 }

@@ -698,5 +698,19 @@
   },
   "timeout": {
     "error": "Virhe aikakatkaisun laukaisemisessa:"
+  },
+  "flow_identity": {
+    "choice_name": "tämän Flown",
+    "choice_description": "Antaa tälle kortille oman tunnuksen",
+    "markers": {
+      "missing": "[Ei valittu]",
+      "not_found": "[Tuntematon – tallenna Flow]",
+      "copied": "[Kaksoiskappale]"
+    },
+    "errors": {
+      "missing": "Napsauta kortin kenttää ja valitse \"tämän Flown\".",
+      "not_found": "Tätä korttia ei löytynyt tallennetusta Flow'sta. Tallenna Flow ja suorita se uudelleen.",
+      "copied": "Tämä kortti on kopioitu, joten sama tunnus on useassa Flow'ssa. Avaa kortti kopiossa ja valitse uudelleen \"tämän Flown\". Flow't:"
+    }
   }
 }

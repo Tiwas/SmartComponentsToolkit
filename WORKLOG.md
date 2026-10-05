@@ -9,13 +9,14 @@
 - The behaviour matches the docs (`docs/docs/waiter-gates.html`): the same Waiter ID started again takes over and the earlier wait takes the NO path, and an in-card wait and a background wait cannot share an ID. Only the code was misleading. It read `state?.flowId`, which Homey never supplies, so every in-card capability wait used `'unknown'`, and the Conditional Gate in-card wait used `undefined`.
 
 ### Implemented
-- `lib/WaiterManager.js`: new `WaiterManager.CARD_FLOW_ID` (`'card'`), next to `BACKGROUND_FLOW_ID`. A comment in `createWaiter` explains that the context only separates in-card waits from background waits. The takeover is logged at INFO instead of DEBUG. It is not logged at WARN, because warnings go into diagnostic reports, and those must not carry Waiter IDs.
+- `lib/WaiterManager.js`: new `WaiterManager.CARD_FLOW_ID` (`'card'`), next to `BACKGROUND_FLOW_ID`. A comment in `createWaiter` explains that the context only separates in-card waits from background waits. The takeover is logged at INFO instead of DEBUG. It is not logged at WARN, because a takeover is expected behaviour and should not add a diagnostic event. Diagnostic events store a fixed text, never the log message.
 - `app.js`: the in-card capability wait and the Conditional Gate in-card wait pass `{ flowId: WaiterManager.CARD_FLOW_ID, flowToken: null }` instead of reading `state`.
 - No change in behaviour. Gate in-card waits use unique IDs, so their context never takes part in a comparison.
 - `PROJECT_DOCUMENTATION.md`: a Waiter IDs note.
 
 ### Verification
-- Jest: 24 suites / 373 tests pass. The takeover test now asserts the INFO log (and no WARN), and a new test checks that an in-card wait cannot take a background wait's ID.
+- Jest: 24 suites / 374 tests pass. The takeover test now asserts the INFO log (and no WARN). New tests check that an in-card wait cannot take a background wait's ID, in `WaiterManager` and through the `app.js` cards (`wait_until_start`, then `wait_until_becomes_true`).
+- Codex had reached its usage limit, so Lars chose a local stand-in review. It found no bugs. Its points were a wrong reason given for INFO (it is fixed) and a missing app-level test (it is added). The only theoretical behaviour change is that a capability Waiter ID typed exactly like a pending gate in-card ID (`gate_<name>_<time>_<random>`) now takes that ID over instead of failing.
 
 ## 2026-10-05 — Test v1.10.33 released
 

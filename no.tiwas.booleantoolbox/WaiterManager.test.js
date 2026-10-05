@@ -259,8 +259,8 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
     expect(first.resolver).toHaveBeenCalledTimes(1);
     expect(first.resolver).toHaveBeenCalledWith(false);
     expect(second).not.toBe(first);
-    // The takeover is visible in the normal log, but not as a warning, so the
-    // Waiter ID never reaches a diagnostic report.
+    // The takeover is visible in the normal log, but not as a warning, because
+    // it is expected behaviour and should not add a diagnostic event.
     expect(manager.logger.info).toHaveBeenCalledWith(expect.stringContaining('"Wait_OSB_Motion" was already waiting'));
     expect(manager.logger.warn).not.toHaveBeenCalled();
 
@@ -394,7 +394,7 @@ describe('WaiterManager reused waiter IDs and background waiters', () => {
   });
 
   test('a background waiter does not take over a pending in-card waiter with the same ID', async () => {
-    await manager.createWaiter('shared', { timeoutValue: 0, timeoutUnit: 'ms' }, { flowId: 'unknown' });
+    await manager.createWaiter('shared', { timeoutValue: 0, timeoutUnit: 'ms' }, { flowId: WaiterManager.CARD_FLOW_ID });
 
     await expect(manager.startBackgroundWaiter('shared', { timeoutValue: 1, timeoutUnit: 'm' }))
       .rejects.toThrow('Waiter ID "shared" already exists');

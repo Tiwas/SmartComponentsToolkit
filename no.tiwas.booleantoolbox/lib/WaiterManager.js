@@ -72,8 +72,8 @@ class WaiterManager {
         // of the same kind takes over the ID, also when it comes from another Flow,
         // and the earlier wait ends on its NO path (documented in waiter-gates.html).
         if (existing && existing.flowId === flowContext.flowId) {
-            // INFO, not WARN: warnings go into diagnostic reports, which must not
-            // carry user labels such as Waiter IDs.
+            // INFO, not WARN: a takeover is expected behaviour and should not add a
+            // diagnostic event.
             this.logger.info(`♻️  Waiter ID "${id}" was already waiting; the earlier wait ends on its NO path`);
             const previousResolver = existing.resolver;
             this.removeWaiterById(id);

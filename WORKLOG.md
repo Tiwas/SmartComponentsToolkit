@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-10-05 — Test v1.10.32 released and local cleanup
+
+### Requested
+- Lars asked for the 1.10.32 release to be completed and the local checkout tidied.
+
+### Implemented
+- PR #62 merged (squash, `1453450`).
+- Release month in `CHANGELOG.md`: unchanged (September 2026). 1.10.32 was already on the test channel.
+- Publish: not run, because 1.10.32 was already on the test channel.
+- `homey app install`: not run, for the same reason.
+- Local branches removed: the old 1.10.26 release branch, `fix/clg-keep-unknown-lux-sensor`, `mystifying-mestorf-3a266c` and `practical-leavitt-65f2f3`. All four were on their expected commits. There were no other worktrees, and the empty `.claude/worktrees` folder was removed.
+- Ruleset "Require status checks to pass" checked: active on the default branch with no bypass actors. It blocks deletion and force pushes, requires a pull request and requires the `check` status. It already matched the intended setup and was not changed.
+
+### Open
+- Nothing for the release. No build was uploaded in this session.
+- Three untracked files that predate this session in the local checkout were left untouched.
+
+### Verification
+- Test-channel check: `https://homey.app/a/no.tiwas.booleantoolbox/test/` reports `data-hy-app-version="1.10.32"`. The store page still reports 1.10.16.
+- `.homeycompose/app.json` on `main` shows `"version": "1.10.32"` after the merge.
+- `npm run test:package`, `homey app publish` and `homey app install`: not run, because the version was already published.
+
 ## 2026-10-05 — Release prep for test v1.10.32
 
 ### Requested

@@ -10,9 +10,9 @@
 - `assets/composite_device/source.png`: added with unchanged content. The original file name named the image generator, so it is renamed in the same way as the other source images in #59 and #60.
 - `.homeyignore` already excludes both paths (`assets/composite_device/` and `assets/images_composite_device/source.svg`), so the app bundle is unchanged.
 - New build: not needed. The published 1.10.32 changelog covers #52–#55. Since #55, only files outside the app bundle have changed (tests, docs, coverage, ignore patterns, source images), plus the version metadata that matches the published build.
+- `.gitignore`: the local log folder from earlier development runs (runtime logs, monitor state and process files) is now ignored, at Lars's request. It holds local runtime data and the repo is public. `.homeyignore` already excluded it from the app bundle.
 
 ### Not changed
-- The local log folder from earlier development runs (runtime logs, monitor state and process files) is still untracked, pending Lars's decision.
 - `source.png` still carries the generator's embedded content-credential metadata. Only the file name changed.
 
 ### Verification

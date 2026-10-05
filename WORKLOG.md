@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-10-05 — Release prep for test v1.10.32
+
+### Requested
+- Lars had a local, uncommitted version bump to 1.10.32 with an English changelog entry (the files `homey app publish` writes). The changes were lost locally, so the release prep is recreated from his diff, following the 1.10.30 and 1.10.31 release PRs.
+
+### Implemented
+- Version 1.10.32 in `.homeycompose/app.json`, `package.json` and `package-lock.json`.
+- `.homeychangelog.json`: Lars's English text unchanged, plus a Norwegian translation. Card and setting names match the app's own Norwegian strings ("Pause til klokkeslett", "Egen morgenprofil").
+- `CHANGELOG.md`: 1.10.32 section covering #52–#55 (time zone fix, astronomical estimate, morning profile, lux anchors and unknown lux sensors kept in the editors, removed dormant wrapper) and the known update-day lux-crossing edge case from #53.
+- `README.md`: test badge, release summary and the Circadian Light Group heading say v1.10.32.
+- `HOMEY_COMMUNITY_LISTING.md` already describes v1.10.32 (#56); not changed.
+
+### Open
+- Whether v1.10.32 is already on the test channel could not be checked from the working environment. If it is not, publish it after merge with `homey app publish`. If it is published later than September, adjust the month in `CHANGELOG.md`.
+
+### Verification
+- All four JSON files parse; the version is 1.10.32 in all three version fields.
+- `npx jest --runInBand`: 23 suites, 358 tests passed.
+- `npm run test:package` not run here (Homey CLI not available).
+
 ## 2026-10-05 — Shared project settings without attribution
 
 ### Requested

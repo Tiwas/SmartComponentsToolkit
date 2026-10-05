@@ -6,6 +6,22 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.32] - September 2026 (Test channel)
+
+### Fixed
+- Circadian Light Group: the schedule follows the Homey's time zone ([#53](https://github.com/Tiwas/SmartComponentsToolkit/pull/53)). Homey runs apps on UTC, so clock-time anchors, lux-anchor crossings and *Pause until time* ran 1–2 hours late (2 hours in Norwegian summer time), and mornings stayed dim and red. If you moved your anchors earlier to compensate, move them back.
+- Circadian Light Group: the astronomical outdoor-light estimate (the default outdoor source, also the base for MET.no) follows the real sun at the Homey's location ([#53](https://github.com/Tiwas/SmartComponentsToolkit/pull/53)). It was up to an hour off in Norway and several hours off in the Americas.
+- Circadian Light Group pairing and Repair editors keep lux anchors instead of turning them back into clock times ([#54](https://github.com/Tiwas/SmartComponentsToolkit/pull/54)). A saved lux sensor that is missing from the sensor list (deleted, or not loaded yet) shows as *Unknown sensor* and is kept on save instead of being cleared ([#55](https://github.com/Tiwas/SmartComponentsToolkit/pull/55)).
+
+### Added
+- Optional morning profile for Circadian Light Groups ([#53](https://github.com/Tiwas/SmartComponentsToolkit/pull/53)): tick *Own morning profile* under Repair → Light Profile to give mornings their own brightness and colour temperature. It applies from the Morning anchor and fades into Day. It is off by default, so existing groups behave exactly as before. With it on, *Is in phase* and *Phase changed* also use a Morning phase.
+
+### Changed
+- Removed the homey-api subscription wrapper added in 1.10.30. It has been inactive since homey-api 3.20.0 (1.10.31), so behaviour does not change ([#52](https://github.com/Tiwas/SmartComponentsToolkit/pull/52)).
+
+### Known issues
+- On the update day only, a lux crossing already stored with the old UTC date and minutes can be ignored or read up to 2 hours early.
+
 ## [1.10.31] - September 2026 (Test channel)
 
 ### Changed

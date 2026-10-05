@@ -7,10 +7,10 @@
 Advanced logic and state management for your Homey automations. Create smart devices that react to multiple inputs with customizable formulas, and manage device states with powerful capture/restore functionality.
 
 [![Stable](https://img.shields.io/badge/stable-1.10.9-blue.svg)](https://homey.app/en-no/app/no.tiwas.booleantoolbox/)
-[![Test](https://img.shields.io/badge/test-1.10.31-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
+[![Test](https://img.shields.io/badge/test-1.10.32-orange.svg)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.31 test** — updates the Homey Web API library to 3.20.0 for more reliable realtime updates after connection drops. Builds on **v1.10.30**, which fixes app restarts and Logic Devices that stopped reacting, and adds background waits for Conditional Gates and capability waiters beyond Homey's 60-second Flow card limit. See the [Conditional Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html) and [Waiter Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html) guides.
+> **v1.10.32 test** — the Circadian Light Group schedule now follows your Homey's time zone (it ran 1–2 hours late on UTC), the outdoor light estimate follows the real sun, mornings can get their own optional profile, and the editors keep lux anchors and saved lux sensors. See the [Circadian Light Group guide](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html). Builds on **v1.10.31** (Homey Web API library 3.20.0) and **v1.10.30**, which fixes app restarts and Logic Devices that stopped reacting, and adds background waits beyond Homey's 60-second Flow card limit. See the [Conditional Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html) and [Waiter Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html) guides.
 
 ---
 
@@ -139,7 +139,7 @@ THEN: Pop state (restore previous) [Homey Flow delay: 5 minutes]
 
 ---
 
-### Circadian Light Group *(stable v1.10.16 / test v1.10.31)*
+### Circadian Light Group *(stable v1.10.16 / test v1.10.32)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 

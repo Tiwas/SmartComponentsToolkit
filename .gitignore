@@ -27,8 +27,9 @@ no.tiwas.booleantoolbox.old/
 # Other images
 extra_images/
 
-# Local tool settings
-.claude/
+# Local tool settings; only the shared project settings file is tracked
+.claude/*
+!.claude/settings.json
 
 # Misc
 tmp/

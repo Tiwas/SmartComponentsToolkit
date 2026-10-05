@@ -15,7 +15,7 @@ I need to get this project documented. Therefore, I want you to go through all c
 
 3. Create a separate file that explains the project as a whole, what each file in the project does. There must also be a dependency map for the project.
 
-4. Add instructions to robots.md (or CLAUDE.md / CONTRIBUTING.md) for keeping this updated for each session.
+4. Add instructions to robots.md (or CONTRIBUTING.md) for keeping this updated for each session.
 
 5. All comments and documentation must be in English.
 
@@ -82,7 +82,7 @@ Create PROJECT_DOCUMENTATION.md containing:
 - Ensure documentation is not pushed to git
 
 ### 3. AI Instructions File
-Update robots.md (or create CLAUDE.md) with:
+Update robots.md with:
 - Core principles (complete code, no breaking changes, etc.)
 - Documentation maintenance instructions
 - Code quality guidelines
@@ -92,7 +92,7 @@ Update robots.md (or create CLAUDE.md) with:
 
 When this template is executed on a project, the following files are created:
 
-1. **robots.md** (or CLAUDE.md)
+1. **robots.md**
    - AI assistant behavioral guidelines
    - Documentation maintenance procedures
    - Code quality requirements

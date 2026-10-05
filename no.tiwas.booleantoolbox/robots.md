@@ -132,4 +132,3 @@ When creating new files:
 ---
 
 *Last updated: December 2024*
-*Documentation maintained by AI assistant according to project guidelines*

@@ -38,7 +38,7 @@ codebase-manifest.*
 *.tar.gz
 *.old
 
-# Project Documentation (AI-generated, kept local)
+# Project Documentation (kept local)
 PROJECT_DOCUMENTATION.md
 
 # Dashboard apps

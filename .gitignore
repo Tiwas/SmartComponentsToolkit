@@ -13,6 +13,7 @@ node_modules/
 # Development
 *.log
 .homey-run-logs/
+.codex-logs/
 .DS_Store
 node_modules/
 npm-debug.log

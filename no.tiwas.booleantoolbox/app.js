@@ -6,6 +6,7 @@ const v8 = require("node:v8");
 const Logger = require("./lib/Logger");
 const WaiterManager = require("./lib/WaiterManager");
 const CapturedStateManager = require("./lib/CapturedStateManager");
+const FlowIdentity = require("./lib/FlowIdentity");
 const {
     buildDiagnosticsReport,
     buildGitHubIssueUrl,
@@ -293,6 +294,14 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
         // Initialize CapturedStateManager
         this.capturedStateManager = new CapturedStateManager(this.homey, this.logger);
+
+        // Lets the flow_whoami card find the Advanced Flow it runs in
+        this.flowIdentity = new FlowIdentity({
+            appId: this.homey.manifest?.id || "no.tiwas.booleantoolbox",
+            getApi: () => this.ensureHomeyApi(),
+            logger: this.logger,
+            translate: (key) => this.homey.__(key),
+        });
 
         // Register ALL Flow Cards here using generic methods
         await this.registerAllFlowCards();
@@ -1237,6 +1246,31 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             this.logger.debug(" -> OK: ACTION card registered: 'calculate_gradient'");
         } catch (e) {
             this.logger.error(" -> FAILED: Registering ACTION card 'calculate_gradient'", e);
+        }
+
+        try {
+            const whoamiCard = this.homey.flow.getActionCard("flow_whoami");
+            whoamiCard.registerArgumentAutocompleteListener(
+                "flow",
+                async () => this.flowIdentity.autocompleteResults(),
+            );
+            whoamiCard.registerRunListener(async (args) => {
+                const result = await this.flowIdentity.resolve(args);
+
+                this.logger.flow(
+                    "Executing ACTION 'flow_whoami': '{flowName}' ({flowId}) {errorMessage}",
+                    {
+                        flowName: result.flow_name,
+                        flowId: result.flow_id,
+                        errorMessage: result.error_message,
+                    },
+                );
+
+                return result;
+            });
+            this.logger.debug(" -> OK: ACTION card registered: 'flow_whoami'");
+        } catch (e) {
+            this.logger.error(" -> FAILED: Registering ACTION card 'flow_whoami'", e);
         }
 
         // --- App-level conditions ---

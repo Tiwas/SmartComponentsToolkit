@@ -130,4 +130,28 @@ describe("app-level Flow cards", () => {
         await expect(listener({ text_input: "" })).resolves.toBe(false);
         await expect(listener({ text_input: "Validation failed" })).resolves.toBe(true);
     });
+
+    test("flow_whoami returns the tokens resolved for the stamped Flow", async () => {
+        const { app, actionCards } = createApp();
+        app.flowIdentity = {
+            resolve: jest.fn(async () => ({
+                flow_name: "Lights",
+                flow_id: "flow-a",
+                folder_name: "Living room",
+                error_message: "",
+            })),
+        };
+        await app.registerAllFlowCards();
+
+        const args = { flow: { id: "flow-a" } };
+        const result = await actionCards.get("flow_whoami").runListener(args, {});
+
+        expect(app.flowIdentity.resolve).toHaveBeenCalledWith(args);
+        expect(result).toEqual({
+            flow_name: "Lights",
+            flow_id: "flow-a",
+            folder_name: "Living room",
+            error_message: "",
+        });
+    });
 });

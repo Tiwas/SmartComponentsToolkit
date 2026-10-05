@@ -1,0 +1,67 @@
+{
+  "id": "flow_whoami",
+  "title": {
+    "en": "Get this Flow's name",
+    "no": "Hent navnet på denne flowen"
+  },
+  "titleFormatted": {
+    "en": "Get the name of [[flow]]",
+    "no": "Hent navnet på [[flow]]"
+  },
+  "hint": {
+    "en": "Returns the name, id and folder of the Advanced Flow this card is in. Click the field and pick the only choice, \"this Flow\". That gives the card its own id, and the Flow's current name is looked up each time the card runs, so renaming the Flow needs nothing. If you duplicate the Flow or copy the card, pick \"this Flow\" again in the copy. When the Flow cannot be named (nothing picked, the Flow is not saved, or the card has been copied), the card still continues: Flow name shows a marker such as [Duplicate] and Error message explains what to do. Error message is empty when all is well.",
+    "no": "Returnerer navn, id og mappe for den avanserte flowen kortet ligger i. Klikk feltet og velg det eneste valget, «denne flowen». Da får kortet sin egen id, og flowens gjeldende navn hentes hver gang kortet kjører, så nytt navn på flowen krever ingenting. Dupliserer du flowen eller kopierer kortet, velger du «denne flowen» på nytt i kopien. Når flowen ikke kan navngis (ingenting valgt, flowen er ikke lagret, eller kortet er kopiert), fortsetter kortet likevel: Flow-navn viser en markør som [Duplikat], og Feilmelding forklarer hva du skal gjøre. Feilmelding er tom når alt er i orden."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "flow",
+      "title": {
+        "en": "Flow",
+        "no": "Flow"
+      },
+      "placeholder": {
+        "en": "Pick \"this Flow\"",
+        "no": "Velg «denne flowen»"
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "name": "flow_name",
+      "type": "string",
+      "title": {
+        "en": "Flow name",
+        "no": "Flow-navn"
+      },
+      "example": "Living room lights"
+    },
+    {
+      "name": "flow_id",
+      "type": "string",
+      "title": {
+        "en": "Flow id",
+        "no": "Flow-id"
+      },
+      "example": "6f1c2a3b-0d4e-4f56-8a7b-9c0d1e2f3a4b"
+    },
+    {
+      "name": "folder_name",
+      "type": "string",
+      "title": {
+        "en": "Folder",
+        "no": "Mappe"
+      },
+      "example": "Lights"
+    },
+    {
+      "name": "error_message",
+      "type": "string",
+      "title": {
+        "en": "Error message",
+        "no": "Feilmelding"
+      },
+      "example": "Save the Flow and run it again."
+    }
+  ]
+}

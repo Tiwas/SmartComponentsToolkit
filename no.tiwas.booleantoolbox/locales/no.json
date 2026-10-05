@@ -747,5 +747,19 @@
   },
   "timeout": {
     "error": "Feil ved utløsing av tidsavbrudd:"
+  },
+  "flow_identity": {
+    "choice_name": "denne flowen",
+    "choice_description": "Gir dette kortet sin egen id",
+    "markers": {
+      "missing": "[Ikke valgt]",
+      "not_found": "[Ukjent – lagre flowen]",
+      "copied": "[Duplikat]"
+    },
+    "errors": {
+      "missing": "Klikk feltet på kortet og velg «denne flowen».",
+      "not_found": "Fant ikke dette kortet i en lagret flow. Lagre flowen og kjør den på nytt.",
+      "copied": "Dette kortet er kopiert, så samme id finnes i flere flows. Åpne kortet i kopien og velg «denne flowen» på nytt. Flows:"
+    }
   }
 }

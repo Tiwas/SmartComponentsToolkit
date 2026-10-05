@@ -40,12 +40,18 @@
 *   **API:** the private `POST /diagnostics` app endpoint in `api.js` delegates report creation to `app.js`; no GitHub credentials are stored in the app.
 *   **Report data:** `lib/DiagnosticsReport.js` formats/redacts version, session uptime, label-free warning/error events with stack frames, anonymous driver and Circadian Light Group load, and available app/Homey CPU, memory, and storage metrics.
 
+### 6. Flow name card (`flow_whoami`)
+*   **Purpose:** Returns the name, id and folder of the Advanced Flow the card is in (`flow_name`, `flow_id`, `folder_name`, plus `error_message`). Advanced Flow only, because THEN cards with tokens are hidden in standard Flows.
+*   **Why it works this way:** A run listener gets no Flow context (`state` holds only `manual`), and the app's Web API token may read Flows but not write them (`updateAdvancedFlow` fails with `Missing Scopes`). The required autocomplete argument `flow` therefore offers one choice, "this Flow", with a new random UUID each time the list opens. Homey stores the picked id with the card.
+*   **Run:** `lib/FlowIdentity.js` reads the Advanced Flows on every run (`$cache: false`, no memory between runs, so renames show at once) and finds the Flow holding the card with that id. Nothing picked, no saved Flow, or the id in several Flows (a copied card or duplicated Flow) returns a marker name such as `[Duplicate]` and an explanation in `error_message`, instead of throwing, because Homey drops tokens on the error output. It only throws when the Flows cannot be read.
+*   **Key Files:** `lib/FlowIdentity.js`, `.homeycompose/flow/actions/flow_whoami.json`, `app.js` (registration), `FlowIdentity.test.js`.
+
 ## Project Structure
 *   `no.tiwas.booleantoolbox/`: Main Homey app source.
     *   `app.js`: Application entry point and diagnostics collector.
     *   `api.js`: Private settings endpoint for generating diagnostic reports.
     *   `drivers/`: Device drivers (`composite-device`, `logic-device`, `logic-unit`, state and Circadian Light Group drivers).
-    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `DiagnosticsReport.js`, `FormulaEvaluator.js`, `Logger.js`).
+    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `DiagnosticsReport.js`, `FlowIdentity.js`, `FormulaEvaluator.js`, `Logger.js`).
     *   `locales/`: Translation files.
 *   `docs/`: Documentation and web tools for the GitHub Pages site, published by `.github/workflows/pages.yml` on every push to `main` that changes `docs/` (Pages source: GitHub Actions).
 *   `.github/workflows/message-check.yml` with `.github/scripts/message-check.js`: checks commit messages, branch names, PR, issue and comment text against `AI_RULES.md` §7 on every pull request, push, issue, comment and review. Tests: `node --test .github/scripts/message-check.test.js`.

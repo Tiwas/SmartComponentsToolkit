@@ -15,6 +15,12 @@
   - The Circadian Light Group line says v1.10.34.
 - The forum post on community.homey.app is not changed.
 
+### Verification
+- Jest: 24 suites / 374 tests pass. `homey app validate --level publish` passes.
+- Installed on Lars's New Homey with `homey app install` before publishing: 1.10.34 is `running`, and all 11 app devices are available.
+- Live waiter test through `runFlowCardCondition` on `wait_until_becomes_true`, with "Logic Device_test" onoff and a target that does not match. A 20 s wait was taken over 1.5 s later by a 3 s wait with the same Waiter ID. The first returned NO after 1.7 s, and the second returned NO at its own timeout, after 4.7 s.
+- `flow_whoami` still works: an unsaved id returns `[Unknown – save the Flow]` with `has_error: true`.
+
 ## 2026-10-05 — Waiter flow context cleanup
 
 ### Requested

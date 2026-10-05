@@ -19,6 +19,7 @@ npm-debug.log
 patch-files/
 *.backup/
 *.old/
+coverage/
 
 # Old version
 no.tiwas.booleantoolbox.old/

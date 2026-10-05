@@ -14,6 +14,8 @@
   - `DOCUMENTATION_PROMPT_TEMPLATE.md`: removed three references to the conventions file by name.
   - `.gitignore`: neutral comment above the `PROJECT_DOCUMENTATION.md` pattern.
   - This worklog: the first-pass entry no longer repeats the names it removed.
+- Leftovers removed, confirmed by Lars: `SESSION_SUMMARY.md` (an old session note, not referenced anywhere) and the 27 coverage report files in `no.tiwas.booleantoolbox/coverage/`. `coverage/` is now in `.gitignore`, so `npm run test:coverage` output is not committed again; `.homeyignore` already kept it out of the app bundle.
+- Old branches: the nine merged branches left on GitHub (six of them with tool names) were deleted by Lars. In the working environment, all worktrees and session branches were removed.
 
 ### Not changed
 - Commit history on `main` (trailers and merge messages with tool branch names), for the reasons given in the first pass.
@@ -21,7 +23,8 @@
 - The circadian source image still carries the generator's embedded content-credential metadata; only the file name changed.
 
 ### Verification
-- No test run: the change touches documentation, ignore files and an image name only. `source.png` is not referenced by any manifest or code, and the Homey CLI for `npm run test:package` is not available here.
+- `npx jest --runInBand`: 23 suites, 358 tests passed.
+- `source.png`, `SESSION_SUMMARY.md` and `coverage/` are not referenced by any manifest, code or config. `npm run test:package` was not run (Homey CLI not available here).
 
 ## 2026-10-05 — Remove assistant names and attribution
 

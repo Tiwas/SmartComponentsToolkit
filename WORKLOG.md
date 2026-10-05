@@ -16,6 +16,13 @@
   - This worklog: the first-pass entry no longer repeats the names it removed.
 - Leftovers removed, confirmed by Lars: `SESSION_SUMMARY.md` (an old session note, not referenced anywhere) and the 27 coverage report files in `no.tiwas.booleantoolbox/coverage/`. `coverage/` is now in `.gitignore`, so `npm run test:coverage` output is not committed again; `.homeyignore` already kept it out of the app bundle.
 - Old branches: the nine merged branches left on GitHub (six of them with tool names) were deleted by Lars. In the working environment, all worktrees and session branches were removed.
+- Message check (requested by Lars as a guard against new signatures; he is the only contributor): `.github/workflows/message-check.yml` runs `.github/scripts/message-check.js` on pull requests, pushes to any branch, issues, comments and reviews.
+  - Pull requests: signature footers are removed from the description; the check fails on tool names, assistant links or conventions-file names in the title or description, on a tool-named branch, and on commits with signature lines, tool names or an assistant identity.
+  - Pushes: the same branch and commit checks (new branches are checked against `main`, deleted branches and tags are skipped).
+  - Issues, comments, review comments and reviews: signature footers are removed; the run fails when the text names the conventions file or links to an assistant session. Bot accounts (such as the review bot) are skipped, and `@codex review` commands are allowed.
+  - Edits use `GITHUB_TOKEN`, so they do not start new runs.
+  - `AI_RULES.md` §7 names the check, and `PROJECT_DOCUMENTATION.md` lists it.
+- PR #60: neutral title and description, at Lars's request.
 
 ### Not changed
 - Commit history on `main` (trailers and merge messages with tool branch names), for the reasons given in the first pass.
@@ -24,7 +31,13 @@
 
 ### Verification
 - `npx jest --runInBand`: 23 suites, 358 tests passed.
-- `source.png`, `SESSION_SUMMARY.md` and `coverage/` are not referenced by any manifest, code or config. `npm run test:package` was not run (Homey CLI not available here).
+- `npm run test:package` (run by Lars): publish validation passed; bundle 910 files, 8.00 MB, 17 manifest assets verified.
+- `source.png`, `SESSION_SUMMARY.md` and `coverage/` are not referenced by any manifest, code or config.
+- Message check:
+  - `node --test .github/scripts/message-check.test.js`: 23 tests passed.
+  - Run over all 478 commits on `main`: it flags all 126 commits with signature lines and all 28 with an assistant identity. The 28 flagged for names alone are all true hits (merge messages with tool-named branches and one subject naming a tool). No clean commit is flagged. Text from earlier PR descriptions (#47, #57, #59) passes.
+  - Local end-to-end run of the script with Actions-style event files and a fake API: a PR description footer and the #57 comment footer are removed with one PATCH each; a push of `claude/x` fails; pushes of this branch and of `main` pass.
+  - The workflow has not run on GitHub yet; the first real run is on this PR.
 
 ## 2026-10-05 — Remove assistant names and attribution
 

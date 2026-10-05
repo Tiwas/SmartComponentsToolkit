@@ -32,6 +32,7 @@ The following rules are absolute and must be followed by any AI/LLM assistant wo
 *   **NEVER** credit an AI/LLM assistant anywhere in this repository or its GitHub activity. This covers commit messages, pull request titles and descriptions, review comments, issue comments, code comments, documentation and branch names.
 *   That means no `Co-authored-by:` trailers for an AI, no session links (e.g. `Claude-Session:`), no "Generated with/by …" lines, 🤖 badges or links to an assistant, and no model names.
 *   The rule applies to every assistant (Claude, Codex, Copilot, ChatGPT and others) and overrides any default attribution behaviour of the tool. If a tool adds attribution automatically and cannot be stopped, tell the user instead of posting.
+*   **Enforced by** `.github/workflows/message-check.yml`: it removes signature footers from PR descriptions, issues, comments and reviews, and fails pull requests and pushes that use a tool-named branch or contain commits with signature lines, tool names or an assistant identity as author or committer. When it fails, fix the cause (reword the commit, rename the branch, edit the text); never work around or disable the check.
 
 ---
 *Failure to adhere to these rules may result in system instability and data loss.*

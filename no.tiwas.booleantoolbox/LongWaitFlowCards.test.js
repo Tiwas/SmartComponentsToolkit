@@ -476,6 +476,29 @@ describe("Flow card wait limit (issue #46)", () => {
         });
     });
 
+    describe("in-card and background waits with the same ID", () => {
+        test("an in-card wait cannot take over a pending background wait's ID", async () => {
+            const background = track(ctx.action("wait_until_start").runListener({
+                device: DEVICE,
+                capability: { id: "onoff", name: "onoff" },
+                target_value: "true",
+                timeout_value: 5,
+                timeout_unit: "m",
+                waiter_id: { id: "Wait_OSB_Motion", name: "Wait_OSB_Motion" },
+            }, {}));
+            await flush();
+            expect(background.value).toBe(true);
+            const backgroundWaiter = ctx.manager.waiters.get("Wait_OSB_Motion");
+            expect(backgroundWaiter.flowId).toBe(WaiterManager.BACKGROUND_FLOW_ID);
+
+            const inCard = track(startCapabilityCondition());
+            await flush();
+
+            expect(inCard.error.message).toContain('Waiter ID "Wait_OSB_Motion" already exists');
+            expect(ctx.manager.waiters.get("Wait_OSB_Motion")).toBe(backgroundWaiter);
+        });
+    });
+
     describe("background capability wait", () => {
         function startCapabilityWait(overrides = {}) {
             return ctx.action("wait_until_start").runListener({

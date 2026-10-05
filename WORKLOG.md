@@ -1,5 +1,16 @@
 # Worklog
 
+## 2026-10-05 — Test v1.10.34 released
+
+### Implemented
+- PR #70 (release prep) merged, squash `0cb7f0e`. It has no code changes.
+- `HOMEY_HEADLESS=1 homey app publish` uploaded build 63 (v1.10.34), which was released to the test channel from the build page. It was not submitted for certification.
+- Lars's New Homey already runs 1.10.34. It was installed with `homey app install` before publishing (see the release prep entry), from `794ef78`, whose app folder is identical to `main` after the merge, so it was not reinstalled.
+- `HOMEY_COMMUNITY_LISTING.md` is updated. The forum post on community.homey.app is not changed, as Lars asked.
+
+### Verification
+- The test channel page reports `data-hy-app-version="1.10.34"`, and the store API reports test 1.10.34 / live 1.10.16. The dynamic badges in the README and on the docs site therefore show 1.10.34.
+
 ## 2026-10-05 — Release prep for test v1.10.34
 
 ### Requested

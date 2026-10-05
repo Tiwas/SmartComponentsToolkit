@@ -49,6 +49,7 @@
     *   `locales/`: Translation files.
 *   `docs/`: Documentation and web tools for the GitHub Pages site, published by `.github/workflows/pages.yml` on every push to `main` that changes `docs/` (Pages source: GitHub Actions).
 *   `.github/workflows/message-check.yml` with `.github/scripts/message-check.js`: checks commit messages, branch names, PR, issue and comment text against `AI_RULES.md` §7 on every pull request, push, issue, comment and review. Tests: `node --test .github/scripts/message-check.test.js`.
+*   `.claude/settings.json`: shared project settings for the coding assistant; turns off its commit and PR attribution. Everything else under `.claude/` stays local and ignored.
 *   Jest test files live beside the app source, including `CompositeAggregator.test.js`, `CompositeDevice.test.js`, `FormulaEvaluator.test.js`, and `LogicUnit.test.js`.
 
 ## Key Technologies

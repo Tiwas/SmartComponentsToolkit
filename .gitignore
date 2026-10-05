@@ -26,7 +26,7 @@ no.tiwas.booleantoolbox.old/
 # Other images
 extra_images/
 
-# Claude Code
+# Local tool settings
 .claude/
 
 # Misc

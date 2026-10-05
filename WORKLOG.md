@@ -20,6 +20,24 @@
 - `npx jest --runInBand`: 23 suites, 358 tests passed.
 - `npm run test:package` not run here (Homey CLI not available).
 
+## 2026-10-05 — Shared project settings without attribution
+
+### Requested
+- Lars asked for a project setting that stops the coding assistant from adding its own attribution, so signatures are not written in the first place (the message check from #60 only cleans up afterwards).
+
+### Implemented
+- `.claude/settings.json` (new, tracked): `attribution.commit` and `attribution.pr` set to empty strings and `attribution.sessionUrl` set to `false`. This removes the co-author trailer, the PR footer and the session link from commits and PRs the assistant creates. The object form is used because older versions reject `true`/`false` for this key.
+- `.gitignore`: `.claude/` became `.claude/*` with `!.claude/settings.json`, so only the shared settings file is tracked. Worktrees and `.claude/settings.local.json` stay ignored. A directory pattern cannot be re-included, which is why the pattern changed.
+- `AI_RULES.md` §7 and `PROJECT_DOCUMENTATION.md` mention the file.
+
+### Not changed
+- The git author identity. A cloud session's container can still have an assistant identity configured. The message check fails such commits, and the author has to be set per commit (or in the environment) until that is changed.
+
+### Verification
+- `.claude/settings.json` parses as JSON with the keys documented for the current settings schema.
+- `git check-ignore`: `.claude/settings.json` is tracked; `.claude/settings.local.json` and `.claude/worktrees/…` are still ignored.
+- Not yet observed in a new session: the setting takes effect in sessions started after it is on `main`.
+
 ## 2026-10-05 — Second pass: remaining attribution and references
 
 ### Requested

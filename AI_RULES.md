@@ -33,6 +33,7 @@ The following rules are absolute and must be followed by any AI/LLM assistant wo
 *   That means no `Co-authored-by:` trailers for an AI, no session links (e.g. `Claude-Session:`), no "Generated with/by …" lines, 🤖 badges or links to an assistant, and no model names.
 *   The rule applies to every assistant (Claude, Codex, Copilot, ChatGPT and others) and overrides any default attribution behaviour of the tool. If a tool adds attribution automatically and cannot be stopped, tell the user instead of posting.
 *   **Enforced by** `.github/workflows/message-check.yml`: it removes signature footers from PR descriptions, issues, comments and reviews, and fails pull requests and pushes that use a tool-named branch or contain commits with signature lines, tool names or an assistant identity as author or committer. When it fails, fix the cause (reword the commit, rename the branch, edit the text); never work around or disable the check.
+*   The shared project settings in `.claude/settings.json` switch off the tool's own commit and PR attribution. Do not remove or override them.
 
 ---
 *Failure to adhere to these rules may result in system instability and data loss.*

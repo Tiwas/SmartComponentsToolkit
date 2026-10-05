@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-10-05 — Test v1.10.33 released
+
+### Requested
+- Lars tested 1.10.33 in the Flow editor and confirmed it works: a Logic condition on "Has error" branches correctly, the "no" branch shows the Flow name, and a duplicated Flow takes the error branch with a message naming both Flows. He asked for it to be merged and published to test.
+
+### Implemented
+- PR #67 (release prep) merged, squash `677cebd`. It has no code changes, so no review thumbs-up was needed. PR #66 (the card) was merged earlier as `faf014c`, after a local stand-in review, because Codex had reached its usage limit.
+- `HOMEY_HEADLESS=1 homey app publish` uploaded build 62 (v1.10.33), which was released to the test channel from the build page. It was not submitted for certification.
+- The dev run was stopped and `homey app install` was run from `main`.
+
+### Verification
+- The test channel page reports `data-hy-app-version="1.10.33"`, and the store API reports test 1.10.33 / live 1.10.16. The dynamic badges in the README and on the docs site therefore show the new version.
+- On Lars's New Homey:
+  - The app runs 1.10.33 (`running`, `devkit_install`), and all 11 app devices are available.
+  - `runFlowCardAction` on the card returns the Flow name with `has_error: false`, and `[Unknown – save the Flow]` with `has_error: true` for an unsaved id.
+
+### Open
+- Test Flows `c74adfe6-51f8-4c50-b732-852bfde360b0` and `1d61d3c1-14cc-4042-9a05-9707e287bc82` are disabled and can be deleted.
+- Not changed (from the #66 findings): the waiter cards read `state.flowId`, which Homey never supplies.
+
 ## 2026-10-05 — Release prep for test v1.10.33
 
 ### Requested

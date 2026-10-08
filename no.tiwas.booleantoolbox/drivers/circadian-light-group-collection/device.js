@@ -120,10 +120,13 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
 
   // A group counts as failed when it threw or its own result was not ok. A
   // profile update the group postponed until its on/off command has finished
-  // is still to come, so it is not a failure.
+  // is still to come, and one a newer command took over was replaced on
+  // purpose, so neither is a failure.
   isFailedGroup(group) {
     return group.failed
-      || (group.outcome?.ok === false && group.outcome.skipped !== 'deferred');
+      || (group.outcome?.ok === false
+        && group.outcome.skipped !== 'deferred'
+        && group.outcome.superseded !== true);
   }
 
   // Combines the member groups' outcomes into one outcome for the Collection.

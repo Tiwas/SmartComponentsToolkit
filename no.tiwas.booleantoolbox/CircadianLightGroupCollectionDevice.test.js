@@ -301,18 +301,45 @@ describe('CircadianLightGroupCollectionDevice results after the Flow card', () =
     expect(device.triggerError).toHaveBeenCalledTimes(1);
   });
 
-  test('a profile update a group postponed is not reported as a failed group', async () => {
+  test.each([
+    ['postponed', { ok: false, skipped: 'deferred' }],
+    ['taken over by a newer command', { ok: false, total: 11, superseded: true }],
+  ])('a profile update a group %s is not reported as a failed group', async (description, groupOutcome) => {
     const device = createFanOutHarness([
       {
         id: 'main',
         name: 'Main',
-        device: { applyCurrentProfile: jest.fn().mockResolvedValue(createOperationOutcome({ ok: false, skipped: 'deferred' })) },
+        device: { applyCurrentProfile: jest.fn().mockResolvedValue(createOperationOutcome(groupOutcome)) },
       },
     ]);
 
     const outcome = await device.runAwaitedMemberGroups('apply_flow', group => group.applyCurrentProfile());
 
     expect(outcome).toEqual(expect.objectContaining({ ok: true, completed: false }));
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+    expect(device.triggerError).not.toHaveBeenCalled();
+  });
+
+  test('a group whose background retries are taken over is not reported once they finish', async () => {
+    const retries = deferred();
+    const device = createFanOutHarness([
+      {
+        id: 'main',
+        name: 'Main',
+        device: {
+          applyCurrentProfile: jest.fn().mockResolvedValue(createOperationOutcome({
+            total: 11,
+            pending: ['Hall'],
+            background: retries.promise,
+          })),
+        },
+      },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('apply_flow', group => group.applyCurrentProfile());
+    retries.resolve(createOperationOutcome({ ok: false, total: 11, superseded: true }));
+    await outcome.background;
+
     expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
     expect(device.triggerError).not.toHaveBeenCalled();
   });

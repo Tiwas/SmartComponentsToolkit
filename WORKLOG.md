@@ -1,5 +1,16 @@
 # Worklog
 
+## 2026-10-08 — Test v1.10.35 released
+
+### Implemented
+- PR #74 (release prep) merged as squash `45c6891`. It has no code changes, so it needed no review thumbs-up. PR #73 (the Circadian fix) was merged earlier as `a3bb701` after a clean automated review.
+- `HOMEY_HEADLESS=1 homey app publish` uploaded build 64 (v1.10.35), which was released to the test channel from the build page. It was not submitted for certification.
+- Lars's New Homey already runs 1.10.35. It was installed with `homey app install` from the release branch before the merge, and the app folder on `main` is identical, so it was not reinstalled.
+- `HOMEY_COMMUNITY_LISTING.md` is updated (see the release prep entry). The forum post on community.homey.app is not changed.
+
+### Verification
+- The store API reports test 1.10.35 / live 1.10.16, so the dynamic badges in the README and on the docs site show 1.10.35.
+
 ## 2026-10-08 — Release prep for test v1.10.35
 
 ### Requested

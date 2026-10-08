@@ -158,7 +158,23 @@ class CircadianLightGroupDriver extends Homey.Driver {
   }
 
   registerFlowCards() {
-    const action = (id, fn) => this.homey.flow.getActionCard(id).registerRunListener(async (args) => args.device[fn](args));
+    // Cards that declare the `completed` and `status` tokens.
+    const tokenCards = new Set([
+      'clg_apply_now',
+      'clg_resume',
+      'clg_turn_on',
+      'clg_turn_off',
+      'clg_toggle',
+      'clg_turn_on_member',
+      'clg_apply_state',
+      'clg_force_red_mode',
+      'clg_set_external_lux',
+    ]);
+    const action = (id, fn) => this.homey.flow.getActionCard(id).registerRunListener(async (args) => {
+      const device = args.device;
+      const result = await device.runWithinCardTimeBudget(id, device[fn](args));
+      return tokenCards.has(id) ? device.toCardTokens(result) : device.toLegacyCardResult(result);
+    });
     const cond = (id, fn) => this.homey.flow.getConditionCard(id).registerRunListener(async (args) => args.device[fn](args));
 
     action('clg_apply_now', 'onFlowApplyNow');

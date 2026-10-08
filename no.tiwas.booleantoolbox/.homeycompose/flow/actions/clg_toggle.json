@@ -1,24 +1,65 @@
 {
   "id": "clg_toggle",
-  "deprecated": true,
   "title": {
-    "en": "Toggle",
-    "no": "Veksle",
-    "de": "Umschalten",
-    "nl": "Schakelen",
-    "fr": "Basculer",
-    "da": "Skift",
-    "fi": "Vaihda",
-    "sv": "Växla",
-    "pl": "Przełącz",
-    "it": "Commuta",
-    "es": "Alternar"
+    "en": "Toggle and report the result",
+    "no": "Veksle og meld resultatet",
+    "de": "Umschalten und Ergebnis melden",
+    "nl": "Omschakelen en resultaat melden",
+    "fr": "Basculer et signaler le résultat",
+    "da": "Skift og meld resultatet",
+    "fi": "Vaihda ja ilmoita tulos",
+    "sv": "Växla och rapportera resultatet",
+    "pl": "Przełącz i zgłoś wynik",
+    "it": "Commuta e segnala il risultato",
+    "es": "Alternar e informar del resultado"
+  },
+  "hint": {
+    "en": "Turns the group and its lights on or off, like the device's own Toggle card, and returns tokens. The Flow continues once every light has been sent its commands and checked once. Lights that have not confirmed yet are retried in the background. \"All lights confirmed\" and \"Status\" tell you whether that happened.",
+    "no": "Slår gruppen og lysene på eller av, som enhetens eget «Veksle»-kort, og gir tokens. Flowen fortsetter når alle lysene har fått kommandoene og er sjekket én gang. Lys som ikke har bekreftet ennå, prøves på nytt i bakgrunnen. «Alle lys bekreftet» og «Status» forteller om det skjedde."
   },
   "args": [
     {
       "type": "device",
       "name": "device",
       "filter": "driver_id=circadian-light-group|circadian-light-group-collection"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "completed",
+      "type": "boolean",
+      "title": {
+        "en": "All lights confirmed",
+        "no": "Alle lys bekreftet",
+        "da": "Alle lys bekræftet",
+        "sv": "Alla lampor bekräftade",
+        "de": "Alle Lampen bestätigt",
+        "nl": "Alle lampen bevestigd",
+        "fr": "Toutes les lampes confirmées",
+        "it": "Tutte le luci confermate",
+        "es": "Todas las luces confirmadas",
+        "fi": "Kaikki valot vahvistettu",
+        "pl": "Wszystkie światła potwierdzone"
+      },
+      "example": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "title": {
+        "en": "Status",
+        "no": "Status",
+        "da": "Status",
+        "sv": "Status",
+        "de": "Status",
+        "nl": "Status",
+        "fr": "Statut",
+        "it": "Stato",
+        "es": "Estado",
+        "fi": "Tila",
+        "pl": "Status"
+      },
+      "example": "All lights confirmed (11)."
     }
   ]
 }

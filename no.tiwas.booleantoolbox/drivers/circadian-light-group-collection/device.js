@@ -2,6 +2,8 @@
 
 const CircadianLightGroupDevice = require('../circadian-light-group/device');
 
+const { createOperationOutcome, toOperationOutcome } = CircadianLightGroupDevice;
+
 const COLLECTION_OPERATION_BATCH_MS = 50;
 const COLLECTION_OPERATION_PRIORITY = Object.freeze({
   pause: 0,
@@ -111,13 +113,42 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
       isCurrent: op.isCurrent,
     });
 
-    const failed = result.failed || [];
-    await this.setCapabilityValue('alarm_config', failed.length > 0).catch(this.error);
-    if (failed.length > 0) {
-      const names = failed.map(e => e.name || e.id).join(', ');
-      await this.triggerError(`${label}: ${failed.length} group(s) had unresponsive members: ${names}`);
+    // Group failures are reported by runAwaitedMemberGroups once every
+    // member group, including its background retries, has finished.
+    return { ...result, entries };
+  }
+
+  // Combines the member groups' outcomes into one outcome for the Collection.
+  // A group counts as failed when it threw or its own result was not ok.
+  mergeGroupOutcomes(groups, { superseded = false, background = null } = {}) {
+    const active = groups.filter(group => !group.failed && group.outcome);
+    const changed = active.filter(group => !group.outcome.skipped);
+    const skipReasons = [...new Set(active.map(group => group.outcome.skipped))];
+    const failedGroups = groups.filter(group => group.failed || group.outcome?.ok === false);
+    return createOperationOutcome({
+      ok: !superseded && failedGroups.length === 0,
+      total: changed.reduce((sum, group) => sum + group.outcome.total, 0),
+      pending: active.flatMap(group => group.outcome.pending),
+      failed: active.flatMap(group => group.outcome.failed),
+      skipped: active.length === groups.length && active.length > 0 && changed.length === 0 && skipReasons.length === 1
+        ? skipReasons[0]
+        : null,
+      superseded: superseded || active.some(group => group.outcome.superseded),
+      budgetExceeded: active.some(group => group.outcome.budgetExceeded),
+      background,
+      groups,
+      completed: groups.every(group => !group.failed && group.outcome && group.outcome.completed),
+    });
+  }
+
+  async reportCollectionGroupFailures(label, outcome) {
+    const names = (outcome.groups || [])
+      .filter(group => group.failed || group.outcome?.ok === false)
+      .map(group => group.name);
+    await this.setCapabilityValue('alarm_config', names.length > 0).catch(this.error);
+    if (names.length > 0) {
+      await this.triggerError(`${label}: ${names.length} group(s) had unresponsive members: ${names.join(', ')}`);
     }
-    return result;
   }
 
   getCollectionOperationPriority(label) {
@@ -181,18 +212,54 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     return operation;
   }
 
+  // Runs taskFn on every member group and returns once each group has done its
+  // first pass. Retries a group runs in the background are followed by the
+  // Collection's own `background`, which reports group failures at the end.
   async runAwaitedMemberGroups(label, taskFn) {
+    const outcomes = new Map();
     const result = await this.runForMemberGroups(label, async (device, item, attempt) => {
-      const completed = await taskFn(device, item, attempt);
-      if (completed === false) {
-        throw new Error(`${item?.name || item?.id || 'Circadian Light Group'} reported an incomplete operation`);
-      }
+      outcomes.set(item, toOperationOutcome(await taskFn(device, item, attempt)));
     });
-    return result?.superseded !== true && (result?.failed || []).length === 0;
+
+    const runs = [...(result?.ok || []), ...(result?.failed || [])];
+    const entries = Array.isArray(result?.entries) ? result.entries : runs.map(res => res.item);
+    const groups = entries.map((entry) => {
+      const run = runs.find(candidate => candidate.item === entry);
+      const succeeded = run?.ok === true;
+      return {
+        name: entry?.name || entry?.id || '<unknown>',
+        outcome: succeeded ? (outcomes.get(entry?.item) || createOperationOutcome()) : null,
+        failed: !succeeded,
+      };
+    });
+    const superseded = result?.superseded === true;
+
+    if (!groups.some(group => group.outcome?.background)) {
+      const outcome = this.mergeGroupOutcomes(groups, { superseded });
+      await this.reportCollectionGroupFailures(label, outcome);
+      return outcome;
+    }
+
+    const background = Promise.all(groups.map(async (group) => {
+      if (!group.outcome?.background) return group;
+      const final = await group.outcome.background
+        .catch(() => createOperationOutcome({ ok: false }));
+      return { ...group, outcome: toOperationOutcome(final) };
+    }))
+      .then(async (finalGroups) => {
+        const final = this.mergeGroupOutcomes(finalGroups, { superseded });
+        await this.reportCollectionGroupFailures(label, final);
+        return final;
+      })
+      .catch((error) => {
+        this.error(`collection_${label}: background follow-up failed:`, error);
+        return createOperationOutcome({ ok: false });
+      });
+    return this.mergeGroupOutcomes(groups, { superseded, background });
   }
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
-    if (this.deleted) return false;
+    if (this.deleted) return createOperationOutcome({ ok: false, skipped: 'deleted' });
     return this.runCollectionOperation(`apply_${reason}`, async () => this.runAwaitedMemberGroups(`apply_${reason}`, async (device) => {
       return device.applyCurrentProfile({ reason: `collection-${reason}` });
     }));

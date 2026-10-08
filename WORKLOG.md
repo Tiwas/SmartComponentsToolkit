@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-10-08 — Circadian Light Group and the 60 s Flow card limit (investigation)
+
+### Requested
+- Lars suspected Homey's 60 s Flow card limit is behind the Circadian Light Group problems. He asked for a check on his Homey and for proposed fixes, and suggested moving the retry logic out of the card into the background.
+
+### Findings
+- Lars's "All on - Toolbox" Flow uses the Circadian Light Group **Collection** (`clg_is_paused` → `clg_resume` → the device's own On card). "All on (flood)" pauses the Collection for 12 h, and "All off (actions)" uses its Off card. The Collection fans out to "Circadian Light Group" (11 lights) and "CLG (soverom)" (5 lights).
+- Since v1.10.25 the Collection cards stay pending until every member group has finished its first pass, verification, a reduced parallel retry and a final serial retry (`runCollectionOperation` → `runAwaitedMemberGroups` → each group's `runDeviceTasksParallel`). The On card goes through the `onoff` capability listener, which awaits the same work.
+- Time per light per pass: up to 10 s for a write to a light that does not answer (homey-api `DEFAULT_TIMEOUT`), about 1.4 s for a Z-Wave `TRANSMIT_COMPLETE_NO_ACK` (log from 2026-07-02), up to 2.5 s waiting for the on acknowledgement, and 150 ms after each write. Every light that is not verified runs through all three passes.
+- Three member lights do not answer: "Spisestue: Tunable White Bulb (E27)" (last update 6 Oct), "Soverom: Nattbord v" (last update 24 Feb) and "Smart Energy Illuminator" (dim last updated 24 Jul). Since tonight's "All on", the main group logs "member update failed" on every 2-minute timer.
+- Tonight's "All on" (20:16 local time) included a resume and two rounds of verification with retries. The first light went on at 20:16:06.8. The main group's last "2 member(s) could not be verified … after retries" came at 20:16:59.960, and the Collection's `onoff` was recorded at 20:16:59.974, when its listener finished. The whole sequence was about 53 s. The diagnostics report could not tell which card started each step.
+- `clg_apply_now` measured with `runFlowCardAction` (Homey's `elapsedTime`): Collection 7.0 s, main group 6.2 s, bedroom group 1.0 s. A plain profile update is far below the limit. The long cases are turn-on and resume with verification and retries.
+- When Homey stops a card at 60 s, the Flow does not follow that card's outputs. In "All on - Toolbox", a `clg_resume` that times out would stop the Collection On card and the other two lights after it. The app's own work goes on in the background.
+
+### Decision
+- Lars agreed to move the retries out of the card, asked for a yes/no token and a text token that say what happened when the Flow continued before everything was done, and suggested sending every command first and collecting the retry information afterwards. For on/off he chose to bring back the hidden `clg_turn_on`/`clg_turn_off`/`clg_toggle` cards with tokens, because the device's own On/Off cards cannot return tokens.
+
+### Implemented (branch `clg-background-retries`)
+- `runDeviceTasksParallel` has a `deferRetries` option. It returns after the first parallel pass and one verification, lists unconfirmed lights in `pending`, and runs the reduced parallel retry and final serial retry in `background`. With a verify step it first waits 1.5 s and checks again, so a light that reports late is not written twice. A newer command stops the retries through the operation generation, as before.
+- Member on/off commands (`onFlowTurnOnAllMembers`, `onFlowTurnOffAllMembers`, `onFlowTurnOnMember`) and profile updates use it. A member command stays active until its background retries finish, so the scheduler still waits. Verification, `alarm_config`, `clg_error_occurred` and `clg_target_changed` are reported when the retries finish, with the same messages as before.
+- `runWithinCardTimeBudget` (50 s) wraps every Circadian action card and the `onoff`/`clg_paused` capability listeners. Work still running after that goes on in the background and is logged; an error before the budget still fails the card.
+- Operations return an outcome (`completed`, `ok`, `total`, `pending`, `failed`, `skipped`, `superseded`, `budgetExceeded`, `background`, `groups`). `ok` keeps each operation's old boolean, so the Collection reports group errors exactly as before; cards without tokens still return that boolean.
+- Nine action cards return the tokens `completed` ("All lights confirmed", yes/no) and `status` (text): `clg_apply_now`, `clg_resume`, `clg_turn_on`, `clg_turn_off`, `clg_toggle`, `clg_turn_on_member`, `clg_apply_state`, `clg_force_red_mode`, `clg_set_external_lux`. `clg_turn_on`/`clg_turn_off`/`clg_toggle` are no longer deprecated and are titled "… and report the result" in all 11 languages, with an English and Norwegian hint. The status texts are under `circadian_outcome` in all 11 locales (Norwegian translated, the others English).
+- Collection: `runAwaitedMemberGroups` merges the groups' outcomes (one sentence per group when they ended differently) and reports group failures when every group's background retries have finished. The Collection queue is released when the card's part is done. The old group error message listed `undefined` instead of group names; it now names the groups.
+- Docs: `docs/docs/circadian-light-group.html` (retries after the card, the tokens, the re-enabled cards, a troubleshooting entry) and `PROJECT_DOCUMENTATION.md` (section 7).
+- Companion tool `docs/tools/clg-editor.html`: the config schema did not change, so it needs no update.
+
+### Verification
+- Read-only checks on Lars's New Homey before the change (Homey MCP, API playground in Chrome). The only card run was `clg_apply_now`, which does the same as the 2-minute timer.
+- Jest: 24 suites / 400 tests pass. New tests cover the background retries (late report without a second write, a newer command stopping them, unchanged behaviour without `deferRetries`), a member command staying active until its retries finish, the profile update's reporting after its retries, the time budget (finished in time, past the budget, failing after it, failing before it), the status texts and translation, the Collection merge and its error reporting, and that every card with tokens in its definition returns them.
+- `npm run test:package`: publish-level validation passes; the composed manifest has the tokens on the nine cards and `clg_turn_on`/`clg_turn_off`/`clg_toggle` without `deprecated`.
+- Not yet tested live on the Homey.
+
 ## 2026-10-05 — Test v1.10.34 released
 
 ### Implemented

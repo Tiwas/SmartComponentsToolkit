@@ -19,6 +19,29 @@ const CLG_ONOFF_STORE_KEY = 'clg_onoff_state';
 const CLG_ONOFF_LEGACY_STORE_KEY = 'clg_onoff';
 const CLG_PAUSE_STORE_KEY = 'clg_pause_state';
 const MAX_TIMEOUT_MS = 2147483647;
+// Homey stops app Flow cards after 60 s. A card returns after this budget and
+// the rest of its work goes on in the background.
+const CARD_TIME_BUDGET_MS = 50000;
+// Lights can report a new value a little after the write; unconfirmed lights
+// are checked again after this pause before they count as needing a retry.
+const SETTLE_CHECK_MS = 1500;
+const CARD_BUDGET_ELAPSED = Symbol('card-budget-elapsed');
+
+const OUTCOME_TEXT = {
+  confirmed: 'All lights confirmed ({total}).',
+  done: 'Done.',
+  pending: 'Continued before everything was confirmed. Lights still being retried in the background ({count} of {total}): {names}.',
+  failed: 'Lights that did not respond ({count} of {total}): {names}.',
+  not_confirmed: 'Not every light could be confirmed.',
+  paused: 'The group is paused, so the lights were not changed.',
+  off: 'The group is off, so the lights were not changed.',
+  no_lights: 'The group has no enabled lights.',
+  deferred: 'An on/off command is still running. The profile is applied when it has finished.',
+  superseded: 'A newer command took over before this one had finished.',
+  budget: 'Still running after {seconds} seconds. The Flow continued and the rest goes on in the background.',
+  deleted: 'The group has been deleted.',
+  group_failed: 'did not finish.',
+};
 
 const TRANSIENT_ERROR_PATTERNS = [
   /TRANSMIT_COMPLETE_NO_ACK/i,
@@ -53,6 +76,94 @@ function capabilityValueMatches(actual, expected) {
   return actual === expected;
 }
 
+function taskItemName(item) {
+  return item?.name || item?.id || '<unknown>';
+}
+
+// What a light operation did, for Flow card tokens and for a Collection.
+// `ok` keeps the boolean each operation returned before outcomes existed, so
+// Collection error reporting is unchanged. `background`, when set, resolves to
+// the final outcome once the retries running after the card have finished.
+function createOperationOutcome({
+  ok = true,
+  total = 0,
+  pending = [],
+  failed = [],
+  skipped = null,
+  superseded = false,
+  budgetExceeded = false,
+  background = null,
+  groups = null,
+  completed,
+} = {}) {
+  // A combined outcome passes `completed` itself; otherwise a result that is
+  // not ok only counts as complete when nothing was meant to change.
+  const settled = typeof completed === 'boolean'
+    ? completed
+    : (ok !== false || skipped !== null);
+  return {
+    completed: settled
+      && !superseded
+      && !budgetExceeded
+      && skipped !== 'deferred'
+      && pending.length === 0
+      && failed.length === 0,
+    ok,
+    total,
+    pending,
+    failed,
+    skipped,
+    superseded,
+    budgetExceeded,
+    background,
+    groups,
+  };
+}
+
+function isOperationOutcome(value) {
+  return Boolean(value)
+    && typeof value === 'object'
+    && typeof value.completed === 'boolean'
+    && Array.isArray(value.pending);
+}
+
+function toOperationOutcome(value) {
+  if (isOperationOutcome(value)) return value;
+  return createOperationOutcome({ ok: value !== false });
+}
+
+function outcomeFromTaskResult(result, { ok, background = null } = {}) {
+  const confirmed = Array.isArray(result?.ok) ? result.ok : [];
+  const failed = Array.isArray(result?.failed) ? result.failed : [];
+  const pending = Array.isArray(result?.pending) ? result.pending : [];
+  return createOperationOutcome({
+    ok,
+    total: confirmed.length + failed.length + pending.length,
+    pending: pending.map(res => taskItemName(res.item)),
+    failed: failed.map(res => taskItemName(res.item)),
+    superseded: result?.superseded === true,
+    background,
+  });
+}
+
+// The outcome to report when the background retries themselves fail: every
+// light that was still pending counts as failed.
+function outcomeWithPendingFailed(result) {
+  return outcomeFromTaskResult({
+    ...result,
+    failed: [...(result.failed || []), ...(result.pending || [])],
+    pending: [],
+  }, { ok: false });
+}
+
+// Copies an outcome with a fixed `ok`, also for its background result.
+function withLegacyOk(outcome, ok) {
+  const background = outcome.background
+    ? outcome.background.then(final => withLegacyOk(toOperationOutcome(final), ok))
+    : null;
+  return createOperationOutcome({ ...outcome, ok, background });
+}
+
 class CircadianLightGroupDevice extends Homey.Device {
   async onInit() {
     this.debug('CircadianLightGroupDevice has been initialized');
@@ -76,17 +187,18 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.pauseTimer = null;
 
     this.registerCapabilityListener('onoff', async (value) => {
-      await this.setOnoffState(value);
-      await this.fireOnoffTrigger(value);
-      if (value === true) {
-        await this.onFlowTurnOnAllMembers();
-      } else {
-        await this.onFlowTurnOffAllMembers();
-      }
+      await this.runWithinCardTimeBudget('onoff', (async () => {
+        await this.setOnoffState(value);
+        await this.fireOnoffTrigger(value);
+        if (value === true) {
+          return this.onFlowTurnOnAllMembers();
+        }
+        return this.onFlowTurnOffAllMembers();
+      })());
     });
 
     this.registerCapabilityListener('clg_paused', async (value) => {
-      await this.onPausedCapabilityChanged(value);
+      await this.runWithinCardTimeBudget('clg_paused', this.onPausedCapabilityChanged(value));
     });
 
     this.registerCapabilityListener('dim', async () => {});
@@ -125,10 +237,116 @@ class CircadianLightGroupDevice extends Homey.Device {
     }
   }
 
+  // Lets a Flow card or capability listener return before Homey's 60 s limit.
+  // If the operation is still running when the budget is used up, it goes on
+  // in the background and the caller gets an outcome that says so.
+  async runWithinCardTimeBudget(label, operation) {
+    const work = Promise.resolve(operation);
+    let timer = null;
+    const budgetElapsed = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(CARD_BUDGET_ELAPSED), CARD_TIME_BUDGET_MS);
+    });
+
+    let result;
+    try {
+      result = await Promise.race([work, budgetElapsed]);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (result !== CARD_BUDGET_ELAPSED) return result;
+
+    this.debug(`${label}: still running after ${CARD_TIME_BUDGET_MS / 1000}s; the Flow continues while it finishes in the background`);
+    this.recordAppDiagnostic('WARN', 'A Circadian Light Group Flow card used its time budget; the rest goes on in the background.');
+    const background = work
+      .then(value => toOperationOutcome(value))
+      .then(outcome => (outcome.background ? outcome.background : outcome))
+      .catch((error) => {
+        this.error(`${label} failed after the Flow had continued:`, error);
+        return createOperationOutcome({ ok: false });
+      });
+    return createOperationOutcome({ ok: true, budgetExceeded: true, background });
+  }
+
+  translateOutcomeText(key, values = {}) {
+    let template = OUTCOME_TEXT[key] || '';
+    try {
+      const translationKey = `circadian_outcome.${key}`;
+      const translated = this.homey?.__?.(translationKey);
+      if (typeof translated === 'string' && translated && translated !== translationKey) template = translated;
+    } catch (error) {
+      // Fall back to English below
+    }
+    return template.replace(/\{(\w+)\}/g, (match, name) => (
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
+    ));
+  }
+
+  describeOperationOutcome(value) {
+    const outcome = toOperationOutcome(value);
+    if (outcome.budgetExceeded) {
+      return this.translateOutcomeText('budget', { seconds: CARD_TIME_BUDGET_MS / 1000 });
+    }
+    // A Collection: one sentence for all groups when every group confirmed its
+    // lights, otherwise one sentence per group.
+    if (Array.isArray(outcome.groups) && outcome.groups.length > 0) {
+      const describeGroup = group => (group.failed
+        ? this.translateOutcomeText('group_failed')
+        : this.describeOperationOutcome(group.outcome));
+      const [onlyGroup] = outcome.groups;
+      if (outcome.groups.length === 1 && !onlyGroup.failed) return describeGroup(onlyGroup);
+      const uniform = outcome.groups.every(group => !group.failed
+        && group.outcome
+        && group.outcome.completed
+        && !group.outcome.skipped);
+      if (!uniform) {
+        return outcome.groups.map(group => `${group.name}: ${describeGroup(group)}`).join(' ');
+      }
+    }
+    if (outcome.superseded) return this.translateOutcomeText('superseded');
+    if (outcome.skipped === 'no-lights') return this.translateOutcomeText('no_lights');
+    if (outcome.skipped) return this.translateOutcomeText(outcome.skipped);
+
+    const parts = [];
+    const total = outcome.total;
+    if (outcome.pending.length > 0) {
+      parts.push(this.translateOutcomeText('pending', {
+        count: outcome.pending.length,
+        total,
+        names: outcome.pending.join(', '),
+      }));
+    }
+    if (outcome.failed.length > 0) {
+      parts.push(this.translateOutcomeText('failed', {
+        count: outcome.failed.length,
+        total,
+        names: outcome.failed.join(', '),
+      }));
+    }
+    if (parts.length > 0) return parts.join(' ');
+    if (!outcome.completed) return this.translateOutcomeText('not_confirmed');
+    if (total === 0) return this.translateOutcomeText('done');
+    return this.translateOutcomeText('confirmed', { total });
+  }
+
+  // Return tokens for the Circadian action cards that declare them.
+  toCardTokens(value) {
+    const outcome = toOperationOutcome(value);
+    return {
+      completed: outcome.completed,
+      status: this.describeOperationOutcome(outcome),
+    };
+  }
+
+  // Cards without tokens keep returning what they returned before outcomes.
+  toLegacyCardResult(value) {
+    return isOperationOutcome(value) ? value.ok : value;
+  }
+
   async onPausedCapabilityChanged(value) {
     this.pauseDebug(`capability changed value=${value}`);
     this.clearPauseTimer();
     if (value === true) {
+      this.stopRunningLightCommands('pause');
       await this.persistPauseState(null);
     } else {
       await this.clearPersistedPauseState();
@@ -595,18 +813,18 @@ class CircadianLightGroupDevice extends Homey.Device {
   }
 
   async applyCurrentProfile({ reason = 'manual' } = {}) {
-    if (this.deleted) return false;
+    if (this.deleted) return createOperationOutcome({ ok: false, skipped: 'deleted' });
     if (this.activeMemberCommand) {
       this.deferredProfileApplyReason = String(reason).replace(/^deferred-/, '');
       this.debug(`apply[${reason}] DEFERRED while ${this.activeMemberCommand.label} is active`);
-      return false;
+      return createOperationOutcome({ ok: false, skipped: 'deferred' });
     }
     const op = this.acquireOp(`apply[${reason}]`);
     return this._applyCurrentProfileImpl(reason, op);
   }
 
   async _applyCurrentProfileImpl(reason, op) {
-    if (this.deleted) return false;
+    if (this.deleted) return createOperationOutcome({ ok: false, skipped: 'deleted' });
 
     const config = this.getConfig();
     const allDevices = Array.isArray(config.devices) ? config.devices : [];
@@ -661,49 +879,71 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     if (!shouldApplyToLights) {
       this.debug(`apply[${reason}] SKIPPED push to lights: onoff=${this.getCapabilityValue('onoff')} clg_paused=${this.getCapabilityValue('clg_paused')}`);
-      return false;
+      return createOperationOutcome({
+        ok: false,
+        total: devices.length,
+        skipped: this.getCapabilityValue('clg_paused') === true ? 'paused' : 'off',
+      });
     }
 
     if (devices.length === 0) {
       this.debug(`apply[${reason}] SKIPPED push to lights: no enabled devices in config`);
       await this.setCapabilityValue('alarm_config', true).catch(this.error);
-      return false;
+      return createOperationOutcome({ ok: false, skipped: 'no-lights' });
     }
 
     await this.requestExternalOutdoorLightIfNeeded(config);
 
     const debugCtx = { remaining: 3, reason, isCurrent: op.isCurrent };
-    const { failed, superseded } = await this.runDeviceTasksParallel(devices, async (item) => {
+    const result = await this.runDeviceTasksParallel(devices, async (item) => {
       await this.applyTargetToDevice(item, target, debugCtx);
-    }, { label: `apply[${reason}]`, isCurrent: op.isCurrent });
+    }, { label: `apply[${reason}]`, isCurrent: op.isCurrent, deferRetries: true });
 
-    if (superseded) return false;
+    const finishApply = async (final) => {
+      if (final.superseded) return outcomeFromTaskResult(final, { ok: false });
 
-    failed.slice(0, 3).forEach((failure) => {
-      this.recordAppDiagnostic(
-        'ERROR',
-        `Circadian member update failed during ${reason}.`,
-        failure.error,
-      );
-    });
+      const { failed } = final;
+      failed.slice(0, 3).forEach((failure) => {
+        this.recordAppDiagnostic(
+          'ERROR',
+          `Circadian member update failed during ${reason}.`,
+          failure.error,
+        );
+      });
 
-    const nonTransientFailures = failed.filter(res => !isTransientDeviceError(res.error));
-    await this.setCapabilityValue('alarm_config', nonTransientFailures.length > 0).catch(this.error);
+      const nonTransientFailures = failed.filter(res => !isTransientDeviceError(res.error));
+      await this.setCapabilityValue('alarm_config', nonTransientFailures.length > 0).catch(this.error);
 
-    if (nonTransientFailures.length > 0) {
-      await this.triggerError(`${nonTransientFailures.length} light(s) failed during ${reason}`);
-    }
+      if (nonTransientFailures.length > 0) {
+        await this.triggerError(`${nonTransientFailures.length} light(s) failed during ${reason}`);
+      }
 
-    await this.homey.flow.getDeviceTriggerCard('clg_target_changed')
-      .trigger(this, {
-        phase: target.phase,
-        dim: target.dim,
-        temperature: target.temperature,
-        outdoor_lux: outdoor.outdoorComputedLux || 0,
-      })
-      .catch(this.error);
+      await this.homey.flow.getDeviceTriggerCard('clg_target_changed')
+        .trigger(this, {
+          phase: target.phase,
+          dim: target.dim,
+          temperature: target.temperature,
+          outdoor_lux: outdoor.outdoorComputedLux || 0,
+        })
+        .catch(this.error);
 
-    return nonTransientFailures.length === 0;
+      return outcomeFromTaskResult(final, { ok: nonTransientFailures.length === 0 });
+    };
+
+    if (!result.background) return finishApply(result);
+
+    // Retries go on after the caller (often a Flow card) has its answer; the
+    // error reporting and the target-changed trigger follow when they finish.
+    const background = result.background
+      .then(finishApply)
+      .catch((error) => {
+        this.error(`apply[${reason}] background retry failed:`, error);
+        return outcomeWithPendingFailed(result);
+      });
+    // Failures that are not retried are final already; only the pending
+    // lights wait for the background result.
+    const finalFailures = result.failed.filter(res => !isTransientDeviceError(res.error));
+    return outcomeFromTaskResult(result, { ok: finalFailures.length === 0, background });
   }
 
   async requestExternalOutdoorLightIfNeeded(config) {
@@ -727,6 +967,13 @@ class CircadianLightGroupDevice extends Homey.Device {
       gen,
       isCurrent: () => this.currentOpGen === gen,
     };
+  }
+
+  // A newer operation makes every running one stop between writes, including
+  // retries that go on in the background after a card has returned. Pausing
+  // and deleting the group use this so a retry cannot change a light after it.
+  stopRunningLightCommands(label) {
+    this.acquireOp(label);
   }
 
   beginMemberCommand(label) {
@@ -754,6 +1001,10 @@ class CircadianLightGroupDevice extends Homey.Device {
   // Run an async task per device with staged backoff:
   // first bounded parallelism, then serial verification, then a smaller parallel retry,
   // then a final serial retry for anything still not confirmed.
+  // With `deferRetries`, it returns after the first pass and its verification
+  // (plus one more check of unconfirmed devices after a short pause). Devices
+  // that are still not confirmed are listed in `pending`, and the retries run
+  // in the background: `background` resolves to the final summary.
   async runDeviceTasksParallel(items, taskFn, opts = {}) {
     const list = Array.isArray(items) ? items : [];
     if (list.length === 0) return { ok: [], failed: [] };
@@ -775,9 +1026,10 @@ class CircadianLightGroupDevice extends Homey.Device {
       return !res.ok && res.retryable !== false;
     });
 
-    const summarize = (superseded = false) => {
+    const summarize = (superseded = false, { separatePending = false } = {}) => {
       const ok = [];
       const failed = [];
+      const pending = [];
       for (let index = 0; index < list.length; index += 1) {
         const res = results[index] || {
           ok: false,
@@ -785,9 +1037,11 @@ class CircadianLightGroupDevice extends Homey.Device {
           error: new Error('not processed'),
           retryable: true,
         };
-        (res.ok ? ok : failed).push(res);
+        if (res.ok) ok.push(res);
+        else if (separatePending && res.retryable !== false) pending.push(res);
+        else failed.push(res);
       }
-      return { ok, failed, superseded };
+      return separatePending ? { ok, failed, pending, superseded } : { ok, failed, superseded };
     };
 
     const runPass = async (indexes, passConcurrency, attempt, passLabel) => {
@@ -864,26 +1118,56 @@ class CircadianLightGroupDevice extends Homey.Device {
       return summarize(true);
     }
 
-    let pending = pendingIndexes();
-    if (pending.length > 0 && maxRetries >= 1) {
-      this.debug(`${label}: reduced parallel retry for ${pending.length} device(s), concurrency=${Math.min(retryConcurrency, pending.length)}`);
-      await runPass(pending, retryConcurrency, 1, 'reduced parallel retry');
-      await verifyIndexesSerial(pending, 'reduced parallel retry');
+    const runRetries = async () => {
+      let pending = pendingIndexes();
+      if (pending.length > 0 && maxRetries >= 1) {
+        this.debug(`${label}: reduced parallel retry for ${pending.length} device(s), concurrency=${Math.min(retryConcurrency, pending.length)}`);
+        await runPass(pending, retryConcurrency, 1, 'reduced parallel retry');
+        await verifyIndexesSerial(pending, 'reduced parallel retry');
+      }
+
+      if (!isCurrent()) {
+        this.debug(`${label}: superseded after reduced retry - skipping final serial retry`);
+        return summarize(true);
+      }
+
+      pending = pendingIndexes();
+      if (pending.length > 0 && maxRetries >= 2) {
+        this.debug(`${label}: final serial retry for ${pending.length} device(s)`);
+        await runPass(pending, 1, 2, 'final serial retry');
+        await verifyIndexesSerial(pending, 'final serial retry');
+      }
+
+      // A newer command may have taken over during the last pass; its own
+      // result is the one that counts, so this one reports nothing.
+      if (!isCurrent()) {
+        this.debug(`${label}: superseded during final serial retry`);
+        return summarize(true);
+      }
+
+      return summarize(false);
+    };
+
+    if (!opts.deferRetries) return runRetries();
+
+    if (verifyFn && pendingIndexes().length > 0) {
+      // A light may confirm its new value a moment after the write. Check the
+      // unconfirmed ones once more, so the result only lists lights that need
+      // a retry and a slow report does not cause an extra write.
+      await new Promise(resolve => setTimeout(resolve, SETTLE_CHECK_MS));
+      if (!isCurrent()) {
+        this.debug(`${label}: superseded before the settle check`);
+        return summarize(true);
+      }
+      await verifyIndexesSerial(pendingIndexes(), 'settle check');
     }
 
-    if (!isCurrent()) {
-      this.debug(`${label}: superseded after reduced retry - skipping final serial retry`);
-      return summarize(true);
-    }
+    const firstPending = pendingIndexes();
+    if (firstPending.length === 0 || maxRetries < 1) return summarize(false);
 
-    pending = pendingIndexes();
-    if (pending.length > 0 && maxRetries >= 2) {
-      this.debug(`${label}: final serial retry for ${pending.length} device(s)`);
-      await runPass(pending, 1, 2, 'final serial retry');
-      await verifyIndexesSerial(pending, 'final serial retry');
-    }
-
-    return summarize(false);
+    this.debug(`${label}: ${firstPending.length} device(s) not confirmed after the first pass; retrying in the background`);
+    const background = runRetries();
+    return { ...summarize(false, { separatePending: true }), background };
   }
 
   async applyTargetToDevice(item, target, debugCtx) {
@@ -1116,6 +1400,42 @@ class CircadianLightGroupDevice extends Homey.Device {
     return false;
   }
 
+  // Runs a member on/off command. When `run` returns an outcome with
+  // background retries, settleMemberCommand ends the command after them, so
+  // the scheduler waits until they have finished.
+  async runMemberCommand(label, run) {
+    const op = this.beginMemberCommand(label);
+    let outcome = null;
+    try {
+      outcome = await run(op);
+      return outcome;
+    } finally {
+      if (!outcome?.background) this.finishMemberCommand(op);
+    }
+  }
+
+  // Turns a member command result into an outcome. When retries go on in the
+  // background, the command stays active (so the scheduler waits) until they
+  // finish, and the verification is reported then.
+  async settleMemberCommand(op, label, result, expectedDescription, reportOptions) {
+    if (!result?.background) {
+      const ok = await this.reportMemberTaskVerification(label, result, expectedDescription, reportOptions);
+      return outcomeFromTaskResult(result, { ok });
+    }
+
+    const background = result.background
+      .then(async (final) => {
+        const ok = await this.reportMemberTaskVerification(label, final, expectedDescription, reportOptions);
+        return outcomeFromTaskResult(final, { ok });
+      })
+      .catch((error) => {
+        this.error(`${label}: background retry failed:`, error);
+        return outcomeWithPendingFailed(result);
+      })
+      .finally(() => this.finishMemberCommand(op));
+    return outcomeFromTaskResult(result, { ok: true, background });
+  }
+
   applyOverridesToTarget(target) {
     const now = Date.now();
 
@@ -1269,11 +1589,10 @@ class CircadianLightGroupDevice extends Homey.Device {
 
     if (this.getCapabilityValue('clg_paused') === true) {
       this.debug(`turn_on_member[${item.name || item.id}]: SKIPPED turn on because clg_paused=true`);
-      return true;
+      return createOperationOutcome({ total: 1, skipped: 'paused' });
     }
 
-    const op = this.beginMemberCommand('turn_on_member');
-    try {
+    return this.runMemberCommand('turn_on_member', async (op) => {
       const target = await this.computeCurrentTarget(config);
       const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
       const verifyFn = verifiesTarget
@@ -1285,30 +1604,29 @@ class CircadianLightGroupDevice extends Homey.Device {
         label: 'turn_on_member',
         verifyFn,
         isCurrent: op.isCurrent,
+        deferRetries: true,
       });
-      return await this.reportMemberTaskVerification(
+      return this.settleMemberCommand(
+        op,
         `turn_on_member[${item.name || item.id}]`,
         result,
         verifiesTarget ? 'on and at target after retries' : 'on after retries',
         { clearAlarmOnSuccess: false }
       );
-    } finally {
-      this.finishMemberCommand(op);
-    }
+    });
   }
 
   async onFlowTurnOnAllMembers() {
     const config = this.getConfig();
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
-    if (members.length === 0) return true;
+    if (members.length === 0) return createOperationOutcome({ skipped: 'no-lights' });
 
     if (this.getCapabilityValue('clg_paused') === true) {
       this.debug(`turn_on_all_members: SKIPPED ${members.length} member(s) because clg_paused=true`);
-      return true;
+      return createOperationOutcome({ total: members.length, skipped: 'paused' });
     }
 
-    const op = this.beginMemberCommand('turn_on_all_members');
-    try {
+    return this.runMemberCommand('turn_on_all_members', async (op) => {
       const target = await this.computeCurrentTarget(config);
       const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
       const verifyFn = verifiesTarget
@@ -1320,35 +1638,33 @@ class CircadianLightGroupDevice extends Homey.Device {
         label: 'turn_on_all_members',
         verifyFn,
         isCurrent: op.isCurrent,
+        deferRetries: true,
       });
-      return await this.reportMemberTaskVerification(
+      return this.settleMemberCommand(
+        op,
         'turn_on_all_members',
         result,
         verifiesTarget ? 'on and at target after retries' : 'on after retries'
       );
-    } finally {
-      this.finishMemberCommand(op);
-    }
+    });
   }
 
   async onFlowTurnOffAllMembers() {
     const config = this.getConfig();
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
-    if (members.length === 0) return true;
+    if (members.length === 0) return createOperationOutcome({ skipped: 'no-lights' });
 
-    const op = this.beginMemberCommand('turn_off_all_members');
-    try {
+    return this.runMemberCommand('turn_off_all_members', async (op) => {
       const result = await this.runDeviceTasksParallel(members, async (item) => {
         await this.turnOffMember(item, op.isCurrent);
       }, {
         label: 'turn_off_all_members',
         verifyFn: (item) => this.verifyMemberOnoff(item, false),
         isCurrent: op.isCurrent,
+        deferRetries: true,
       });
-      return await this.reportMemberTaskVerification('turn_off_all_members', result, 'off after retries');
-    } finally {
-      this.finishMemberCommand(op);
-    }
+      return this.settleMemberCommand(op, 'turn_off_all_members', result, 'off after retries');
+    });
   }
 
   async computeCurrentTarget(config) {
@@ -1558,8 +1874,8 @@ class CircadianLightGroupDevice extends Homey.Device {
       forceRed: args.force_red === true,
       expiresAt,
     };
-    await this.applyCurrentProfile({ reason: 'flow-apply-state' });
-    return true;
+    // The card still counts as successful, as before; the outcome adds its tokens.
+    return withLegacyOk(await this.applyCurrentProfile({ reason: 'flow-apply-state' }), true);
   }
 
   async onFlowForceRedMode(args) {
@@ -1583,8 +1899,8 @@ class CircadianLightGroupDevice extends Homey.Device {
         }, duration * 60000);
       }
     }
-    await this.applyCurrentProfile({ reason: 'flow-force-red' });
-    return true;
+    // The card still counts as successful, as before; the outcome adds its tokens.
+    return withLegacyOk(await this.applyCurrentProfile({ reason: 'flow-force-red' }), true);
   }
 
   // ---- Flow condition handlers ----
@@ -1612,6 +1928,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     const wasPaused = this.getCapabilityValue('clg_paused') === true;
     this.pauseDebug(`flow pause args=${this.describePauseArgs(args)} durationMs=${ms} expiresAt=${expiresAt ? new Date(expiresAt).toISOString() : 'manual'} wasPaused=${wasPaused}`);
     this.clearPauseTimer();
+    this.stopRunningLightCommands('pause');
     await this.setCapabilityValue('clg_paused', true);
     await this.persistPauseState(expiresAt);
     if (!wasPaused) await this.firePauseTrigger(true);
@@ -1631,8 +1948,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     await this.setCapabilityValue('clg_paused', false);
     await this.clearPersistedPauseState();
     if (wasPaused) await this.firePauseTrigger(false);
-    await this.applyCurrentProfile({ reason: 'flow-resume' });
-    return true;
+    // The card still counts as successful, as before; the outcome adds its tokens.
+    return withLegacyOk(await this.applyCurrentProfile({ reason: 'flow-resume' }), true);
   }
 
   async onFlowSetExternalLux(args) {
@@ -1644,8 +1961,8 @@ class CircadianLightGroupDevice extends Homey.Device {
     const value = this.outdoorProvider.setExternalValue(lux, validMinutes, source);
 
     await this.setCapabilityValue('measure_outdoor_lux', value.outdoorComputedLux).catch(this.error);
-    await this.applyCurrentProfile({ reason: 'external-lux' });
-    return true;
+    // The card still counts as successful, as before; the outcome adds its tokens.
+    return withLegacyOk(await this.applyCurrentProfile({ reason: 'external-lux' }), true);
   }
 
   async onSettings({ newSettings, changedKeys }) {
@@ -1665,6 +1982,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   async onDeleted() {
     this.deleted = true;
+    this.stopRunningLightCommands('deleted');
     this.stopScheduler();
     this.clearPauseTimer();
     await this.teardownLuxWatchers();
@@ -1673,3 +1991,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 }
 
 module.exports = CircadianLightGroupDevice;
+module.exports.CARD_TIME_BUDGET_MS = CARD_TIME_BUDGET_MS;
+module.exports.createOperationOutcome = createOperationOutcome;
+module.exports.isOperationOutcome = isOperationOutcome;
+module.exports.toOperationOutcome = toOperationOutcome;

@@ -760,5 +760,20 @@
       "not_found": "Could not find this card in a saved Flow. Save the Flow and run it again.",
       "copied": "This card has been copied, so the same id is in several Flows. Open the card in the copy and pick \"this Flow\" again. Flows:"
     }
+  },
+  "circadian_outcome": {
+    "confirmed": "All lights confirmed ({total}).",
+    "done": "Done.",
+    "pending": "Continued before everything was confirmed. Lights still being retried in the background ({count} of {total}): {names}.",
+    "failed": "Lights that did not respond ({count} of {total}): {names}.",
+    "not_confirmed": "Not every light could be confirmed.",
+    "paused": "The group is paused, so the lights were not changed.",
+    "off": "The group is off, so the lights were not changed.",
+    "no_lights": "The group has no enabled lights.",
+    "deferred": "An on/off command is still running. The profile is applied when it has finished.",
+    "superseded": "A newer command took over before this one had finished.",
+    "budget": "Still running after {seconds} seconds. The Flow continued and the rest goes on in the background.",
+    "deleted": "The group has been deleted.",
+    "group_failed": "did not finish."
   }
 }

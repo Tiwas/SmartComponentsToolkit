@@ -232,7 +232,7 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
                 <li><span class="badge-action">Then</span> <strong>Pause until time</strong> — a wall-clock time (HH:MM) in your Homey's time zone.</li>
                 <li><span class="badge-action">Then</span> <strong>Pause until solar event</strong> — pick from the 14 solar events plus an offset.</li>
                 <li><span class="badge-action">Then</span> <strong>Resume</strong>.</li>
-                <li><span class="badge-action">Then</span> <strong>Turn on / Turn off / Toggle</strong>.</li>
+                <li><span class="badge-action">Then</span> <strong>Turn on / Turn off / Toggle and report the result</strong> <em>(Advanced Flow)</em> — the same as the device's own On, Off and Toggle cards, but with the result tokens described below. The device's own cards cannot return tokens.</li>
                 <li><span class="badge-action">Then</span> <strong>Set red threshold</strong> — permanently changes the configured threshold.</li>
                 <li><span class="badge-action">Then</span> <strong>Apply temporary state</strong> — push specific dim, temperature, saturation values (any subset) and an optional "force red" flag. Values are temporary and the next scheduler tick (~2 min) restores calculated values. Useful for testing or quick "moods".</li>
                 <li><span class="badge-action">Then</span> <strong>Force red mode</strong> — on / off / clear, with an optional duration.</li>
@@ -241,7 +241,21 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
                 <li><span class="badge-action">Then</span> <strong>Turn on all members</strong> — switch every enabled light in the group on at the current circadian dim/temperature.</li>
                 <li><span class="badge-action">Then</span> <strong>Turn off all members</strong> — switch every enabled light in the group off.</li>
             </ul>
-            <p class="text-gray-700 text-sm mt-4">The multi-device actions and the scheduler push to up to 5 lights in parallel, verify on/off state afterwards, and serially retry transient Z-Wave / Zigbee timeouts. If a conflicting command arrives (e.g. an "all off" right after an "all on"), the new command supersedes the running one — no fighting between flows.</p>
+            <p class="text-gray-700 text-sm mt-4">The multi-device actions and the scheduler push to up to 5 lights in parallel, verify the result afterwards, and retry lights that did not confirm, for example after a Z-Wave / Zigbee timeout. If a conflicting command arrives (e.g. an "all off" right after an "all on"), the new command supersedes the running one — no fighting between flows.</p>
+
+            <h3 class="text-lg font-semibold text-blue-700 mt-4 mb-3">Retries after the card, and the result tokens</h3>
+            <p class="text-gray-700 text-sm mb-2">Homey stops an app's Flow card after 60 seconds, and the Flow then stops at that card. A light that does not answer can take up to 10 seconds per attempt, so a group with a few dead lights could come close to that limit. To keep the Flow moving:</p>
+            <ul class="list-disc ml-6 text-gray-700 space-y-1 text-sm mb-2">
+                <li>A card sends every light its commands, checks each light once, and then lets the Flow continue. This usually takes a few seconds.</li>
+                <li>If a light has not confirmed yet, the card checks once more after 1.5 seconds. Lights that still have not confirmed are retried in the background. A newer command for the same group stops those retries.</li>
+                <li>If a card is still busy after 50 seconds, the Flow continues anyway and the rest finishes in the background.</li>
+                <li>Lights that still fail after the retries are reported by the <strong>Error occurred</strong> trigger, as before.</li>
+            </ul>
+            <p class="text-gray-700 text-sm mb-2">The cards Turn on / Turn off / Toggle and report the result give two tokens. Homey shows THEN cards with tokens only in Advanced Flows, so these three cards are Advanced Flow only; the other Circadian cards have no tokens and still work in standard Flows.</p>
+            <ul class="list-disc ml-6 text-gray-700 space-y-1 text-sm">
+                <li><strong>All lights confirmed</strong> (yes/no) — yes when every light had confirmed before the Flow continued, or when nothing had to change (for example because the group is paused). No when the Flow continued while lights were still being retried, or when a light did not respond.</li>
+                <li><strong>Status</strong> (text) — what happened, for example <em>Continued before everything was confirmed. Lights still being retried in the background (1 of 11): Dining room bulb.</em> For a Circadian Light Group Collection the text has one sentence per group when the groups ended differently.</li>
+            </ul>
         </div>
 
         <div class="card">
@@ -275,6 +289,7 @@ THEN: Send notification "Wind down — house is in night mode"</pre>
             <ul class="list-disc ml-6 text-gray-700 space-y-2 text-sm">
                 <li><strong>A light isn't included in the picker</strong> — only devices with <code class="code-inline">class === 'light'</code> show up. Some installations classify smart bulbs incorrectly. You can manually add the light by editing the JSON in the device's settings.</li>
                 <li><strong>Lights don't change</strong> — make sure the group's on/off is on, that <em>clg_paused</em> is false, and that the lights themselves are on. The group only adjusts already-on lights.</li>
+                <li><strong>"All lights confirmed" is often no</strong> — the Status token names the lights that do not answer. A light that is unplugged or out of range slows every command down; untick <em>Enabled</em> for that light in the group's light settings until it works again.</li>
                 <li><strong>Polar latitudes</strong> — at extreme latitudes, sunrise/sunset may not occur for parts of the year. Each solar anchor has a polar fallback time used when the event doesn't happen today.</li>
                 <li><strong>Lux mode doesn't trigger</strong> — the anchor only triggers on a true crossing (previous reading on one side of the threshold, current reading on the other). Until the first crossing of the day, the fallback time is used. The first sensor reading after a restart is used as baseline only — no crossing is detected for it.</li>
                 <li><strong>Red mode kicks in earlier/later than expected</strong> — adjust the red threshold slider. With default profile (evening 0.25, night 0), threshold 0.2 gives red in late night. Raise the threshold to make red appear earlier in the evening.</li>

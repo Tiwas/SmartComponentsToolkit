@@ -940,7 +940,10 @@ class CircadianLightGroupDevice extends Homey.Device {
         this.error(`apply[${reason}] background retry failed:`, error);
         return outcomeWithPendingFailed(result);
       });
-    return outcomeFromTaskResult(result, { ok: true, background });
+    // Failures that are not retried are final already; only the pending
+    // lights wait for the background result.
+    const finalFailures = result.failed.filter(res => !isTransientDeviceError(res.error));
+    return outcomeFromTaskResult(result, { ok: finalFailures.length === 0, background });
   }
 
   async requestExternalOutdoorLightIfNeeded(config) {

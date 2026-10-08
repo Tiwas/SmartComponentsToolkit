@@ -1169,6 +1169,45 @@ describe('CircadianLightGroupDevice retries after the Flow card', () => {
     expect(command.isCurrent()).toBe(false);
   });
 
+  test('a profile update reports a failure that is already final while other lights are retried', async () => {
+    const device = createDeviceHarness();
+    const broken = { id: 'light-1', name: 'Kitchen' };
+    const slow = { id: 'light-2', name: 'Hall' };
+    const background = deferredPromise();
+
+    device.error = jest.fn();
+    device.previousPhase = null;
+    device.previousRedMode = null;
+    device.getConfig = jest.fn(() => ({ profile: {}, devices: [broken, slow] }));
+    device.outdoorProvider = {
+      getOutdoorLight: jest.fn().mockResolvedValue({ outdoorComputedLux: 100, source: 'test' }),
+    };
+    device.getGeo = jest.fn(() => ({}));
+    device.getTimeZone = jest.fn(() => 'Europe/Oslo');
+    device.getStoreValue = jest.fn().mockResolvedValue({});
+    device.getCapabilityValue = jest.fn(capability => capability === 'onoff');
+    device.setCapabilityValue = jest.fn().mockResolvedValue(undefined);
+    device.homey = { flow: { getDeviceTriggerCard: jest.fn(() => ({ trigger: jest.fn().mockResolvedValue(undefined) })) } };
+    device.runDeviceTasksParallel = jest.fn().mockResolvedValue({
+      ok: [],
+      failed: [{ item: broken, ok: false, retryable: false, error: new Error('Capability not setable') }],
+      pending: [{ item: slow, ok: false, retryable: true, error: new Error('Timeout after 10000ms') }],
+      superseded: false,
+      background: background.promise,
+    });
+
+    const outcome = await device._applyCurrentProfileImpl('flow', { isCurrent: () => true });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      ok: false,
+      completed: false,
+      failed: ['Kitchen'],
+      pending: ['Hall'],
+    }));
+    background.resolve({ ok: [], failed: [], superseded: true });
+    await outcome.background;
+  });
+
   test('resume still counts as successful when the group is off', async () => {
     const device = createPauseHarness(true);
     device.applyCurrentProfile = jest.fn().mockResolvedValue(

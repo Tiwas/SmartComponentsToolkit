@@ -70,8 +70,8 @@ describe('CircadianLightGroupCollectionDevice scheduling', () => {
     expect(settled).toBe(false);
     expect(device.applyCurrentProfile).not.toHaveBeenCalled();
 
-    membersFinished.resolve({ ok: [{ item: { id: 'group-1' } }], failed: [] });
-    await expect(resume).resolves.toBe(true);
+    membersFinished.resolve({ ok: [{ ok: true, item: { id: 'group-1', name: 'Group 1' } }], failed: [] });
+    await expect(resume).resolves.toEqual(expect.objectContaining({ ok: true, completed: true }));
     expect(settled).toBe(true);
   });
 
@@ -184,5 +184,203 @@ describe('CircadianLightGroupCollectionDevice scheduling', () => {
     await expect(failed).rejects.toThrow('boom');
     await expect(succeeding).resolves.toBe(true);
     expect(order).toEqual(['failed', 'succeeding']);
+  });
+});
+
+describe('CircadianLightGroupCollectionDevice results after the Flow card', () => {
+  const { createOperationOutcome } = CircadianLightGroupCollectionDevice;
+
+  function createFanOutHarness(groups) {
+    const device = createCollectionHarness();
+    device.currentOpGen = 0;
+    device.setCapabilityValue = jest.fn().mockResolvedValue(undefined);
+    device.triggerError = jest.fn().mockResolvedValue(undefined);
+    device.resolveMemberEntries = jest.fn().mockResolvedValue(groups.map(group => ({
+      id: group.id,
+      name: group.name,
+      item: { id: group.id, name: group.name },
+      memberDevice: group.device,
+    })));
+    return device;
+  }
+
+  test('returns after the first pass of every group and reports group failures when the retries finish', async () => {
+    const mainRetries = deferred();
+    const main = {
+      onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({
+        total: 11,
+        pending: ['Dining room bulb'],
+        background: mainRetries.promise,
+      })),
+    };
+    const bedroom = {
+      onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({ total: 5 })),
+    };
+    const device = createFanOutHarness([
+      { id: 'main', name: 'Main', device: main },
+      { id: 'bedroom', name: 'Bedroom', device: bedroom },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('turn_on', group => group.onFlowTurnOn());
+
+    expect(outcome).toEqual(expect.objectContaining({
+      completed: false,
+      total: 16,
+      pending: ['Dining room bulb'],
+    }));
+    expect(device.setCapabilityValue).not.toHaveBeenCalled();
+    expect(device.describeOperationOutcome(outcome)).toBe(
+      'Main: Continued before everything was confirmed. Lights still being retried in the background (1 of 11): Dining room bulb. '
+      + 'Bedroom: All lights confirmed (5).'
+    );
+
+    mainRetries.resolve(createOperationOutcome({ ok: false, total: 11, failed: ['Dining room bulb'] }));
+    const final = await outcome.background;
+
+    expect(final).toEqual(expect.objectContaining({ completed: false, ok: false, failed: ['Dining room bulb'] }));
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', true);
+    expect(device.triggerError).toHaveBeenCalledWith('turn_on: 1 group(s) had unresponsive members: Main');
+  });
+
+  test('starts the next queued operation while the previous one still retries in the background', async () => {
+    const device = createCollectionHarness();
+    const retries = deferred();
+    const started = [];
+    device.setCollectionOnoff = jest.fn().mockResolvedValue(undefined);
+    device.runAwaitedMemberGroups = jest.fn(async (label) => {
+      started.push(label);
+      return label === 'turn_on'
+        ? createOperationOutcome({ total: 11, pending: ['Hall'], background: retries.promise })
+        : createOperationOutcome({ total: 11 });
+    });
+
+    const turnOn = await device.onFlowTurnOn();
+    const turnOff = await device.onFlowTurnOff();
+
+    expect(turnOn).toEqual(expect.objectContaining({ completed: false, pending: ['Hall'] }));
+    expect(turnOff).toEqual(expect.objectContaining({ completed: true }));
+    expect(started).toEqual(['turn_on', 'turn_off']);
+    retries.resolve(createOperationOutcome({ superseded: true }));
+  });
+
+  test('reports at once and sums the lights when no group retries in the background', async () => {
+    const device = createFanOutHarness([
+      { id: 'main', name: 'Main', device: { onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({ total: 11 })) } },
+      { id: 'bedroom', name: 'Bedroom', device: { onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({ total: 5 })) } },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('turn_on', group => group.onFlowTurnOn());
+
+    expect(outcome).toEqual(expect.objectContaining({ completed: true, ok: true, total: 16, background: null }));
+    expect(device.describeOperationOutcome(outcome)).toBe('All lights confirmed (16).');
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+    expect(device.triggerError).not.toHaveBeenCalled();
+  });
+
+  test('an older operation finishing its retries late does not overwrite a newer report', async () => {
+    const oldRetries = deferred();
+    const main = {
+      onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({
+        total: 11,
+        pending: ['Hall'],
+        background: oldRetries.promise,
+      })),
+      onFlowTurnOff: jest.fn().mockResolvedValue(createOperationOutcome({ ok: false, total: 11, failed: ['Desk'] })),
+    };
+    const device = createFanOutHarness([{ id: 'main', name: 'Main', device: main }]);
+
+    const turnOn = await device.runAwaitedMemberGroups('turn_on', group => group.onFlowTurnOn());
+    await device.runAwaitedMemberGroups('turn_off', group => group.onFlowTurnOff());
+    expect(device.setCapabilityValue).toHaveBeenLastCalledWith('alarm_config', true);
+
+    oldRetries.resolve(createOperationOutcome({ total: 11, superseded: true }));
+    await turnOn.background;
+
+    expect(device.setCapabilityValue).toHaveBeenCalledTimes(1);
+    expect(device.setCapabilityValue).toHaveBeenLastCalledWith('alarm_config', true);
+    expect(device.triggerError).toHaveBeenCalledTimes(1);
+  });
+
+  test('an older operation whose retries finish while a newer one is still running does not report', async () => {
+    const oldRetries = deferred();
+    const newFirstPass = deferred();
+    const main = {
+      onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({
+        total: 11,
+        pending: ['Hall'],
+        background: oldRetries.promise,
+      })),
+      onFlowTurnOff: jest.fn(() => newFirstPass.promise),
+    };
+    const device = createFanOutHarness([{ id: 'main', name: 'Main', device: main }]);
+
+    const turnOn = await device.runAwaitedMemberGroups('turn_on', group => group.onFlowTurnOn());
+    const turnOff = device.runAwaitedMemberGroups('turn_off', group => group.onFlowTurnOff());
+    await flushAsyncWork();
+
+    oldRetries.resolve(createOperationOutcome({ ok: false, total: 11, failed: ['Hall'] }));
+    await turnOn.background;
+    expect(device.setCapabilityValue).not.toHaveBeenCalled();
+    expect(device.triggerError).not.toHaveBeenCalled();
+
+    newFirstPass.resolve(createOperationOutcome({ total: 11 }));
+    await turnOff;
+    expect(device.setCapabilityValue).toHaveBeenCalledTimes(1);
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+  });
+
+  test.each([
+    ['postponed', { ok: false, skipped: 'deferred' }],
+    ['taken over by a newer command', { ok: false, total: 11, superseded: true }],
+  ])('a profile update a group %s is not reported as a failed group', async (description, groupOutcome) => {
+    const device = createFanOutHarness([
+      {
+        id: 'main',
+        name: 'Main',
+        device: { applyCurrentProfile: jest.fn().mockResolvedValue(createOperationOutcome(groupOutcome)) },
+      },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('apply_flow', group => group.applyCurrentProfile());
+
+    expect(outcome).toEqual(expect.objectContaining({ ok: true, completed: false }));
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+    expect(device.triggerError).not.toHaveBeenCalled();
+  });
+
+  test('a group whose background retries are taken over is not reported once they finish', async () => {
+    const retries = deferred();
+    const device = createFanOutHarness([
+      {
+        id: 'main',
+        name: 'Main',
+        device: {
+          applyCurrentProfile: jest.fn().mockResolvedValue(createOperationOutcome({
+            total: 11,
+            pending: ['Hall'],
+            background: retries.promise,
+          })),
+        },
+      },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('apply_flow', group => group.applyCurrentProfile());
+    retries.resolve(createOperationOutcome({ ok: false, total: 11, superseded: true }));
+    await outcome.background;
+
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+    expect(device.triggerError).not.toHaveBeenCalled();
+  });
+
+  test('names a group that could not run in the error message', async () => {
+    const device = createFanOutHarness([
+      { id: 'main', name: 'Main', device: null },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('turn_off', group => group.onFlowTurnOff());
+
+    expect(outcome).toEqual(expect.objectContaining({ completed: false, ok: false }));
+    expect(device.describeOperationOutcome(outcome)).toBe('Main: did not finish.');
+    expect(device.triggerError).toHaveBeenCalledWith('turn_off: 1 group(s) had unresponsive members: Main');
   });
 });

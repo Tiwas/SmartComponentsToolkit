@@ -1,5 +1,57 @@
 # Worklog
 
+## 2026-10-08 — Circadian Light Group and the 60 s Flow card limit (investigation)
+
+### Requested
+- Lars suspected Homey's 60 s Flow card limit is behind the Circadian Light Group problems. He asked for a check on his Homey and for proposed fixes, and suggested moving the retry logic out of the card into the background.
+
+### Findings
+- Lars's "All on - Toolbox" Flow uses the Circadian Light Group **Collection** (`clg_is_paused` → `clg_resume` → the device's own On card). "All on (flood)" pauses the Collection for 12 h, and "All off (actions)" uses its Off card. The Collection fans out to "Circadian Light Group" (11 lights) and "CLG (soverom)" (5 lights).
+- Since v1.10.25 the Collection cards stay pending until every member group has finished its first pass, verification, a reduced parallel retry and a final serial retry (`runCollectionOperation` → `runAwaitedMemberGroups` → each group's `runDeviceTasksParallel`). The On card goes through the `onoff` capability listener, which awaits the same work.
+- Time per light per pass: up to 10 s for a write to a light that does not answer (homey-api `DEFAULT_TIMEOUT`), about 1.4 s for a Z-Wave `TRANSMIT_COMPLETE_NO_ACK` (log from 2026-07-02), up to 2.5 s waiting for the on acknowledgement, and 150 ms after each write. Every light that is not verified runs through all three passes.
+- Three member lights do not answer: "Spisestue: Tunable White Bulb (E27)" (last update 6 Oct), "Soverom: Nattbord v" (last update 24 Feb) and "Smart Energy Illuminator" (dim last updated 24 Jul). Since tonight's "All on", the main group logs "member update failed" on every 2-minute timer.
+- Tonight's "All on" (20:16 local time) included a resume and two rounds of verification with retries. The first light went on at 20:16:06.8. The main group's last "2 member(s) could not be verified … after retries" came at 20:16:59.960, and the Collection's `onoff` was recorded at 20:16:59.974, when its listener finished. The whole sequence was about 53 s. The diagnostics report could not tell which card started each step.
+- `clg_apply_now` measured with `runFlowCardAction` (Homey's `elapsedTime`): Collection 7.0 s, main group 6.2 s, bedroom group 1.0 s. A plain profile update is far below the limit. The long cases are turn-on and resume with verification and retries.
+- When Homey stops a card at 60 s, the Flow does not follow that card's outputs. In "All on - Toolbox", a `clg_resume` that times out would stop the Collection On card and the other two lights after it. The app's own work goes on in the background.
+
+### Decision
+- Lars agreed to move the retries out of the card, asked for a yes/no token and a text token that say what happened when the Flow continued before everything was done, and suggested sending every command first and collecting the retry information afterwards. For on/off he chose to bring back the hidden `clg_turn_on`/`clg_turn_off`/`clg_toggle` cards with tokens, because the device's own On/Off cards cannot return tokens.
+
+### Implemented (branch `clg-background-retries`)
+- `runDeviceTasksParallel` has a `deferRetries` option. It returns after the first parallel pass and one verification, lists unconfirmed lights in `pending`, and runs the reduced parallel retry and final serial retry in `background`. With a verify step, unconfirmed lights are checked once more after 1.5 s before it returns, so a light that reports late is neither listed as unconfirmed nor written twice. A newer command stops the retries through the operation generation, as before.
+- Member on/off commands (`onFlowTurnOnAllMembers`, `onFlowTurnOffAllMembers`, `onFlowTurnOnMember`) and profile updates use it. A member command stays active until its background retries finish, so the scheduler still waits. Verification, `alarm_config`, `clg_error_occurred` and `clg_target_changed` are reported when the retries finish, with the same messages as before.
+- `runWithinCardTimeBudget` (50 s) wraps every Circadian action card and the `onoff`/`clg_paused` capability listeners. Work still running after that goes on in the background and is logged; an error before the budget still fails the card.
+- Operations return an outcome (`completed`, `ok`, `total`, `pending`, `failed`, `skipped`, `superseded`, `budgetExceeded`, `background`, `groups`). `ok` keeps each operation's old boolean, so the Collection reports group errors exactly as before; cards without tokens still return that boolean.
+- `clg_turn_on`, `clg_turn_off` and `clg_toggle` return the tokens `completed` ("All lights confirmed", yes/no) and `status` (text). They are no longer deprecated and are titled "… and report the result" in all 11 languages, with an English and Norwegian hint. The status texts are under `circadian_outcome` in all 11 locales (Norwegian translated, the others English).
+- Collection: `runAwaitedMemberGroups` merges the groups' outcomes (one sentence per group when they ended differently) and reports group failures when every group's background retries have finished. The Collection queue is released when the card's part is done. The old group error message listed `undefined` instead of group names; it now names the groups.
+- Docs: `docs/docs/circadian-light-group.html` (retries after the card, the tokens, the re-enabled cards, a troubleshooting entry) and `PROJECT_DOCUMENTATION.md` (section 7).
+- Companion tool `docs/tools/clg-editor.html`: the config schema did not change, so it needs no update.
+
+### Verification
+- Read-only checks on Lars's New Homey before the change (Homey MCP, API playground in Chrome). The only card run was `clg_apply_now`, which does the same as the 2-minute timer.
+- Jest: 24 suites / 400 tests pass. New tests cover the background retries (late report without a second write, a newer command stopping them, unchanged behaviour without `deferRetries`), a member command staying active until its retries finish, the profile update's reporting after its retries, the time budget (finished in time, past the budget, failing after it, failing before it), the status texts and translation, the Collection merge and its error reporting, and that every card with tokens in its definition returns them.
+- `npm run test:package`: publish-level validation passes; the composed manifest has the tokens on the nine cards and `clg_turn_on`/`clg_turn_off`/`clg_toggle` without `deprecated`.
+- Not yet tested live on the Homey.
+
+### Review (local code review, high effort) and fixes
+- Tokens on existing cards: the first version also gave tokens to `clg_apply_now`, `clg_resume`, `clg_turn_on_member`, `clg_apply_state`, `clg_force_red_mode` and `clg_set_external_lux`. Homey shows THEN cards with tokens only in Advanced Flows (found with `flow_whoami` in 1.10.33), so these cards would have left standard Flows. They are back to their definitions on `main`. Only the three re-enabled on/off cards have tokens, and a driver test checks the cards used in standard Flows.
+- A command that a newer one took over during the final serial retry still reported its result: an alarm, an error trigger and a Collection group error. `runRetries` now checks for a newer command after the last pass as well.
+- The settle check ran only in the background, so the card's tokens could list lights that were only slow to report. The card now checks unconfirmed lights once more after 1.5 s before it returns. A card waits that extra 1.5 s only when a light has not confirmed.
+- Profile cards that arrive while on/off retries run are applied when the retries finish. This is unchanged and intended: the order is kept, and the total delay matches the old in-card retries. It is described in the PR.
+- The time limit for capability listeners is not verified. The On card returns after the first pass, which normally takes seconds, so it stays far below either limit. Not changed.
+- Clean-up: `runMemberCommand` holds the begin/settle/finish steps of the three member commands, and `outcomeWithPendingFailed` builds the fallback outcome once.
+- New tests: a late report confirmed before the card returns, supersession during the settle check, the reduced retry and the final serial retry, the Collection queue starting the next operation while retries run, and the `onoff`/`clg_paused` listeners going through the time budget.
+- Jest: 24 suites / 405 tests pass. `npm run test:package` passes.
+
+### Codex review (PR #72, first commit) and fixes
+- P2: an older Collection operation whose background retries finished after a newer operation had reported could clear the newer operation's alarm. Only the newest Collection operation reports now (`collectionReportGen`).
+- P2: a Collection "Apply now" during a member group's on/off retries returns `skipped: 'deferred'` from that group, and that counted as a failed group, which set the alarm and fired "unresponsive members". A deferred profile update is no longer a failed group (`isFailedGroup`).
+- Two new Collection tests. Jest: 24 suites / 407 tests pass.
+- Second Codex review (`d54c12f`), P2: a member group's profile update that the group's own scheduler or a card run directly on the group took over returns `ok: false, superseded: true`. That counted as a failed group and set the Collection alarm. Before this change, a Collection "Apply now" taken over in the same way was also reported, but with background retries it happens more often. A superseded group outcome is no longer a failed group. Three new tests; Jest: 24 suites / 409 tests pass.
+- Third Codex review (`b298bb7`), P2: `collectionReportGen` went up only after the new operation's first pass had finished. An older operation whose retries finished in that window could still report. The number is now taken when the operation starts, and the first-pass report checks it too. New test; Jest: 24 suites / 410 tests pass.
+- Fourth Codex review (`51a1d04`), P2: pausing the group did not stop turn-on retries that were running in the background, so a retry could turn a light on after the pause. Pausing, through the card or the capability, now takes over the running operation (`stopRunningLightCommands`). Deleting the group does the same, so retries do not keep writing to its lights. Three new tests; Jest: 24 suites / 413 tests pass.
+- Fifth Codex review (`5a1d4b5`), P2: when a profile update had a failure that is already final and also lights still being retried, the first result said `ok: true` and hid that failure, so a Collection "Apply now" no longer reported it as before. The first result's `ok` now counts the failures that are not retried. New test; Jest: 24 suites / 414 tests pass.
+
 ## 2026-10-05 — Test v1.10.34 released
 
 ### Implemented

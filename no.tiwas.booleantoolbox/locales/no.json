@@ -761,5 +761,20 @@
       "not_found": "Fant ikke dette kortet i en lagret flow. Lagre flowen og kjør den på nytt.",
       "copied": "Dette kortet er kopiert, så samme id finnes i flere flows. Åpne kortet i kopien og velg «denne flowen» på nytt. Flows:"
     }
+  },
+  "circadian_outcome": {
+    "confirmed": "Alle lys bekreftet ({total}).",
+    "done": "Ferdig.",
+    "pending": "Gikk videre før alt var bekreftet. Lys som fortsatt prøves på nytt i bakgrunnen ({count} av {total}): {names}.",
+    "failed": "Lys som ikke svarte ({count} av {total}): {names}.",
+    "not_confirmed": "Ikke alle lys kunne bekreftes.",
+    "paused": "Gruppen er satt på pause, så lysene ble ikke endret.",
+    "off": "Gruppen er av, så lysene ble ikke endret.",
+    "no_lights": "Gruppen har ingen aktive lys.",
+    "deferred": "En av/på-kommando pågår fortsatt. Profilen brukes når den er ferdig.",
+    "superseded": "En nyere kommando tok over før denne var ferdig.",
+    "budget": "Pågår fortsatt etter {seconds} sekunder. Flowen gikk videre, og resten fortsetter i bakgrunnen.",
+    "deleted": "Gruppen er slettet.",
+    "group_failed": "ble ikke ferdig."
   }
 }

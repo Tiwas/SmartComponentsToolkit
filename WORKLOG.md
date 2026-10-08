@@ -1,5 +1,23 @@
 # Worklog
 
+## 2026-10-08 — Release prep for test v1.10.35
+
+### Requested
+- Lars asked for a review of the Circadian change. Once it passed, he asked for it to be installed on his Homey with `homey app install`, released as a new test version, and the community post Markdown file updated.
+
+### Implemented
+- Version 1.10.35 (`homey app version`, `npm version`), with the store changelog in English and Norwegian linking to the new "Retries after the card" section of the Circadian Light Group guide. That heading now has the anchor `#retries`.
+- `CHANGELOG.md`: 1.10.35 section. `README.md`: summary and the Circadian Light Group heading.
+- `HOMEY_COMMUNITY_LISTING.md`:
+  - The title and header say test v1.10.35.
+  - "What's new" has a v1.10.35 section with an example.
+  - The Circadian Light Group highlights and the action card list mention the "… and report the result" cards.
+- The forum post on community.homey.app is not changed; Lars posts it himself.
+
+### Verification
+- Jest: 24 suites / 414 tests pass. `npm run test:package`: publish-level validation passes.
+- Installed on Lars's New Homey with `homey app install` from this branch; its app folder is `main` plus the version bump. 1.10.35 is `running` (`devkit_install`), and all 11 app devices are available. The bedroom group's "Turn off and report the result" returned in 49 ms with `completed: true` and "All lights confirmed (5)."
+
 ## 2026-10-08 — Circadian Light Group and the 60 s Flow card limit (investigation)
 
 ### Requested
@@ -51,6 +69,16 @@
 - Third Codex review (`b298bb7`), P2: `collectionReportGen` went up only after the new operation's first pass had finished. An older operation whose retries finished in that window could still report. The number is now taken when the operation starts, and the first-pass report checks it too. New test; Jest: 24 suites / 410 tests pass.
 - Fourth Codex review (`51a1d04`), P2: pausing the group did not stop turn-on retries that were running in the background, so a retry could turn a light on after the pause. Pausing, through the card or the capability, now takes over the running operation (`stopRunningLightCommands`). Deleting the group does the same, so retries do not keep writing to its lights. Three new tests; Jest: 24 suites / 413 tests pass.
 - Fifth Codex review (`5a1d4b5`), P2: when a profile update had a failure that is already final and also lights still being retried, the first result said `ok: true` and hid that failure, so a Collection "Apply now" no longer reported it as before. The first result's `ok` now counts the failures that are not retried. New test; Jest: 24 suites / 414 tests pass.
+- Sixth review (`c0f91a4`): no findings, 👍.
+
+### Live test, replacement PR and merge
+- `homey app install` from the PR branch on Lars's New Homey. The first attempt failed with "Missing File" and left the app stopped from about 21:52 to 22:04 local time; the second attempt installed it. Afterwards the app was `running` (`devkit_install`), and all 11 app devices were available.
+- At 22:04 every light was off, so turn-on was not tested; it would have lit the whole house.
+  - The Collection's "Turn off and report the result" (`runFlowCardAction`) finished in 1.8 s with `completed: false`. Its status said: "Circadian Light Group: Continued before everything was confirmed. Lights still being retried in the background (1 of 11): Smart Energy Illuminator. CLG (soverom): All lights confirmed (5)."
+  - The bedroom group alone finished in 59 ms with `completed: true`.
+  - The diagnostics showed the background report ("1 Circadian member(s) could not be verified off after retries") about 20 s later.
+  - The Homey's language is English, so the English status text is right.
+- The message check failed on PR #72: five fix commits started with the review tool's name ("… review:"), and so did the PR description. History rewriting and force-pushing are not allowed in this setup. The content therefore went into one clean commit on a new branch (`git merge --squash`) as PR #73, and #72 was closed with a pointer. On #73 the automated review found no issues (👍) and the checks passed. Squash-merged as `a3bb701`.
 
 ## 2026-10-05 — Test v1.10.34 released
 

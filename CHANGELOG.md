@@ -6,6 +6,24 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.35] - October 2026 (Test channel)
+
+### Fixed
+- Circadian Light Group: a Flow no longer stops with "Timeout after 60000ms" at a Circadian card ([#73](https://github.com/Tiwas/SmartComponentsToolkit/pull/73)). Homey stops an app's Flow card after 60 seconds. With a few lights that did not answer, turning a group or Collection on could take almost that long, because the card waited for every retry.
+  - A card now lets the Flow continue once every light has its commands and has been checked, which usually takes a few seconds.
+  - Lights that have not confirmed are retried in the background, and no Circadian card waits more than 50 seconds.
+  - A newer command, or pausing or deleting the group, stops the retries.
+  - Lights that still fail are reported by the *Error occurred* trigger, as before.
+
+  See the [Circadian Light Group guide](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html#retries).
+- Circadian Light Group Collection: the error message for groups with unresponsive lights named `undefined`; it now names the groups. A profile update that a group postpones, or that a newer command takes over, no longer counts as a failure.
+
+### Added
+- *Turn on / Turn off / Toggle and report the result* (Then cards, Advanced Flow) for Circadian Light Groups and Collections. They do the same as the device's own On/Off/Toggle cards and return *All lights confirmed* (yes/no) and *Status* (text), for example "Continued before everything was confirmed. Lights still being retried in the background (1 of 11): Dining room bulb."
+
+### Changed
+- The next card in a Flow no longer waits for the retries of an on/off command. A profile card such as Resume or Apply temporary state that arrives while those retries run is applied when they finish.
+
 ## [1.10.34] - October 2026 (Test channel)
 
 ### Changed

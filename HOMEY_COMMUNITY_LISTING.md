@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.34 test - Flow name card, Circadian time fix]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.35 test - Circadian cards no longer time out, Flow name card]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.34
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.35
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,23 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.35 (test channel)
+
+- **Circadian Light Group: no more "Timeout after 60000ms".** Homey stops an app's Flow card after 60 seconds, and the rest of the Flow then never runs. With a few lights that don't answer (an unplugged bulb, a Z-Wave module out of range), turning a group or Collection on could take almost that long, because the card waited for every retry. Now the card lets the Flow continue as soon as every light has its commands and has been checked, usually within a few seconds. Lights that haven't confirmed are retried in the background, and no Circadian card waits more than 50 seconds.
+- **New: *Turn on / Turn off / Toggle and report the result*** (Then cards, Advanced Flow). They work like the device's own On/Off/Toggle cards and add two tags: *All lights confirmed* (yes/no) and *Status* (text), for example *"Continued before everything was confirmed. Lights still being retried in the background (1 of 11): Dining room bulb."*
+- **Retries stop when you change your mind:** a newer command, pausing the group or deleting it stops retries that are still running, so a retry never turns a light back on after you paused or switched off.
+- **Clearer Collection errors:** the error message for groups with unresponsive lights now names the groups (it said *undefined*).
+- **Tip:** a lamp that is unplugged slows every command down. Untick *Enabled* for it in the group's light settings until it works again; the *Status* tag tells you which lamps don't answer.
+
+```
+WHEN: Button "All on" pressed
+THEN: Turn on and report the result (Circadian Light Group Collection)
+AND:  All lights confirmed is no
+THEN: Create a notification with "Lights: [Status]"
+```
+
+<a href="https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html#retries" target="_blank">Circadian Light Group guide — retries and result tags</a>
 
 ### v1.10.34 (test channel)
 
@@ -160,10 +177,11 @@ Together they cover both sides: Flow Doctor shows how your Flows are wired, and 
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.34 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.35 is available on the test channel.
 
 ### Circadian Light Group highlights
 
+- **No more 60-second timeouts (v1.10.35).** Cards let the Flow continue once every light has its commands; lights that don't answer are retried in the background. *Turn on / Turn off / Toggle and report the result* (Advanced Flow) tell you whether every light confirmed.
 - **Local time and morning profile (v1.10.32).** The schedule follows your Homey's time zone instead of UTC. Mornings can have their own dim and temperature, and lux anchors stay intact when you edit the group.
 - **Device ID resolver (v1.10.16).** The app now captures Homey device IDs and names so <a href="https://tiwas.github.io/SmartComponentsToolkit/tools/flow-doctor.html" target="_blank">Flow Doctor</a> can resolve references to previously deleted devices.
 - **Parallel device writes (v1.10.7).** Multi-device flow actions and the scheduler push to up to 5 lights at the same time instead of one-after-another. A 16-light "turn on all" goes from minute-scale to seconds.
@@ -207,7 +225,7 @@ Choose how the device knows how bright it is outside:
 
 **Conditions**: is in phase, red mode active, is paused, is on.
 
-**Actions**: pause (sec/min/hour), pause until time, pause until solar event, resume, turn on/off/toggle, set red threshold, **apply temporary state** (override dim/temp/saturation/red — restored on next tick, perfect for testing or quick "moods"), **force red mode** (with optional duration), apply now, set outdoor lux, **turn on light at current circadian level** (pick any group member from dropdown), **turn on / off all members** (group-level convenience).
+**Actions**: pause (sec/min/hour), pause until time, pause until solar event, resume, turn on/off/toggle (also as **… and report the result** with *All lights confirmed* and *Status* tags, Advanced Flow), set red threshold, **apply temporary state** (override dim/temp/saturation/red — restored on next tick, perfect for testing or quick "moods"), **force red mode** (with optional duration), apply now, set outdoor lux, **turn on light at current circadian level** (pick any group member from dropdown), **turn on / off all members** (group-level convenience).
 
 <a href="https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html" target="_blank">→ Read full Circadian Light Group guide</a>
 

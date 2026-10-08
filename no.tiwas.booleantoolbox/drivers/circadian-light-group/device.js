@@ -346,6 +346,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     this.pauseDebug(`capability changed value=${value}`);
     this.clearPauseTimer();
     if (value === true) {
+      this.stopRunningLightCommands('pause');
       await this.persistPauseState(null);
     } else {
       await this.clearPersistedPauseState();
@@ -963,6 +964,13 @@ class CircadianLightGroupDevice extends Homey.Device {
       gen,
       isCurrent: () => this.currentOpGen === gen,
     };
+  }
+
+  // A newer operation makes every running one stop between writes, including
+  // retries that go on in the background after a card has returned. Pausing
+  // and deleting the group use this so a retry cannot change a light after it.
+  stopRunningLightCommands(label) {
+    this.acquireOp(label);
   }
 
   beginMemberCommand(label) {
@@ -1917,6 +1925,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     const wasPaused = this.getCapabilityValue('clg_paused') === true;
     this.pauseDebug(`flow pause args=${this.describePauseArgs(args)} durationMs=${ms} expiresAt=${expiresAt ? new Date(expiresAt).toISOString() : 'manual'} wasPaused=${wasPaused}`);
     this.clearPauseTimer();
+    this.stopRunningLightCommands('pause');
     await this.setCapabilityValue('clg_paused', true);
     await this.persistPauseState(expiresAt);
     if (!wasPaused) await this.firePauseTrigger(true);
@@ -1970,6 +1979,7 @@ class CircadianLightGroupDevice extends Homey.Device {
 
   async onDeleted() {
     this.deleted = true;
+    this.stopRunningLightCommands('deleted');
     this.stopScheduler();
     this.clearPauseTimer();
     await this.teardownLuxWatchers();

@@ -1144,6 +1144,31 @@ describe('CircadianLightGroupDevice retries after the Flow card', () => {
     expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
   });
 
+  test.each([
+    ['the Pause card', device => device.onFlowPause({ amount: 0, unit: 'minutes' })],
+    ['the paused capability', device => device.onPausedCapabilityChanged(true)],
+  ])('pausing through %s stops on/off retries still running in the background', async (description, pause) => {
+    const device = createPauseHarness(false);
+    device.currentOpGen = 0;
+    const command = device.beginMemberCommand('turn_on_all_members');
+
+    await pause(device);
+
+    expect(command.isCurrent()).toBe(false);
+  });
+
+  test('deleting the group stops on/off retries still running in the background', async () => {
+    const device = createDeviceHarness();
+    device.currentOpGen = 0;
+    device.teardownLuxWatchers = jest.fn().mockResolvedValue(undefined);
+    device.teardownMemberOnoffWatchers = jest.fn().mockResolvedValue(undefined);
+    const command = device.beginMemberCommand('turn_on_all_members');
+
+    await device.onDeleted();
+
+    expect(command.isCurrent()).toBe(false);
+  });
+
   test('resume still counts as successful when the group is off', async () => {
     const device = createPauseHarness(true);
     device.applyCurrentProfile = jest.fn().mockResolvedValue(

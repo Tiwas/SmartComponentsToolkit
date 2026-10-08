@@ -14,43 +14,5 @@
   "titleFormatted": {
     "en": "Resume circadian light group",
     "no": "Gjenoppta dognrytme-lysgruppe"
-  },
-  "tokens": [
-    {
-      "name": "completed",
-      "type": "boolean",
-      "title": {
-        "en": "All lights confirmed",
-        "no": "Alle lys bekreftet",
-        "da": "Alle lys bekræftet",
-        "sv": "Alla lampor bekräftade",
-        "de": "Alle Lampen bestätigt",
-        "nl": "Alle lampen bevestigd",
-        "fr": "Toutes les lampes confirmées",
-        "it": "Tutte le luci confermate",
-        "es": "Todas las luces confirmadas",
-        "fi": "Kaikki valot vahvistettu",
-        "pl": "Wszystkie światła potwierdzone"
-      },
-      "example": true
-    },
-    {
-      "name": "status",
-      "type": "string",
-      "title": {
-        "en": "Status",
-        "no": "Status",
-        "da": "Status",
-        "sv": "Status",
-        "de": "Status",
-        "nl": "Status",
-        "fr": "Statut",
-        "it": "Stato",
-        "es": "Estado",
-        "fi": "Tila",
-        "pl": "Status"
-      },
-      "example": "All lights confirmed (11)."
-    }
-  ]
+  }
 }

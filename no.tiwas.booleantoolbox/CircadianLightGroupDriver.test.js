@@ -59,8 +59,25 @@ describe('CircadianLightGroupDriver Flow card results', () => {
     }
 
     expect(actionIds).toEqual(expect.arrayContaining(['clg_turn_on', 'clg_turn_off', 'clg_toggle', 'clg_resume']));
-    ['clg_turn_on', 'clg_turn_off', 'clg_toggle', 'clg_resume', 'clg_apply_now'].forEach((id) => {
+    ['clg_turn_on', 'clg_turn_off', 'clg_toggle'].forEach((id) => {
       expect(readActionCard(id).tokens).toBeDefined();
+    });
+  });
+
+  test('cards that can be in standard Flows get no tokens, because Homey hides THEN cards with tokens there', () => {
+    [
+      'clg_apply_now',
+      'clg_resume',
+      'clg_turn_on_member',
+      'clg_apply_state',
+      'clg_force_red_mode',
+      'clg_set_external_lux',
+      'clg_pause',
+      'clg_pause_until_time',
+      'clg_pause_until_solar',
+      'clg_set_red_threshold',
+    ].forEach((id) => {
+      expect({ id, tokens: readActionCard(id).tokens }).toEqual({ id, tokens: undefined });
     });
   });
 });

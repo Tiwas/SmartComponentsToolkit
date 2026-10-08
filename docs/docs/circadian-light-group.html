@@ -227,12 +227,12 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
 
             <h3 class="text-lg font-semibold text-blue-700 mt-2 mb-3">Actions</h3>
             <ul class="text-gray-700 space-y-2 text-sm">
-                <li><span class="badge-action">Then</span> <strong>Apply now</strong> — recalculate and push values immediately. Returns the result tokens (see below).</li>
+                <li><span class="badge-action">Then</span> <strong>Apply now</strong> — recalculate and push values immediately.</li>
                 <li><span class="badge-action">Then</span> <strong>Pause</strong> — amount + unit (seconds / minutes / hours). Set 0 to pause until manually resumed.</li>
                 <li><span class="badge-action">Then</span> <strong>Pause until time</strong> — a wall-clock time (HH:MM) in your Homey's time zone.</li>
                 <li><span class="badge-action">Then</span> <strong>Pause until solar event</strong> — pick from the 14 solar events plus an offset.</li>
-                <li><span class="badge-action">Then</span> <strong>Resume</strong>. Returns the result tokens.</li>
-                <li><span class="badge-action">Then</span> <strong>Turn on / Turn off / Toggle and report the result</strong> — the same as the device's own On, Off and Toggle cards, but with the result tokens. The device's own cards cannot return tokens.</li>
+                <li><span class="badge-action">Then</span> <strong>Resume</strong>.</li>
+                <li><span class="badge-action">Then</span> <strong>Turn on / Turn off / Toggle and report the result</strong> <em>(Advanced Flow)</em> — the same as the device's own On, Off and Toggle cards, but with the result tokens described below. The device's own cards cannot return tokens.</li>
                 <li><span class="badge-action">Then</span> <strong>Set red threshold</strong> — permanently changes the configured threshold.</li>
                 <li><span class="badge-action">Then</span> <strong>Apply temporary state</strong> — push specific dim, temperature, saturation values (any subset) and an optional "force red" flag. Values are temporary and the next scheduler tick (~2 min) restores calculated values. Useful for testing or quick "moods".</li>
                 <li><span class="badge-action">Then</span> <strong>Force red mode</strong> — on / off / clear, with an optional duration.</li>
@@ -247,11 +247,11 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
             <p class="text-gray-700 text-sm mb-2">Homey stops an app's Flow card after 60 seconds, and the Flow then stops at that card. A light that does not answer can take up to 10 seconds per attempt, so a group with a few dead lights could come close to that limit. To keep the Flow moving:</p>
             <ul class="list-disc ml-6 text-gray-700 space-y-1 text-sm mb-2">
                 <li>A card sends every light its commands, checks each light once, and then lets the Flow continue. This usually takes a few seconds.</li>
-                <li>Lights that have not confirmed yet are checked again shortly after and retried in the background. A newer command for the same group stops those retries.</li>
+                <li>If a light has not confirmed yet, the card checks once more after 1.5 seconds. Lights that still have not confirmed are retried in the background. A newer command for the same group stops those retries.</li>
                 <li>If a card is still busy after 50 seconds, the Flow continues anyway and the rest finishes in the background.</li>
                 <li>Lights that still fail after the retries are reported by the <strong>Error occurred</strong> trigger, as before.</li>
             </ul>
-            <p class="text-gray-700 text-sm mb-2">Apply now, Resume, Turn on / Turn off / Toggle and report the result, Turn on light at current circadian level, Apply temporary state, Force red mode and Set outdoor lux return two tokens:</p>
+            <p class="text-gray-700 text-sm mb-2">The cards Turn on / Turn off / Toggle and report the result give two tokens. Homey shows THEN cards with tokens only in Advanced Flows, so these three cards are Advanced Flow only; the other Circadian cards have no tokens and still work in standard Flows.</p>
             <ul class="list-disc ml-6 text-gray-700 space-y-1 text-sm">
                 <li><strong>All lights confirmed</strong> (yes/no) — yes when every light had confirmed before the Flow continued, or when nothing had to change (for example because the group is paused). No when the Flow continued while lights were still being retried, or when a light did not respond.</li>
                 <li><strong>Status</strong> (text) — what happened, for example <em>Continued before everything was confirmed. Lights still being retried in the background (1 of 11): Dining room bulb.</em> For a Circadian Light Group Collection the text has one sentence per group when the groups ended differently.</li>

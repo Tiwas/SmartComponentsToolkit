@@ -242,6 +242,27 @@ describe('CircadianLightGroupCollectionDevice results after the Flow card', () =
     expect(device.triggerError).toHaveBeenCalledWith('turn_on: 1 group(s) had unresponsive members: Main');
   });
 
+  test('starts the next queued operation while the previous one still retries in the background', async () => {
+    const device = createCollectionHarness();
+    const retries = deferred();
+    const started = [];
+    device.setCollectionOnoff = jest.fn().mockResolvedValue(undefined);
+    device.runAwaitedMemberGroups = jest.fn(async (label) => {
+      started.push(label);
+      return label === 'turn_on'
+        ? createOperationOutcome({ total: 11, pending: ['Hall'], background: retries.promise })
+        : createOperationOutcome({ total: 11 });
+    });
+
+    const turnOn = await device.onFlowTurnOn();
+    const turnOff = await device.onFlowTurnOff();
+
+    expect(turnOn).toEqual(expect.objectContaining({ completed: false, pending: ['Hall'] }));
+    expect(turnOff).toEqual(expect.objectContaining({ completed: true }));
+    expect(started).toEqual(['turn_on', 'turn_off']);
+    retries.resolve(createOperationOutcome({ superseded: true }));
+  });
+
   test('reports at once and sums the lights when no group retries in the background', async () => {
     const device = createFanOutHarness([
       { id: 'main', name: 'Main', device: { onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({ total: 11 })) } },

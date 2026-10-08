@@ -964,19 +964,19 @@ describe('CircadianLightGroupDevice retries after the Flow card', () => {
     });
     const verifyFn = jest.fn(async item => confirmed.has(item.id));
 
-    const result = await device.runDeviceTasksParallel(items, taskFn, {
+    const pass = device.runDeviceTasksParallel(items, taskFn, {
       label: 'turn_on_all_members',
       verifyFn,
       deferRetries: true,
     });
+    await jest.advanceTimersByTimeAsync(1500);
+    const result = await pass;
 
     expect(result.ok.map(res => res.item.id)).toEqual(['light-1']);
     expect(result.pending.map(res => res.item.id)).toEqual(['light-2']);
     expect(result.failed).toEqual([]);
     expect(result.background).toBeInstanceOf(Promise);
-    expect(taskFn).toHaveBeenCalledTimes(2);
 
-    await jest.advanceTimersByTimeAsync(1500);
     const final = await result.background;
 
     expect(final.ok.map(res => res.item.id).sort()).toEqual(['light-1', 'light-2']);
@@ -985,42 +985,67 @@ describe('CircadianLightGroupDevice retries after the Flow card', () => {
     expect(taskFn).toHaveBeenCalledWith(items[1], 1);
   });
 
-  test('a light that reports late is confirmed in the background without another write', async () => {
+  test('a light that reports late is confirmed before the card returns, without another write', async () => {
     jest.useFakeTimers();
     const device = createTaskHarness();
     const item = { id: 'light-1', name: 'Kitchen' };
-    let reported = false;
     const taskFn = jest.fn().mockResolvedValue(undefined);
-    const verifyFn = jest.fn(async () => reported);
+    const verifyFn = jest.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
 
-    const result = await device.runDeviceTasksParallel([item], taskFn, { verifyFn, deferRetries: true });
-    expect(result.pending.map(res => res.item.id)).toEqual(['light-1']);
-
-    reported = true;
+    const pass = device.runDeviceTasksParallel([item], taskFn, { verifyFn, deferRetries: true });
     await jest.advanceTimersByTimeAsync(1500);
-    const final = await result.background;
+    const result = await pass;
 
-    expect(final.ok.map(res => res.item.id)).toEqual(['light-1']);
+    expect(result.ok.map(res => res.item.id)).toEqual(['light-1']);
+    expect(result.failed).toEqual([]);
+    expect(result.background).toBeUndefined();
+    expect(verifyFn).toHaveBeenCalledTimes(2);
     expect(taskFn).toHaveBeenCalledTimes(1);
   });
 
-  test('a newer command stops the background retries', async () => {
+  test('a newer command during the settle check ends the command without retries', async () => {
     jest.useFakeTimers();
     const device = createTaskHarness();
     let current = true;
     const taskFn = jest.fn().mockRejectedValue(new Error('Timeout after 10000ms'));
 
-    const result = await device.runDeviceTasksParallel([{ id: 'light-1', name: 'Kitchen' }], taskFn, {
+    const pass = device.runDeviceTasksParallel([{ id: 'light-1', name: 'Kitchen' }], taskFn, {
       verifyFn: jest.fn().mockResolvedValue(false),
       isCurrent: () => current,
       deferRetries: true,
     });
     current = false;
     await jest.advanceTimersByTimeAsync(1500);
+    const result = await pass;
+
+    expect(result.superseded).toBe(true);
+    expect(result.background).toBeUndefined();
+    expect(taskFn).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    [1, 'during the reduced retry'],
+    [2, 'during the final serial retry'],
+  ])('a newer command arriving on attempt %i stops the background retries (%s)', async (supersedeOnAttempt) => {
+    jest.useFakeTimers();
+    const device = createTaskHarness();
+    let current = true;
+    const taskFn = jest.fn(async (item, attempt) => {
+      if (attempt === supersedeOnAttempt) current = false;
+      throw new Error('Timeout after 10000ms');
+    });
+
+    const pass = device.runDeviceTasksParallel([{ id: 'light-1', name: 'Kitchen' }], taskFn, {
+      verifyFn: jest.fn().mockResolvedValue(false),
+      isCurrent: () => current,
+      deferRetries: true,
+    });
+    await jest.advanceTimersByTimeAsync(1500);
+    const result = await pass;
     const final = await result.background;
 
     expect(final.superseded).toBe(true);
-    expect(taskFn).toHaveBeenCalledTimes(1);
+    expect(taskFn).toHaveBeenCalledTimes(supersedeOnAttempt + 1);
   });
 
   test('keeps retrying inside the call when retries are not deferred', async () => {
@@ -1136,6 +1161,37 @@ describe('CircadianLightGroupDevice retries after the Flow card', () => {
 describe('CircadianLightGroupDevice Flow card time budget', () => {
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  test('the onoff and clg_paused capability listeners run within the time budget', async () => {
+    const device = createDeviceHarness();
+    const listeners = {};
+    device.homey = {};
+    device.registerCapabilityListener = jest.fn((capability, listener) => {
+      listeners[capability] = listener;
+    });
+    ['ensureDefaultCapabilityValues', 'restorePersistedOnoffState', 'restorePersistedPauseState',
+      'setupLuxWatchers', 'setupMemberOnoffWatchers', 'startScheduler', 'setOnoffState', 'fireOnoffTrigger']
+      .forEach((method) => {
+        device[method] = jest.fn().mockResolvedValue(undefined);
+      });
+    device.onFlowTurnOnAllMembers = jest.fn().mockResolvedValue(CircadianLightGroupDevice.createOperationOutcome({ total: 2 }));
+    device.onFlowTurnOffAllMembers = jest.fn().mockResolvedValue(CircadianLightGroupDevice.createOperationOutcome({ total: 2 }));
+    device.onPausedCapabilityChanged = jest.fn().mockResolvedValue(undefined);
+    const budget = jest.spyOn(device, 'runWithinCardTimeBudget');
+
+    await device.onInit();
+    await listeners.onoff(true);
+    await listeners.onoff(false);
+    await listeners.clg_paused(true);
+
+    expect(budget).toHaveBeenNthCalledWith(1, 'onoff', expect.any(Promise));
+    expect(budget).toHaveBeenNthCalledWith(2, 'onoff', expect.any(Promise));
+    expect(budget).toHaveBeenNthCalledWith(3, 'clg_paused', expect.any(Promise));
+    expect(device.setOnoffState).toHaveBeenCalledWith(true);
+    expect(device.onFlowTurnOnAllMembers).toHaveBeenCalledTimes(1);
+    expect(device.onFlowTurnOffAllMembers).toHaveBeenCalledTimes(1);
+    expect(device.onPausedCapabilityChanged).toHaveBeenCalledWith(true);
   });
 
   test('returns the result when the work finishes within the budget', async () => {

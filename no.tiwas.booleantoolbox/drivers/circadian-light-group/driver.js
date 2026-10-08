@@ -158,17 +158,13 @@ class CircadianLightGroupDriver extends Homey.Driver {
   }
 
   registerFlowCards() {
-    // Cards that declare the `completed` and `status` tokens.
+    // Cards that declare the `completed` and `status` tokens. Homey shows THEN
+    // cards with tokens only in Advanced Flows, so cards that are used in
+    // standard Flows must not get tokens.
     const tokenCards = new Set([
-      'clg_apply_now',
-      'clg_resume',
       'clg_turn_on',
       'clg_turn_off',
       'clg_toggle',
-      'clg_turn_on_member',
-      'clg_apply_state',
-      'clg_force_red_mode',
-      'clg_set_external_lux',
     ]);
     const action = (id, fn) => this.homey.flow.getActionCard(id).registerRunListener(async (args) => {
       const device = args.device;

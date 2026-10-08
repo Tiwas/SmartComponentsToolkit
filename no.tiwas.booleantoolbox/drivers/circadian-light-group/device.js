@@ -22,9 +22,9 @@ const MAX_TIMEOUT_MS = 2147483647;
 // Homey stops app Flow cards after 60 s. A card returns after this budget and
 // the rest of its work goes on in the background.
 const CARD_TIME_BUDGET_MS = 50000;
-// Lights can report a new value a little after the write; check again before
-// a background retry so a slow report does not cause an extra write.
-const BACKGROUND_RETRY_SETTLE_MS = 1500;
+// Lights can report a new value a little after the write; unconfirmed lights
+// are checked again after this pause before they count as needing a retry.
+const SETTLE_CHECK_MS = 1500;
 const CARD_BUDGET_ELAPSED = Symbol('card-budget-elapsed');
 
 const OUTCOME_TEXT = {
@@ -144,6 +144,16 @@ function outcomeFromTaskResult(result, { ok, background = null } = {}) {
     superseded: result?.superseded === true,
     background,
   });
+}
+
+// The outcome to report when the background retries themselves fail: every
+// light that was still pending counts as failed.
+function outcomeWithPendingFailed(result) {
+  return outcomeFromTaskResult({
+    ...result,
+    failed: [...(result.failed || []), ...(result.pending || [])],
+    pending: [],
+  }, { ok: false });
 }
 
 // Copies an outcome with a fixed `ok`, also for its background result.
@@ -927,7 +937,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       .then(finishApply)
       .catch((error) => {
         this.error(`apply[${reason}] background retry failed:`, error);
-        return outcomeFromTaskResult({ ...result, failed: [...result.failed, ...result.pending], pending: [] }, { ok: false });
+        return outcomeWithPendingFailed(result);
       });
     return outcomeFromTaskResult(result, { ok: true, background });
   }
@@ -980,9 +990,10 @@ class CircadianLightGroupDevice extends Homey.Device {
   // Run an async task per device with staged backoff:
   // first bounded parallelism, then serial verification, then a smaller parallel retry,
   // then a final serial retry for anything still not confirmed.
-  // With `deferRetries`, it returns after the first pass and its verification.
-  // Devices that are not confirmed yet are listed in `pending`, and the retries
-  // run in the background: `background` resolves to the final summary.
+  // With `deferRetries`, it returns after the first pass and its verification
+  // (plus one more check of unconfirmed devices after a short pause). Devices
+  // that are still not confirmed are listed in `pending`, and the retries run
+  // in the background: `background` resolves to the final summary.
   async runDeviceTasksParallel(items, taskFn, opts = {}) {
     const list = Array.isArray(items) ? items : [];
     if (list.length === 0) return { ok: [], failed: [] };
@@ -1116,26 +1127,35 @@ class CircadianLightGroupDevice extends Homey.Device {
         await verifyIndexesSerial(pending, 'final serial retry');
       }
 
+      // A newer command may have taken over during the last pass; its own
+      // result is the one that counts, so this one reports nothing.
+      if (!isCurrent()) {
+        this.debug(`${label}: superseded during final serial retry`);
+        return summarize(true);
+      }
+
       return summarize(false);
     };
 
     if (!opts.deferRetries) return runRetries();
 
+    if (verifyFn && pendingIndexes().length > 0) {
+      // A light may confirm its new value a moment after the write. Check the
+      // unconfirmed ones once more, so the result only lists lights that need
+      // a retry and a slow report does not cause an extra write.
+      await new Promise(resolve => setTimeout(resolve, SETTLE_CHECK_MS));
+      if (!isCurrent()) {
+        this.debug(`${label}: superseded before the settle check`);
+        return summarize(true);
+      }
+      await verifyIndexesSerial(pendingIndexes(), 'settle check');
+    }
+
     const firstPending = pendingIndexes();
     if (firstPending.length === 0 || maxRetries < 1) return summarize(false);
 
     this.debug(`${label}: ${firstPending.length} device(s) not confirmed after the first pass; retrying in the background`);
-    const background = (async () => {
-      if (verifyFn) {
-        await new Promise(resolve => setTimeout(resolve, BACKGROUND_RETRY_SETTLE_MS));
-        if (!isCurrent()) {
-          this.debug(`${label}: superseded before background retry`);
-          return summarize(true);
-        }
-        await verifyIndexesSerial(firstPending, 'background settle');
-      }
-      return runRetries();
-    })();
+    const background = runRetries();
     return { ...summarize(false, { separatePending: true }), background };
   }
 
@@ -1369,6 +1389,20 @@ class CircadianLightGroupDevice extends Homey.Device {
     return false;
   }
 
+  // Runs a member on/off command. When `run` returns an outcome with
+  // background retries, settleMemberCommand ends the command after them, so
+  // the scheduler waits until they have finished.
+  async runMemberCommand(label, run) {
+    const op = this.beginMemberCommand(label);
+    let outcome = null;
+    try {
+      outcome = await run(op);
+      return outcome;
+    } finally {
+      if (!outcome?.background) this.finishMemberCommand(op);
+    }
+  }
+
   // Turns a member command result into an outcome. When retries go on in the
   // background, the command stays active (so the scheduler waits) until they
   // finish, and the verification is reported then.
@@ -1385,7 +1419,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       })
       .catch((error) => {
         this.error(`${label}: background retry failed:`, error);
-        return outcomeFromTaskResult({ ...result, failed: [...result.failed, ...result.pending], pending: [] }, { ok: false });
+        return outcomeWithPendingFailed(result);
       })
       .finally(() => this.finishMemberCommand(op));
     return outcomeFromTaskResult(result, { ok: true, background });
@@ -1547,9 +1581,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       return createOperationOutcome({ total: 1, skipped: 'paused' });
     }
 
-    const op = this.beginMemberCommand('turn_on_member');
-    let outcome = null;
-    try {
+    return this.runMemberCommand('turn_on_member', async (op) => {
       const target = await this.computeCurrentTarget(config);
       const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
       const verifyFn = verifiesTarget
@@ -1563,17 +1595,14 @@ class CircadianLightGroupDevice extends Homey.Device {
         isCurrent: op.isCurrent,
         deferRetries: true,
       });
-      outcome = await this.settleMemberCommand(
+      return this.settleMemberCommand(
         op,
         `turn_on_member[${item.name || item.id}]`,
         result,
         verifiesTarget ? 'on and at target after retries' : 'on after retries',
         { clearAlarmOnSuccess: false }
       );
-      return outcome;
-    } finally {
-      if (!outcome?.background) this.finishMemberCommand(op);
-    }
+    });
   }
 
   async onFlowTurnOnAllMembers() {
@@ -1586,9 +1615,7 @@ class CircadianLightGroupDevice extends Homey.Device {
       return createOperationOutcome({ total: members.length, skipped: 'paused' });
     }
 
-    const op = this.beginMemberCommand('turn_on_all_members');
-    let outcome = null;
-    try {
+    return this.runMemberCommand('turn_on_all_members', async (op) => {
       const target = await this.computeCurrentTarget(config);
       const verifiesTarget = this.getCapabilityValue('onoff') === true && this.getCapabilityValue('clg_paused') !== true;
       const verifyFn = verifiesTarget
@@ -1602,16 +1629,13 @@ class CircadianLightGroupDevice extends Homey.Device {
         isCurrent: op.isCurrent,
         deferRetries: true,
       });
-      outcome = await this.settleMemberCommand(
+      return this.settleMemberCommand(
         op,
         'turn_on_all_members',
         result,
         verifiesTarget ? 'on and at target after retries' : 'on after retries'
       );
-      return outcome;
-    } finally {
-      if (!outcome?.background) this.finishMemberCommand(op);
-    }
+    });
   }
 
   async onFlowTurnOffAllMembers() {
@@ -1619,9 +1643,7 @@ class CircadianLightGroupDevice extends Homey.Device {
     const members = (Array.isArray(config.devices) ? config.devices : []).filter(d => d.enabled !== false);
     if (members.length === 0) return createOperationOutcome({ skipped: 'no-lights' });
 
-    const op = this.beginMemberCommand('turn_off_all_members');
-    let outcome = null;
-    try {
+    return this.runMemberCommand('turn_off_all_members', async (op) => {
       const result = await this.runDeviceTasksParallel(members, async (item) => {
         await this.turnOffMember(item, op.isCurrent);
       }, {
@@ -1630,11 +1652,8 @@ class CircadianLightGroupDevice extends Homey.Device {
         isCurrent: op.isCurrent,
         deferRetries: true,
       });
-      outcome = await this.settleMemberCommand(op, 'turn_off_all_members', result, 'off after retries');
-      return outcome;
-    } finally {
-      if (!outcome?.background) this.finishMemberCommand(op);
-    }
+      return this.settleMemberCommand(op, 'turn_off_all_members', result, 'off after retries');
+    });
   }
 
   async computeCurrentTarget(config) {

@@ -301,6 +301,34 @@ describe('CircadianLightGroupCollectionDevice results after the Flow card', () =
     expect(device.triggerError).toHaveBeenCalledTimes(1);
   });
 
+  test('an older operation whose retries finish while a newer one is still running does not report', async () => {
+    const oldRetries = deferred();
+    const newFirstPass = deferred();
+    const main = {
+      onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({
+        total: 11,
+        pending: ['Hall'],
+        background: oldRetries.promise,
+      })),
+      onFlowTurnOff: jest.fn(() => newFirstPass.promise),
+    };
+    const device = createFanOutHarness([{ id: 'main', name: 'Main', device: main }]);
+
+    const turnOn = await device.runAwaitedMemberGroups('turn_on', group => group.onFlowTurnOn());
+    const turnOff = device.runAwaitedMemberGroups('turn_off', group => group.onFlowTurnOff());
+    await flushAsyncWork();
+
+    oldRetries.resolve(createOperationOutcome({ ok: false, total: 11, failed: ['Hall'] }));
+    await turnOn.background;
+    expect(device.setCapabilityValue).not.toHaveBeenCalled();
+    expect(device.triggerError).not.toHaveBeenCalled();
+
+    newFirstPass.resolve(createOperationOutcome({ total: 11 }));
+    await turnOff;
+    expect(device.setCapabilityValue).toHaveBeenCalledTimes(1);
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+  });
+
   test.each([
     ['postponed', { ok: false, skipped: 'deferred' }],
     ['taken over by a newer command', { ok: false, total: 11, superseded: true }],

@@ -226,6 +226,13 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
   // first pass. Retries a group runs in the background are followed by the
   // Collection's own `background`, which reports group failures at the end.
   async runAwaitedMemberGroups(label, taskFn) {
+    // Only the newest Collection operation reports. Taking the number before
+    // the fan-out stops an older operation whose retries finish while this
+    // one is still running from overwriting the alarm or error.
+    this.collectionReportGen = (this.collectionReportGen || 0) + 1;
+    const reportGen = this.collectionReportGen;
+    const isNewest = () => this.collectionReportGen === reportGen;
+
     const outcomes = new Map();
     const result = await this.runForMemberGroups(label, async (device, item, attempt) => {
       outcomes.set(item, toOperationOutcome(await taskFn(device, item, attempt)));
@@ -243,14 +250,10 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
       };
     });
     const superseded = result?.superseded === true;
-    // Only the newest Collection operation reports. An older one whose retries
-    // finish later must not overwrite the alarm or error of a newer one.
-    this.collectionReportGen = (this.collectionReportGen || 0) + 1;
-    const reportGen = this.collectionReportGen;
 
     if (!groups.some(group => group.outcome?.background)) {
       const outcome = this.mergeGroupOutcomes(groups, { superseded });
-      await this.reportCollectionGroupFailures(label, outcome);
+      if (isNewest()) await this.reportCollectionGroupFailures(label, outcome);
       return outcome;
     }
 
@@ -262,7 +265,7 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     }))
       .then(async (finalGroups) => {
         const final = this.mergeGroupOutcomes(finalGroups, { superseded });
-        if (this.collectionReportGen === reportGen) {
+        if (isNewest()) {
           await this.reportCollectionGroupFailures(label, final);
         } else {
           this.debug(`collection_${label}: a newer operation has reported; skipping this one's report`);

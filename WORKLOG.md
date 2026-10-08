@@ -48,6 +48,7 @@
 - P2: a Collection "Apply now" during a member group's on/off retries returns `skipped: 'deferred'` from that group, and that counted as a failed group, which set the alarm and fired "unresponsive members". A deferred profile update is no longer a failed group (`isFailedGroup`).
 - Two new Collection tests. Jest: 24 suites / 407 tests pass.
 - Second Codex review (`d54c12f`), P2: a member group's profile update that the group's own scheduler or a card run directly on the group took over returns `ok: false, superseded: true`. That counted as a failed group and set the Collection alarm. Before this change, a Collection "Apply now" taken over in the same way was also reported, but with background retries it happens more often. A superseded group outcome is no longer a failed group. Three new tests; Jest: 24 suites / 409 tests pass.
+- Third Codex review (`b298bb7`), P2: `collectionReportGen` went up only after the new operation's first pass had finished. An older operation whose retries finished in that window could still report. The number is now taken when the operation starts, and the first-pass report checks it too. New test; Jest: 24 suites / 410 tests pass.
 
 ## 2026-10-05 — Test v1.10.34 released
 

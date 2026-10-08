@@ -243,7 +243,7 @@ Night:   Lux 50 falling         ← night mode when ambient drops below 50 lux</
             </ul>
             <p class="text-gray-700 text-sm mt-4">The multi-device actions and the scheduler push to up to 5 lights in parallel, verify the result afterwards, and retry lights that did not confirm, for example after a Z-Wave / Zigbee timeout. If a conflicting command arrives (e.g. an "all off" right after an "all on"), the new command supersedes the running one — no fighting between flows.</p>
 
-            <h3 class="text-lg font-semibold text-blue-700 mt-4 mb-3">Retries after the card, and the result tokens</h3>
+            <h3 id="retries" class="text-lg font-semibold text-blue-700 mt-4 mb-3">Retries after the card, and the result tokens</h3>
             <p class="text-gray-700 text-sm mb-2">Homey stops an app's Flow card after 60 seconds, and the Flow then stops at that card. A light that does not answer can take up to 10 seconds per attempt, so a group with a few dead lights could come close to that limit. To keep the Flow moving:</p>
             <ul class="list-disc ml-6 text-gray-700 space-y-1 text-sm mb-2">
                 <li>A card sends every light its commands, checks each light once, and then lets the Flow continue. This usually takes a few seconds.</li>

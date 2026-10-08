@@ -277,6 +277,46 @@ describe('CircadianLightGroupCollectionDevice results after the Flow card', () =
     expect(device.triggerError).not.toHaveBeenCalled();
   });
 
+  test('an older operation finishing its retries late does not overwrite a newer report', async () => {
+    const oldRetries = deferred();
+    const main = {
+      onFlowTurnOn: jest.fn().mockResolvedValue(createOperationOutcome({
+        total: 11,
+        pending: ['Hall'],
+        background: oldRetries.promise,
+      })),
+      onFlowTurnOff: jest.fn().mockResolvedValue(createOperationOutcome({ ok: false, total: 11, failed: ['Desk'] })),
+    };
+    const device = createFanOutHarness([{ id: 'main', name: 'Main', device: main }]);
+
+    const turnOn = await device.runAwaitedMemberGroups('turn_on', group => group.onFlowTurnOn());
+    await device.runAwaitedMemberGroups('turn_off', group => group.onFlowTurnOff());
+    expect(device.setCapabilityValue).toHaveBeenLastCalledWith('alarm_config', true);
+
+    oldRetries.resolve(createOperationOutcome({ total: 11, superseded: true }));
+    await turnOn.background;
+
+    expect(device.setCapabilityValue).toHaveBeenCalledTimes(1);
+    expect(device.setCapabilityValue).toHaveBeenLastCalledWith('alarm_config', true);
+    expect(device.triggerError).toHaveBeenCalledTimes(1);
+  });
+
+  test('a profile update a group postponed is not reported as a failed group', async () => {
+    const device = createFanOutHarness([
+      {
+        id: 'main',
+        name: 'Main',
+        device: { applyCurrentProfile: jest.fn().mockResolvedValue(createOperationOutcome({ ok: false, skipped: 'deferred' })) },
+      },
+    ]);
+
+    const outcome = await device.runAwaitedMemberGroups('apply_flow', group => group.applyCurrentProfile());
+
+    expect(outcome).toEqual(expect.objectContaining({ ok: true, completed: false }));
+    expect(device.setCapabilityValue).toHaveBeenCalledWith('alarm_config', false);
+    expect(device.triggerError).not.toHaveBeenCalled();
+  });
+
   test('names a group that could not run in the error message', async () => {
     const device = createFanOutHarness([
       { id: 'main', name: 'Main', device: null },

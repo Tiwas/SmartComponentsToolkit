@@ -118,13 +118,20 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     return { ...result, entries };
   }
 
+  // A group counts as failed when it threw or its own result was not ok. A
+  // profile update the group postponed until its on/off command has finished
+  // is still to come, so it is not a failure.
+  isFailedGroup(group) {
+    return group.failed
+      || (group.outcome?.ok === false && group.outcome.skipped !== 'deferred');
+  }
+
   // Combines the member groups' outcomes into one outcome for the Collection.
-  // A group counts as failed when it threw or its own result was not ok.
   mergeGroupOutcomes(groups, { superseded = false, background = null } = {}) {
     const active = groups.filter(group => !group.failed && group.outcome);
     const changed = active.filter(group => !group.outcome.skipped);
     const skipReasons = [...new Set(active.map(group => group.outcome.skipped))];
-    const failedGroups = groups.filter(group => group.failed || group.outcome?.ok === false);
+    const failedGroups = groups.filter(group => this.isFailedGroup(group));
     return createOperationOutcome({
       ok: !superseded && failedGroups.length === 0,
       total: changed.reduce((sum, group) => sum + group.outcome.total, 0),
@@ -143,7 +150,7 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
 
   async reportCollectionGroupFailures(label, outcome) {
     const names = (outcome.groups || [])
-      .filter(group => group.failed || group.outcome?.ok === false)
+      .filter(group => this.isFailedGroup(group))
       .map(group => group.name);
     await this.setCapabilityValue('alarm_config', names.length > 0).catch(this.error);
     if (names.length > 0) {
@@ -233,6 +240,10 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
       };
     });
     const superseded = result?.superseded === true;
+    // Only the newest Collection operation reports. An older one whose retries
+    // finish later must not overwrite the alarm or error of a newer one.
+    this.collectionReportGen = (this.collectionReportGen || 0) + 1;
+    const reportGen = this.collectionReportGen;
 
     if (!groups.some(group => group.outcome?.background)) {
       const outcome = this.mergeGroupOutcomes(groups, { superseded });
@@ -248,7 +259,11 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     }))
       .then(async (finalGroups) => {
         const final = this.mergeGroupOutcomes(finalGroups, { superseded });
-        await this.reportCollectionGroupFailures(label, final);
+        if (this.collectionReportGen === reportGen) {
+          await this.reportCollectionGroupFailures(label, final);
+        } else {
+          this.debug(`collection_${label}: a newer operation has reported; skipping this one's report`);
+        }
         return final;
       })
       .catch((error) => {

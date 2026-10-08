@@ -43,6 +43,11 @@
 - New tests: a late report confirmed before the card returns, supersession during the settle check, the reduced retry and the final serial retry, the Collection queue starting the next operation while retries run, and the `onoff`/`clg_paused` listeners going through the time budget.
 - Jest: 24 suites / 405 tests pass. `npm run test:package` passes.
 
+### Codex review (PR #72, first commit) and fixes
+- P2: an older Collection operation whose background retries finished after a newer operation had reported could clear the newer operation's alarm. Only the newest Collection operation reports now (`collectionReportGen`).
+- P2: a Collection "Apply now" during a member group's on/off retries returns `skipped: 'deferred'` from that group, and that counted as a failed group, which set the alarm and fired "unresponsive members". A deferred profile update is no longer a failed group (`isFailedGroup`).
+- Two new Collection tests. Jest: 24 suites / 407 tests pass.
+
 ## 2026-10-05 — Test v1.10.34 released
 
 ### Implemented

@@ -10,6 +10,7 @@
 
 ### Verification
 - Confirmed that no `new` badge remains in the Composite Device section of `docs/index.html`.
+- Reinstalled v1.10.38 successfully on `Lars's New Homey` with `homey app install`.
 
 ## 2026-10-14 — Presence+ re-arm fix
 

@@ -1,0 +1,94 @@
+{
+  "id": "presence_everyone_away_for",
+  "title": {
+    "en": "Everyone has been away for a while",
+    "no": "Alle har vært borte en stund",
+    "de": "Alle sind seit einiger Zeit abwesend",
+    "nl": "Iedereen is al een tijdje weg",
+    "fr": "Tout le monde est absent depuis un moment",
+    "da": "Alle har været væk et stykke tid",
+    "fi": "Kaikki ovat olleet poissa jonkin aikaa",
+    "sv": "Alla har varit borta en stund",
+    "pl": "Wszyscy są nieobecni od pewnego czasu",
+    "it": "Tutti sono assenti da un po'",
+    "es": "Todos han estado ausentes un tiempo"
+  },
+  "titleFormatted": {
+    "en": "Everyone has been away for [[minutes]] minutes",
+    "no": "Alle har vært borte i [[minutes]] minutter",
+    "de": "Alle sind seit [[minutes]] Minuten abwesend",
+    "nl": "Iedereen is [[minutes]] minuten weg",
+    "fr": "Tout le monde est absent depuis [[minutes]] minutes",
+    "da": "Alle har været væk i [[minutes]] minutter",
+    "fi": "Kaikki ovat olleet poissa [[minutes]] minuuttia",
+    "sv": "Alla har varit borta i [[minutes]] minuter",
+    "pl": "Wszyscy są nieobecni od [[minutes]] minut",
+    "it": "Tutti sono assenti da [[minutes]] minuti",
+    "es": "Todos han estado ausentes durante [[minutes]] minutos"
+  },
+  "hint": {
+    "en": "Starts counting when the last present person leaves and fires only if nobody returns before the delay expires. Any return cancels the pending trigger.",
+    "no": "Starter nedtellingen når den siste personen drar, og utløses bare dersom ingen kommer tilbake før tiden er ute. Enhver hjemkomst avbryter den ventende utløseren.",
+    "de": "Startet, wenn die letzte anwesende Person geht, und wird nur ausgelöst, wenn vor Ablauf der Verzögerung niemand zurückkehrt. Jede Rückkehr bricht den ausstehenden Auslöser ab.",
+    "nl": "Begint te tellen wanneer de laatste aanwezige persoon vertrekt en wordt alleen geactiveerd als niemand terugkeert voordat de vertraging afloopt. Elke terugkeer annuleert de wachtende trigger.",
+    "fr": "Le compte à rebours démarre au départ de la dernière personne présente et ne se déclenche que si personne ne revient avant la fin du délai. Tout retour annule le déclencheur en attente.",
+    "da": "Starter nedtællingen, når den sidste tilstedeværende person går, og udløses kun, hvis ingen vender tilbage, før tiden er gået. Enhver hjemkomst annullerer den ventende udløser.",
+    "fi": "Aloittaa laskennan viimeisen paikalla olevan henkilön lähtiessä ja käynnistyy vain, jos kukaan ei palaa ennen viiveen päättymistä. Mikä tahansa paluu peruuttaa odottavan käynnistyksen.",
+    "sv": "Startar nedräkningen när den sista närvarande personen går och utlöses bara om ingen återvänder innan tiden har gått. Varje hemkomst avbryter den väntande utlösaren.",
+    "pl": "Rozpoczyna odliczanie, gdy ostatnia obecna osoba wychodzi, i uruchamia się tylko wtedy, gdy nikt nie wróci przed upływem czasu. Każdy powrót anuluje oczekujące wyzwolenie.",
+    "it": "Avvia il conteggio quando l'ultima persona presente esce e si attiva solo se nessuno torna prima della scadenza. Qualsiasi ritorno annulla l'attivazione in attesa.",
+    "es": "Empieza a contar cuando sale la última persona presente y solo se activa si nadie regresa antes de que termine el plazo. Cualquier regreso cancela el disparador pendiente."
+  },
+  "args": [
+    {
+      "type": "number",
+      "name": "minutes",
+      "title": {
+        "en": "Minutes", "no": "Minutter", "de": "Minuten", "nl": "Minuten",
+        "fr": "Minutes", "da": "Minutter", "fi": "Minuutit", "sv": "Minuter",
+        "pl": "Minuty", "it": "Minuti", "es": "Minutos"
+      },
+      "min": 1,
+      "max": 10080,
+      "step": 1
+    }
+  ],
+  "tokens": [
+    {
+      "name": "away_minutes",
+      "type": "number",
+      "title": {
+        "en": "Minutes away", "no": "Minutter borte", "de": "Minuten abwesend", "nl": "Minuten weg",
+        "fr": "Minutes d'absence", "da": "Minutter væk", "fi": "Poissaolominuutit", "sv": "Minuter borta",
+        "pl": "Minuty nieobecności", "it": "Minuti di assenza", "es": "Minutos de ausencia"
+      }
+    },
+    {
+      "name": "away_since",
+      "type": "string",
+      "title": {
+        "en": "Away since", "no": "Borte siden", "de": "Abwesend seit", "nl": "Weg sinds",
+        "fr": "Absent depuis", "da": "Væk siden", "fi": "Poissa alkaen", "sv": "Borta sedan",
+        "pl": "Nieobecni od", "it": "Assenti da", "es": "Ausentes desde"
+      }
+    },
+    {
+      "name": "people_count",
+      "type": "number",
+      "title": {
+        "en": "People counted", "no": "Personer telt", "de": "Gezählte Personen", "nl": "Getelde personen",
+        "fr": "Personnes comptées", "da": "Personer talt", "fi": "Lasketut henkilöt", "sv": "Räknade personer",
+        "pl": "Liczba osób", "it": "Persone conteggiate", "es": "Personas contadas"
+      }
+    },
+    {
+      "name": "last_person_name",
+      "type": "string",
+      "title": {
+        "en": "Last person to leave", "no": "Siste person som dro", "de": "Zuletzt gegangene Person", "nl": "Laatste persoon die vertrok",
+        "fr": "Dernière personne partie", "da": "Sidste person der gik", "fi": "Viimeisenä lähtenyt henkilö", "sv": "Sista personen som gick",
+        "pl": "Ostatnia osoba, która wyszła", "it": "Ultima persona uscita", "es": "Última persona en salir"
+      }
+    }
+  ]
+}

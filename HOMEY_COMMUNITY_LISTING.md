@@ -1,11 +1,11 @@
 URL: https://community.homey.app/t/app-smart-components-toolkit-was-boolean-toolbox-create-advanced-logic-with-simple-formulas-v1-10-16-store-v1-10-27-test-logic-device-reliability/143906
 
-Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.35 test - Circadian cards no longer time out, Flow name card]
+Title: [APP] Smart (Components) Toolkit (was: Boolean Toolbox) - Create advanced logic with simple formulas [v1.10.16 store / v1.10.38 test - Presence+, Collection pause detection]
 
 Content:
 ![xlarge|690x483](upload://iSxhJPUltgcgPQ7gy4z5iisCv5F.jpeg)
 
-# Smart (Components) Toolkit — store v1.10.16 / test v1.10.35
+# Smart (Components) Toolkit — store v1.10.16 / test v1.10.38
 
 > **📚 Full Documentation:** https://tiwas.github.io/SmartComponentsToolkit/
 
@@ -16,6 +16,13 @@ Replace complex flow networks with powerful logic devices controlled by dynamic 
 ---
 
 ## What's new
+
+### v1.10.38 (test channel)
+
+- **New Presence+.** Trigger a Flow only after one selected person, or everyone, has remained away for a chosen number of minutes. A return before the delay expires cancels the pending trigger, filtering out brief Home/Away glitches. Countdown state survives an app restart. [Read the Presence+ guide](https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html).
+- **Repeated departures are re-armed.** If someone returns Home and leaves again while the previous Presence+ trigger call is still finishing, the new absence keeps its own start time and triggers after the configured delay.
+- **Collection pause detection fixed.** *Is paused* on a Circadian Light Group Collection now answers yes when the Collection itself or at least one available member group is paused.
+- **Reliable All on after a partial pause.** An *All on* Flow can now take its Resume branch when one member group is paused. Resume still reaches every member group before the Flow continues to turn the lights on.
 
 ### v1.10.35 (test channel)
 
@@ -177,7 +184,7 @@ Together they cover both sides: Flow Doctor shows how your Flows are wired, and 
 
 ## ✨ Circadian Light Group — now on stable
 
-A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.35 is available on the test channel.
+A virtual **light device** that adjusts brightness and color temperature for a group of real lights — automatically following a circadian rhythm. Store is currently v1.10.16; v1.10.38 is available on the test channel.
 
 ### Circadian Light Group highlights
 
@@ -249,6 +256,7 @@ Choose how the device knows how bright it is outside:
 |------------------------------|---------|
 | **Conditional Gates** | Simple GO/NO GO flow control without variables or devices. Short waits in the card, long waits in the background with a "wait finished" trigger. |
 | **Waiter Gates** | Wait until a device capability reaches a target value — in the card (up to 55 s) or in the background with a "wait finished" trigger. |
+| **Presence+** | Wait until one selected person, or everyone, has remained away for the configured minutes; any return cancels the pending trigger. |
 | **Evaluate Expression** | Range checking and value mapping with AND/OR logic. |
 | **Math Compare** | Compare a calculated number, e.g. `Temperature + 3` against a threshold. |
 | **Gradient Map** | Map a number from one range to another and pass the `Mapped value` tag to the next card. |

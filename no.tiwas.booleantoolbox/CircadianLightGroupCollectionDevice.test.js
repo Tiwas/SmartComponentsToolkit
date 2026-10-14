@@ -75,6 +75,69 @@ describe('CircadianLightGroupCollectionDevice scheduling', () => {
     expect(settled).toBe(true);
   });
 
+  test('reports paused when any member group is paused', async () => {
+    const device = createCollectionHarness();
+    device.getCapabilityValue = jest.fn(() => false);
+    device.resolveMemberEntries = jest.fn().mockResolvedValue([
+      {
+        memberDevice: {
+          getCapabilityValue: jest.fn(() => false),
+        },
+      },
+      {
+        memberDevice: {
+          getCapabilityValue: jest.fn(capability => capability === 'clg_paused'),
+        },
+      },
+      { memberDevice: null },
+    ]);
+
+    await expect(device.onConditionIsPaused()).resolves.toBe(true);
+  });
+
+  test('reports not paused when neither the Collection nor any member group is paused', async () => {
+    const device = createCollectionHarness();
+    device.getCapabilityValue = jest.fn(() => false);
+    device.resolveMemberEntries = jest.fn().mockResolvedValue([
+      {
+        memberDevice: {
+          getCapabilityValue: jest.fn(() => false),
+        },
+      },
+      { memberDevice: null },
+    ]);
+
+    await expect(device.onConditionIsPaused()).resolves.toBe(false);
+  });
+
+  test('resume reaches every member group when only a member is paused', async () => {
+    const device = createCollectionHarness();
+    const capabilityValues = { clg_paused: false };
+    const members = [
+      { onFlowResume: jest.fn().mockResolvedValue(true) },
+      { onFlowResume: jest.fn().mockResolvedValue(true) },
+    ];
+
+    device.getCapabilityValue = jest.fn(capability => capabilityValues[capability]);
+    device.setCapabilityValue = jest.fn(async (capability, value) => {
+      capabilityValues[capability] = value;
+    });
+    device.clearPauseTimer = jest.fn();
+    device.pauseDebug = jest.fn();
+    device.clearPersistedPauseState = jest.fn().mockResolvedValue(undefined);
+    device.firePauseTrigger = jest.fn().mockResolvedValue(undefined);
+    device.runAwaitedMemberGroups = jest.fn(async (label, taskFn) => {
+      expect(label).toBe('resume');
+      await Promise.all(members.map(member => taskFn(member)));
+      return true;
+    });
+
+    await expect(device.onFlowResume()).resolves.toBe(true);
+
+    members.forEach(member => expect(member.onFlowResume).toHaveBeenCalledTimes(1));
+    expect(device.firePauseTrigger).not.toHaveBeenCalled();
+  });
+
   test.each([
     [true, 'pause', 'onFlowPause'],
     [false, 'resume', 'onFlowResume'],

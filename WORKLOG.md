@@ -1,5 +1,71 @@
 # Worklog
 
+## 2026-10-14 — Presence+ re-arm fix
+
+### Requested
+- Investigate why a person-specific Presence+ Flow triggered for the first absence, but did not trigger after the same person returned Home and then became Away again.
+- Publish the corrected app as a new test version, update the website, README and Homey Community post source, and install it on the local Homey.
+
+### Findings
+- The normal completed sequence does reset correctly: an observed Away-to-Home transition clears the person's fired thresholds and the next Home-to-Away transition receives a new absence start time.
+- Reproduced a race when the person returns and leaves again while the previous trigger call is still in flight. The new absence is observed, but schedule refresh skips it because the person/delay key is still marked in flight. When the previous trigger finishes, the in-flight marker is removed without another schedule refresh, so no timer is created for the new absence.
+- Confirmed the race live with temporary diagnostics during `homey app run --remote`. The first one-minute timer fired at 14:47:01 local time. Home was received at 14:47:28, the fired threshold was cleared, and the next Away was received at 14:47:39 with a new absence timestamp. That second episode was skipped only because the first call was still marked in flight. The first `FlowCardTrigger.trigger()` promise did not settle until 14:48:31, almost exactly 90 seconds after it started; releasing the marker did not cause a schedule refresh.
+- Homey's SDK contract says the trigger promise resolves when the Flow is triggered. The observed 90-second lifetime therefore looks like a Homey-side trigger timeout or hang, not the intended lifetime of the short downstream Flow. The scheduler must still tolerate a trigger promise that settles late.
+- The same scheduling pattern is used by the everyone-away trigger, so it is vulnerable to the equivalent race.
+
+### Implemented
+- Presence events continue to update the current state immediately. When an older trigger call settles, the manager now detects a newer continuous-absence episode and schedules it using its original Away timestamp. If its deadline has already passed it fires immediately; otherwise only the remaining delay is scheduled.
+- A Home event still cancels the episode naturally, so no explicit event queue is needed. A late completion also no longer restores the fired marker for an episode that has already ended.
+- Applied the same re-arm behavior to the person-specific and everyone-away cards.
+- Added regression tests for both trigger types with a deliberately unresolved first trigger call, a Home/Away cycle during that call, and exact scheduling of the second episode.
+- Bumped the app to v1.10.38 and uploaded Build 67. Updated the GitHub Pages source with a Presence+ overview and dedicated guide, and updated the repository README, Store README, changelog and `HOMEY_COMMUNITY_LISTING.md` for the test release.
+
+### Verification
+- Focused PresenceManager suite: 9 tests passed.
+- Live `homey app run --remote` reproduction: first Away at 14:56:21 triggered at 14:57:21. Home at 14:58:01 and a new Away at 14:58:11 arrived while the first trigger promise was still open. When it settled at 14:58:51, Presence+ scheduled the remaining 20 seconds and fired the second trigger at 14:59:11 exactly one minute after the new Away event.
+- Temporary live diagnostics were removed after the successful run.
+- Lars completed the Homey test-channel release; the public Homey app API reports `testVersion` v1.10.38.
+- Full test suite: 25 suites and 427 tests passed. Publish-level package validation passed with 912 files, an 8.09 MB bundle and 17 verified manifest assets.
+- `homey app install` installed v1.10.38 successfully on `Lars's New Homey`.
+
+## 2026-10-13 — Debounced presence triggers
+
+### Requested
+- Add Flow triggers that fire only after one selected person, or everyone, has remained away for a configurable number of minutes, so brief Home/Away glitches do not directly drive automations.
+
+### Implemented
+- Added person-specific and everyone-away trigger cards with localized titles, hints, arguments, and output tags in all 11 app languages.
+- Added an event-driven presence manager that observes Homey user updates, reads enabled standard and Advanced Flow configurations, and schedules exact background timers without keeping a Flow card open.
+- Returning home cancels pending timers. Continuous-absence start times and fired thresholds are persisted so app restarts preserve countdowns and do not duplicate a trigger.
+- Documented the new cards in the Store README and Flow-card reference.
+
+### Verification
+- Added regression coverage for timer expiry, cancellation on return, last-person semantics, restart deduplication, argument routing, and Compose card references.
+- `npm test -- --runInBand --silent`: 25 suites, 425 tests passed.
+- `npm run test:package`: publish-level Homey validation passed; both presence trigger cards were generated in the manifest (912-file bundle, 17 assets).
+- `git diff --check`: passed.
+
+## 2026-10-11 — Collection pause-state aggregation
+
+### Requested
+- Investigate issue #76 against the local Homey, including the Advanced Flow "All on - Toolbox", because some lights did not turn on and restarting the app in debug mode had helped before.
+
+### Findings
+- Reproduced the failure with `homey app run --remote` and the live Advanced Flow. The Collection's "Is paused" condition took the no branch while its main member group was paused.
+- The subsequent Collection turn-on skipped all 11 lights in that paused group. The bedroom group ran, but its known unavailable member "Soverom: Nattbord v" could not be reached.
+- Collection Pause and Resume already fan out to every member group. The inherited "Is paused" condition only read the Collection's own `clg_paused` capability, so it could return false while a member group was paused.
+
+### Implemented
+- Overrode the Collection's pause condition so it returns true when the Collection itself or at least one available member group is paused.
+- Documented the aggregate Collection condition and added regression coverage for aggregate pause detection and Resume fan-out when only a member is paused.
+
+### Verification
+- Live retest on `Lars's New Homey`: the Collection condition took the true branch, Resume ran first for both member groups, and the formerly skipped main group then ran `turn_on_all_members`. Multiple previously off lights reported `onoff=true` and Lars confirmed that the lights came on.
+- Remaining live failures are device-specific: `Smart Energy Illuminator` returned `TRANSMIT_COMPLETE_NO_ACK`, `Spisestue: Tunable White Bulb (E27)` was unreachable, and `Soverom: Nattbord v` was unreachable.
+- `npm test -- --runInBand --silent`: 24 suites, 417 tests passed.
+- `npm run test:package`: publish-level validation passed; 911-file bundle and 17 manifest assets verified.
+- `git diff --check`: passed.
+
 ## 2026-10-08 — Test v1.10.35 released
 
 ### Implemented

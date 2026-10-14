@@ -10,7 +10,7 @@ Advanced logic and state management for your Homey automations. Create smart dev
 [![Test](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapps-api.athom.com%2Fapi%2Fv1%2Fapp%2Fno.tiwas.booleantoolbox&query=%24.testVersion&label=test&color=orange)](https://homey.app/a/no.tiwas.booleantoolbox/test/)
 [![Homey](https://img.shields.io/badge/Homey-5.0+-green.svg)](https://homey.app)
 
-> **v1.10.35 test** — Circadian Light Group Flows no longer stop at Homey's 60-second card limit: a card lets the Flow continue once every light has its commands, lights that do not answer are retried in the background, and new Advanced Flow cards *Turn on / Turn off / Toggle and report the result* tell you whether every light confirmed. See the [Circadian Light Group guide](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html#retries). Builds on **v1.10.34**: the app log now shows when a wait takes over a Waiter ID that is already waiting. Builds on **v1.10.33**: new Advanced Flow card *Get the name of [this Flow]* returns the Flow's own name, id and folder as tags, and follows when you rename the Flow. See the [Flow card reference](https://tiwas.github.io/SmartComponentsToolkit/docs/flow-cards.html#action-flow-name). Builds on **v1.10.32**: the Circadian Light Group schedule now follows your Homey's time zone (it ran 1–2 hours late on UTC), the outdoor light estimate follows the real sun, mornings can get their own optional profile, and the editors keep lux anchors and saved lux sensors. See the [Circadian Light Group guide](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html). Builds on **v1.10.31** (Homey Web API library 3.20.0) and **v1.10.30**, which fixes app restarts and Logic Devices that stopped reacting, and adds background waits beyond Homey's 60-second Flow card limit. See the [Conditional Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html) and [Waiter Gates](https://tiwas.github.io/SmartComponentsToolkit/docs/waiter-gates.html) guides.
+> **v1.10.38 test** — New **Presence+** triggers start a Flow only after one selected person, or everyone, has remained away for a chosen number of minutes; returning home cancels the pending trigger, and a later departure is re-armed even if the previous trigger call is still finishing. Circadian Light Group Collections now also report *Is paused* when a member group is paused. See the [Presence+ guide](https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html) and [Circadian Light Group guide](https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html).
 
 ---
 
@@ -139,7 +139,7 @@ THEN: Pop state (restore previous) [Homey Flow delay: 5 minutes]
 
 ---
 
-### Circadian Light Group *(stable v1.10.16 / test v1.10.35)*
+### Circadian Light Group *(stable v1.10.16 / test v1.10.38)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 
@@ -227,6 +227,19 @@ Starting the wait again for the same gate (for example when the razor is turned 
 > **Limitations:** Gate states and pending waits live in memory. They are lost when the app restarts (update, Homey reboot, crash); a pending background wait then never fires its trigger.
 
 [📚 Read Conditional Gates guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/conditional-gates.html)
+
+---
+
+### Presence+
+
+Homey's presence can briefly switch to Away and back. These triggers debounce that signal before a Flow is allowed to continue:
+
+- **[Person] has been away for [minutes]** - starts when the selected person leaves and is cancelled if that person returns first
+- **Everyone has been away for [minutes]** - starts when the last present person leaves and is cancelled as soon as anyone returns
+
+The countdown runs in the background, survives an app restart, and fires once per continuous absence. No Flow card is kept open while it waits.
+
+[📚 Read Presence+ guide →](https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html)
 
 ---
 
@@ -329,6 +342,8 @@ THEN: Turn on lights
 - State was captured/applied *(State Capture Device)*
 - Conditional Gate wait finished *(Conditional Gates)*
 - Capability wait finished *(Waiter Gates)*
+- Person has been away for a while *(Presence+)*
+- Everyone has been away for a while *(Presence+)*
 
 ### Conditions (AND)
 - Formula result is...

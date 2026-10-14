@@ -53,7 +53,7 @@ function createApp() {
         },
     };
 
-    return { app, actionCards, conditionCards };
+    return { app, actionCards, conditionCards, triggerCards };
 }
 
 describe("app-level Flow cards", () => {
@@ -155,5 +155,26 @@ describe("app-level Flow cards", () => {
             has_error: false,
             error_message: "",
         });
+    });
+
+    test("presence triggers route only matching person and delay arguments", async () => {
+        const { app, triggerCards } = createApp();
+        await app.registerAllFlowCards();
+
+        const personListener = triggerCards.get("presence_person_away_for").runListener;
+        const everyoneListener = triggerCards.get("presence_everyone_away_for").runListener;
+
+        await expect(personListener(
+            { person: { id: "user-a", name: "Ada" }, minutes: 5 },
+            { person_id: "user-a", minutes: 5 },
+        )).resolves.toBe(true);
+        await expect(personListener(
+            { person: { id: "user-a", name: "Ada" }, minutes: 10 },
+            { person_id: "user-a", minutes: 5 },
+        )).resolves.toBe(false);
+        await expect(everyoneListener(
+            { minutes: 15 },
+            { minutes: 15 },
+        )).resolves.toBe(true);
     });
 });

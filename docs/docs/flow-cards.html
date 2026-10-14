@@ -59,6 +59,7 @@
                     <a href="state-capture-device.html" class="text-gray-600 hover:text-purple-600">State Capture Device</a>
                     <a href="conditional-gates.html" class="text-gray-600 hover:text-purple-600">Conditional Gates</a>
                     <a href="waiter-gates.html" class="text-gray-600 hover:text-purple-600">Waiter Gates</a>
+                    <a href="presence-plus.html" class="text-gray-600 hover:text-purple-600">Presence+</a>
                 </div>
             </div>
         </div>
@@ -81,6 +82,8 @@
                         <li><a href="#trigger-formula-changed-to" class="hover:text-purple-600">→ Formula changed to...</a></li>
                         <li><a href="#trigger-state-changed" class="hover:text-purple-600">→ State changed (LD)</a></li>
                         <li><a href="#trigger-timeout" class="hover:text-purple-600">→ Formula timed out</a></li>
+                        <li><a href="#trigger-person-away" class="hover:text-purple-600">→ Person remained away</a></li>
+                        <li><a href="#trigger-everyone-away" class="hover:text-purple-600">→ Everyone remained away</a></li>
                         <li><a href="#trigger-gate-wait-finished" class="hover:text-purple-600">→ Conditional Gate wait finished</a></li>
                         <li><a href="#trigger-wait-until-finished" class="hover:text-purple-600">→ Capability wait finished</a></li>
                     </ul>
@@ -256,6 +259,48 @@
 
                 <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mt-4 rounded">
                     <p class="text-yellow-800 text-sm">⚠️ Only triggers if timeout is configured in formula settings (timeout > 0)</p>
+                </div>
+            </div>
+
+            <!-- Person remained away -->
+            <div id="trigger-person-away" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">[Person] has been away for [minutes]</h3>
+                <p class="text-gray-700 mb-4">Starts counting when the selected Homey person becomes Away. It fires only if the same person remains away for the full delay; returning home cancels the pending trigger.</p>
+                <p class="text-sm mb-4"><a href="presence-plus.html" class="text-purple-600 hover:text-purple-800 font-semibold">Presence+ setup, examples and limitations &rarr;</a></p>
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">person</span> - Enabled Homey user with an available presence state</li>
+                        <li><span class="code-inline">minutes</span> - Whole minutes from 1 to 10,080 (seven days)</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">person_name</span> - Name of the person</li>
+                        <li><span class="code-inline">away_minutes</span> - Actual continuous absence in minutes</li>
+                        <li><span class="code-inline">away_since</span> - ISO timestamp for the start of the absence</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Everyone remained away -->
+            <div id="trigger-everyone-away" class="bg-white rounded-lg p-6 mb-6 shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold mb-3 text-purple-700">Everyone has been away for [minutes]</h3>
+                <p class="text-gray-700 mb-4">Starts counting when the last present Homey person becomes Away. It fires only if nobody returns for the full delay; any return cancels the pending trigger.</p>
+                <div class="flow-card">
+                    <p class="text-sm text-gray-600 mb-2">Parameters:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">minutes</span> - Whole minutes from 1 to 10,080 (seven days)</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-3 mb-2">Output tokens:</p>
+                    <ul class="space-y-2 text-gray-800">
+                        <li><span class="code-inline">away_minutes</span> - Actual continuous absence in minutes</li>
+                        <li><span class="code-inline">away_since</span> - ISO timestamp for when the last person left</li>
+                        <li><span class="code-inline">people_count</span> - Number of people included</li>
+                        <li><span class="code-inline">last_person_name</span> - Name of the last person to leave</li>
+                    </ul>
+                </div>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-4 rounded">
+                    <p class="text-blue-800 text-sm">Only enabled Homey users whose presence is available are included. Countdown state and fired thresholds are persisted across app restarts.</p>
                 </div>
             </div>
 

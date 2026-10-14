@@ -6,6 +6,16 @@ All notable changes to Smart (Components) Toolkit for Homey will be documented i
 
 ---
 
+## [1.10.38] - October 2026 (Test channel)
+
+### Added
+- Presence+: two new triggers wait until one selected person, or everyone, has remained away for a configurable number of minutes. Returning home cancels the pending trigger, and absence timers survive app restarts without firing the same threshold twice. See the [Presence+ guide](https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html).
+
+### Fixed
+- Presence+: a new Home → Away episode is now re-armed correctly even when the trigger call for the previous episode is still pending. Its delay remains anchored to the new Away time, and a Home event still cancels it.
+- Circadian Light Group Collection: *Is paused* now returns yes when the Collection itself or at least one available member group is paused. Previously it only read the Collection's own pause flag, so an individually paused member group could be missed and an *All on* Flow could bypass Resume and skip every light in that group.
+- Resume on a Collection continues to resume every member group. Together with the aggregate condition, a Flow can now reliably detect the mixed pause state, resume all groups, and then turn their lights on.
+
 ## [1.10.35] - October 2026 (Test channel)
 
 ### Fixed

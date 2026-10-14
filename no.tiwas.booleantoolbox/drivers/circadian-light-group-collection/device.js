@@ -428,6 +428,15 @@ class CircadianLightGroupCollectionDevice extends CircadianLightGroupDevice {
     }));
   }
 
+  async onConditionIsPaused() {
+    if (this.getCapabilityValue('clg_paused') === true) return true;
+
+    const entries = await this.resolveMemberEntries();
+    return entries.some(entry => (
+      entry.memberDevice?.getCapabilityValue('clg_paused') === true
+    ));
+  }
+
   async onConditionIsInPhase(args) {
     const entries = (await this.resolveMemberEntries()).filter(entry => entry.memberDevice);
     if (entries.length === 0) return false;

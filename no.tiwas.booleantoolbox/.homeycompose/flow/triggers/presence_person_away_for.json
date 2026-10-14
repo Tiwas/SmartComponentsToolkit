@@ -1,0 +1,99 @@
+{
+  "id": "presence_person_away_for",
+  "title": {
+    "en": "A person has been away for a while",
+    "no": "En person har vært borte en stund",
+    "de": "Eine Person ist seit einiger Zeit abwesend",
+    "nl": "Een persoon is al een tijdje weg",
+    "fr": "Une personne est absente depuis un moment",
+    "da": "En person har været væk et stykke tid",
+    "fi": "Henkilö on ollut poissa jonkin aikaa",
+    "sv": "En person har varit borta en stund",
+    "pl": "Osoba jest nieobecna od pewnego czasu",
+    "it": "Una persona è assente da un po'",
+    "es": "Una persona ha estado ausente un tiempo"
+  },
+  "titleFormatted": {
+    "en": "[[person]] has been away for [[minutes]] minutes",
+    "no": "[[person]] har vært borte i [[minutes]] minutter",
+    "de": "[[person]] ist seit [[minutes]] Minuten abwesend",
+    "nl": "[[person]] is [[minutes]] minuten weg",
+    "fr": "[[person]] est absent(e) depuis [[minutes]] minutes",
+    "da": "[[person]] har været væk i [[minutes]] minutter",
+    "fi": "[[person]] on ollut poissa [[minutes]] minuuttia",
+    "sv": "[[person]] har varit borta i [[minutes]] minuter",
+    "pl": "[[person]] jest nieobecny(-a) od [[minutes]] minut",
+    "it": "[[person]] è assente da [[minutes]] minuti",
+    "es": "[[person]] ha estado ausente durante [[minutes]] minutos"
+  },
+  "hint": {
+    "en": "Starts counting when the selected person leaves and fires only if they have not returned before the delay expires. A return cancels the pending trigger.",
+    "no": "Starter nedtellingen når den valgte personen drar, og utløses bare dersom personen ikke har kommet tilbake før tiden er ute. En hjemkomst avbryter den ventende utløseren.",
+    "de": "Startet beim Verlassen der ausgewählten Person und wird nur ausgelöst, wenn sie vor Ablauf der Verzögerung nicht zurückkehrt. Eine Rückkehr bricht den ausstehenden Auslöser ab.",
+    "nl": "Begint te tellen wanneer de gekozen persoon vertrekt en wordt alleen geactiveerd als die niet terugkeert voordat de vertraging afloopt. Terugkeer annuleert de wachtende trigger.",
+    "fr": "Le compte à rebours démarre au départ de la personne sélectionnée et ne se déclenche que si elle ne revient pas avant la fin du délai. Son retour annule le déclencheur en attente.",
+    "da": "Starter nedtællingen, når den valgte person går, og udløses kun, hvis personen ikke vender tilbage, før tiden er gået. En hjemkomst annullerer den ventende udløser.",
+    "fi": "Aloittaa laskennan valitun henkilön lähtiessä ja käynnistyy vain, jos hän ei palaa ennen viiveen päättymistä. Paluu peruuttaa odottavan käynnistyksen.",
+    "sv": "Startar nedräkningen när den valda personen går och utlöses bara om personen inte återvänder innan tiden har gått. En hemkomst avbryter den väntande utlösaren.",
+    "pl": "Rozpoczyna odliczanie, gdy wybrana osoba wychodzi, i uruchamia się tylko wtedy, gdy nie wróci przed upływem czasu. Powrót anuluje oczekujące wyzwolenie.",
+    "it": "Avvia il conteggio quando la persona selezionata esce e si attiva solo se non torna prima della scadenza. Il ritorno annulla l'attivazione in attesa.",
+    "es": "Empieza a contar cuando la persona seleccionada sale y solo se activa si no regresa antes de que termine el plazo. El regreso cancela el disparador pendiente."
+  },
+  "args": [
+    {
+      "type": "autocomplete",
+      "name": "person",
+      "title": {
+        "en": "Person", "no": "Person", "de": "Person", "nl": "Persoon",
+        "fr": "Personne", "da": "Person", "fi": "Henkilö", "sv": "Person",
+        "pl": "Osoba", "it": "Persona", "es": "Persona"
+      },
+      "placeholder": {
+        "en": "Select a person", "no": "Velg en person", "de": "Person auswählen", "nl": "Kies een persoon",
+        "fr": "Sélectionner une personne", "da": "Vælg en person", "fi": "Valitse henkilö", "sv": "Välj en person",
+        "pl": "Wybierz osobę", "it": "Seleziona una persona", "es": "Selecciona una persona"
+      }
+    },
+    {
+      "type": "number",
+      "name": "minutes",
+      "title": {
+        "en": "Minutes", "no": "Minutter", "de": "Minuten", "nl": "Minuten",
+        "fr": "Minutes", "da": "Minutter", "fi": "Minuutit", "sv": "Minuter",
+        "pl": "Minuty", "it": "Minuti", "es": "Minutos"
+      },
+      "min": 1,
+      "max": 10080,
+      "step": 1
+    }
+  ],
+  "tokens": [
+    {
+      "name": "person_name",
+      "type": "string",
+      "title": {
+        "en": "Person name", "no": "Personnavn", "de": "Name der Person", "nl": "Naam van persoon",
+        "fr": "Nom de la personne", "da": "Personnavn", "fi": "Henkilön nimi", "sv": "Personnamn",
+        "pl": "Imię osoby", "it": "Nome della persona", "es": "Nombre de la persona"
+      }
+    },
+    {
+      "name": "away_minutes",
+      "type": "number",
+      "title": {
+        "en": "Minutes away", "no": "Minutter borte", "de": "Minuten abwesend", "nl": "Minuten weg",
+        "fr": "Minutes d'absence", "da": "Minutter væk", "fi": "Poissaolominuutit", "sv": "Minuter borta",
+        "pl": "Minuty nieobecności", "it": "Minuti di assenza", "es": "Minutos de ausencia"
+      }
+    },
+    {
+      "name": "away_since",
+      "type": "string",
+      "title": {
+        "en": "Away since", "no": "Borte siden", "de": "Abwesend seit", "nl": "Weg sinds",
+        "fr": "Absent(e) depuis", "da": "Væk siden", "fi": "Poissa alkaen", "sv": "Borta sedan",
+        "pl": "Nieobecny(-a) od", "it": "Assente da", "es": "Ausente desde"
+      }
+    }
+  ]
+}

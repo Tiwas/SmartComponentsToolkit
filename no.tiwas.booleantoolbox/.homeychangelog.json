@@ -162,5 +162,17 @@
   "1.10.35": {
     "en": "Circadian Light Group: Flows no longer stop with \"Timeout after 60000ms\". Turning a group or Collection on or off now lets the Flow continue once every light has its commands and has been checked; lights that do not answer are retried in the background, and no Circadian card waits more than 50 seconds. New Advanced Flow cards \"Turn on / Turn off / Toggle and report the result\" give \"All lights confirmed\" (yes/no) and \"Status\" (text). Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html#retries",
     "no": "Døgnrytme-lysgruppe: Flows stopper ikke lenger med «Timeout after 60000ms». Når en gruppe eller samling slås på eller av, går flowen videre så snart alle lysene har fått kommandoene og er sjekket; lys som ikke svarer prøves på nytt i bakgrunnen, og ingen døgnrytme-kort venter mer enn 50 sekunder. Nye kort for avanserte flows, «Slå på / Slå av / Veksle og meld resultatet», gir «Alle lys bekreftet» (ja/nei) og «Status» (tekst). Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/circadian-light-group.html#retries"
+  },
+  "1.10.36": {
+    "en": "New Presence Guards trigger only after one selected person, or everyone, has remained away for a chosen number of minutes; returning home cancels the timer. Circadian Light Group Collection: 'Is paused' now also detects paused member groups, so Resume is no longer skipped.",
+    "no": "Nye Presence Guards utløses først når én valgt person, eller alle, har vært borte i et valgt antall minutter; en hjemkomst avbryter timeren. Døgnrytme-lyssamling: «Er pauset» oppdager nå også pausede medlemsgrupper, slik at Resume ikke hoppes over."
+  },
+  "1.10.37": {
+    "en": "New Presence+ triggers wait until one selected person, or everyone, has remained away for a chosen number of minutes; returning home cancels the timer. Circadian Light Group Collection: 'Is paused' now also detects paused member groups, so Resume is no longer skipped. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html",
+    "no": "Nye Presence+-triggere venter til én valgt person, eller alle, har vært borte i et valgt antall minutter; en hjemkomst avbryter timeren. Døgnrytme-lyssamling: «Er pauset» oppdager nå også pausede medlemsgrupper, slik at Resume ikke hoppes over. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html"
+  },
+  "1.10.38": {
+    "en": "New Presence+ triggers wait until one selected person, or everyone, has remained away for a chosen number of minutes; returning home cancels the timer, and a later departure is re-armed even if the previous trigger call is still finishing. Circadian Light Group Collection: Is paused now also detects paused member groups, so Resume is no longer skipped. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html",
+    "no": "Nye Presence+-triggere venter til én valgt person, eller alle, har vært borte i et valgt antall minutter; en hjemkomst avbryter timeren, og en senere avreise armeres på nytt selv om forrige triggerkall fortsatt avsluttes. Døgnrytme-lyssamling: Er pauset oppdager nå også pausede medlemsgrupper, slik at Resume ikke hoppes over. Guide: https://tiwas.github.io/SmartComponentsToolkit/docs/presence-plus.html"
   }
 }

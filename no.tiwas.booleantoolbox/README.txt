@@ -52,6 +52,13 @@ Generate a privacy-conscious diagnostic report from App Settings and open the Gi
 
 == STANDALONE FLOW CARDS ==
 
+Presence+
+  Debounce Homey's presence signal before starting a Flow.
+  Repeated departures are re-armed from their own Away time.
+  - Trigger after one selected person has remained away for a configurable number of minutes
+  - Trigger after everyone has remained away since the last present person left
+  - A return cancels the pending trigger; countdowns survive app restarts
+
 Conditional Gates
   Persistent named GO/NO GO gates for coordinating flows without a virtual device. Gates and pending waits are kept in memory until the app restarts.
   - Check a gate immediately

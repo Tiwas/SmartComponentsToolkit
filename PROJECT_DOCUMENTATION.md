@@ -54,12 +54,18 @@
 *   **Collection:** `runAwaitedMemberGroups` merges the member groups' outcomes and reports group failures once their background retries have finished. The Collection queue is released when the card's part is done.
 *   **Key Files:** `drivers/circadian-light-group/device.js`, `drivers/circadian-light-group/driver.js`, `drivers/circadian-light-group-collection/device.js`, `CircadianLightGroupDevice.test.js`, `CircadianLightGroupCollectionDevice.test.js`, `CircadianLightGroupDriver.test.js`.
 
+### 8. Presence+
+*   **Purpose:** Debounces Homey's user presence before starting a Flow. `presence_person_away_for` watches one selected person; `presence_everyone_away_for` starts when the last tracked person leaves.
+*   **Mechanism:** `lib/PresenceManager.js` subscribes to `ManagerUsers` events and reads enabled standard and Advanced Flows to discover the unique person/delay thresholds that need timers. A Home transition cancels the relevant pending timers.
+*   **Persistence:** Continuous-absence timestamps and fired thresholds are stored in Homey settings. An app restart resumes an active countdown and does not repeat a threshold that already fired in the same absence episode.
+*   **Key Files:** `lib/PresenceManager.js`, `.homeycompose/flow/triggers/presence_*.json`, `PresenceManager.test.js`, and `app.js` (lifecycle and card routing).
+
 ## Project Structure
 *   `no.tiwas.booleantoolbox/`: Main Homey app source.
     *   `app.js`: Application entry point and diagnostics collector.
     *   `api.js`: Private settings endpoint for generating diagnostic reports.
     *   `drivers/`: Device drivers (`composite-device`, `logic-device`, `logic-unit`, state and Circadian Light Group drivers).
-    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `DiagnosticsReport.js`, `FlowIdentity.js`, `FormulaEvaluator.js`, `Logger.js`).
+    *   `lib/`: Core logic libraries (`CompositeAggregator.js`, `DiagnosticsReport.js`, `FlowIdentity.js`, `FormulaEvaluator.js`, `Logger.js`, `PresenceManager.js`).
     *   `locales/`: Translation files.
 *   `docs/`: Documentation and web tools for the GitHub Pages site, published by `.github/workflows/pages.yml` on every push to `main` that changes `docs/` (Pages source: GitHub Actions).
 *   `.github/workflows/message-check.yml` with `.github/scripts/message-check.js`: checks commit messages, branch names, PR, issue and comment text against `AI_RULES.md` §7 on every pull request, push, issue, comment and review. Tests: `node --test .github/scripts/message-check.test.js`.

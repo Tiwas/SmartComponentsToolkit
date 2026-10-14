@@ -7,6 +7,7 @@ const Logger = require("./lib/Logger");
 const WaiterManager = require("./lib/WaiterManager");
 const CapturedStateManager = require("./lib/CapturedStateManager");
 const FlowIdentity = require("./lib/FlowIdentity");
+const PresenceManager = require("./lib/PresenceManager");
 const {
     buildDiagnosticsReport,
     buildGitHubIssueUrl,
@@ -295,6 +296,14 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         // Initialize CapturedStateManager
         this.capturedStateManager = new CapturedStateManager(this.homey, this.logger);
 
+        // Tracks Homey user presence and runs delayed absence triggers outside
+        // the approximately 60-second lifetime of an individual Flow card.
+        this.presenceManager = new PresenceManager({
+            homey: this.homey,
+            logger: this.logger,
+            getApi: () => this.ensureHomeyApi(),
+        });
+
         // Lets the flow_whoami card find the Advanced Flow it runs in
         this.flowIdentity = new FlowIdentity({
             appId: this.homey.manifest?.id || "no.tiwas.booleantoolbox",
@@ -305,6 +314,12 @@ module.exports = class BooleanToolboxApp extends Homey.App {
 
         // Register ALL Flow Cards here using generic methods
         await this.registerAllFlowCards();
+
+        try {
+            await this.presenceManager.init();
+        } catch (error) {
+            this.logger.error("Presence guard initialization failed", error);
+        }
 
         await this.refreshDeviceRegistry("startup").catch((error) => {
             this.logger.error("Device registry startup refresh failed", error);
@@ -332,6 +347,10 @@ module.exports = class BooleanToolboxApp extends Homey.App {
         if (this.diagnosticMemoryInterval) {
             clearInterval(this.diagnosticMemoryInterval);
             this.diagnosticMemoryInterval = null;
+        }
+
+        if (this.presenceManager) {
+            await this.presenceManager.destroy();
         }
 
         // Cleanup WaiterManager
@@ -875,6 +894,7 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             api.flow,
             api.flowAdv,
             api.apps,
+            api.users,
         ].forEach((manager) => {
             if (!manager || typeof manager.setMaxListeners !== "function") {
                 return;
@@ -2144,6 +2164,34 @@ module.exports = class BooleanToolboxApp extends Homey.App {
             this.logger.debug(` -> OK: APP TRIGGER registered: 'wait_until_finished'`);
         } catch (e) {
             this.logger.error(` -> FAILED: Registering APP TRIGGER 'wait_until_finished'`, e);
+        }
+
+        // --- Presence guards ---
+        // The manager discovers the configured delays in enabled Flows and
+        // schedules them in the background. The run listeners only route each
+        // timer event to cards with the matching person and delay.
+        try {
+            const personAwayCard = this.homey.flow.getTriggerCard(
+                "presence_person_away_for",
+            );
+            personAwayCard.registerArgumentAutocompleteListener("person", (query) =>
+                this.presenceManager?.getPeopleAutocomplete(query) || []);
+            personAwayCard.registerRunListener(async (args, state) =>
+                PresenceManager.personRunMatches(args, state));
+
+            const everyoneAwayCard = this.homey.flow.getTriggerCard(
+                "presence_everyone_away_for",
+            );
+            everyoneAwayCard.registerRunListener(async (args, state) =>
+                PresenceManager.everyoneRunMatches(args, state));
+
+            this.presenceManager?.setTriggerCards({
+                person: personAwayCard,
+                everyone: everyoneAwayCard,
+            });
+            this.logger.debug(" -> OK: Presence guard triggers registered");
+        } catch (e) {
+            this.logger.error(" -> FAILED: Registering presence guard triggers", e);
         }
 
         this.logger.info("app.flow_cards_registered", {});

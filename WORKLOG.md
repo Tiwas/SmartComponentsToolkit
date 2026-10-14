@@ -1,5 +1,17 @@
 # Worklog
 
+## 2026-10-14 — Remove stale Composite Device badge
+
+### Requested
+- Remove the outdated `new` label shown beside Composite Device on the documentation homepage.
+
+### Implemented
+- Removed the stale badge while preserving the existing Composite Device heading and card layout.
+
+### Verification
+- Confirmed that no `new` badge remains in the Composite Device section of `docs/index.html`.
+- Reinstalled v1.10.38 successfully on `Lars's New Homey` with `homey app install`.
+
 ## 2026-10-14 — Presence+ re-arm fix
 
 ### Requested

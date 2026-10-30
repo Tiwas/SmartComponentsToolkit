@@ -14,6 +14,7 @@ tests/
 PROJECT_DOCUMENTATION.md
 DOCUMENTATION_PROMPT_TEMPLATE.md
 README.txt
+README.*.txt
 robots.md
 run_test.ps1
 jest.config.js

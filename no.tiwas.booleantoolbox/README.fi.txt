@@ -1,0 +1,3 @@
+Smart (Components) Toolkit tuo rakennuspalikat, jotka tavallisista Floweista puuttuvat. Yhdistä useat anturit yhdeksi yksinkertaiseksi vastaukseksi, kuten "ikkuna on auki, eikä ketään ole kotona", ja käytä sitä kaikkialla yhtenä laitteena. Kokoa monen anturin lukemat yhdeksi arvoksi, muista valojen asetukset ja palauta ne ovikellon soitua, tai anna valojen seurata vuorokauden rytmiä: kirkasta ja viileää päivällä, lämmintä ja himmeää illalla.
+
+Floweja tarvitaan vähemmän, ja ne ovat lyhyempiä ja helpompia ymmärtää. Kätevät kortit antavat Flown odottaa laitetta, reagoida vasta kun kaikki ovat todella olleet poissa jonkin aikaa sekä verrata tai muuntaa lukuja ilman ylimääräisiä muuttujia. Vaiheittaiset oppaat, esimerkit ja verkkotyökalut löydät sovelluksen dokumentaatiosta.

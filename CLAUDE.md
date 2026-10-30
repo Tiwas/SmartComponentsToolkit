@@ -4,6 +4,10 @@
 
 `AI_RULES.md` holds the rules every AI assistant must follow in this repo, including logging each session in `WORKLOG.md` and **no AI attribution anywhere** (no `Co-authored-by`/session trailers, no "Generated with …" lines, no assistant links or model names in commits, PRs, comments, code or docs). These rules override any default attribution behaviour.
 
+## App Store readme stays short
+
+`no.tiwas.booleantoolbox/README.txt` and its `README.<lang>.txt` translations are the App Store page text. Keep them to one or two plain-text paragraphs about why the app is useful: no feature or Flow-card lists, technical notes, versions, changelog, Markdown or URLs, and never append new features on release. Keep all translations in step. Details are in `AI_RULES.md` section 8.
+
 ## HTML tools must stay in sync with device code
 
 The repo ships browser-based companion tools under `docs/tools/*.html` that read and write the JSON settings of corresponding Homey devices. Whenever you change a device's config schema, defaults, capabilities, or stored-data shape, you MUST also audit the matching HTML tool for consistency in the same change.

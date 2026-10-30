@@ -1,0 +1,3 @@
+Smart (Components) Toolkit giver dig de byggeklodser, som almindelige Flows mangler. Gør flere sensorer til ét enkelt svar, for eksempel "et vindue er åbent, mens ingen er hjemme", og brug det overalt som én enhed. Saml målinger fra mange sensorer i én værdi, husk hvordan lysene var indstillet, og gendan dem, når det har ringet på døren, eller lad lysene følge døgnet: lyst og koldt om dagen, varmt og dæmpet om aftenen.
+
+Dine Flows bliver færre, kortere og nemmere at forstå. Praktiske kort lader et Flow vente på en enhed, reagere først når alle virkelig har været væk et stykke tid, og sammenligne eller omregne tal uden ekstra variabler. Trin-for-trin-vejledninger, eksempler og onlineværktøjer finder du i appens dokumentation.

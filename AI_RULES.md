@@ -35,5 +35,14 @@ The following rules are absolute and must be followed by any AI/LLM assistant wo
 *   **Enforced by** `.github/workflows/message-check.yml`: it removes signature footers from PR descriptions, issues, comments and reviews, and fails pull requests and pushes that use a tool-named branch or contain commits with signature lines, tool names or an assistant identity as author or committer. When it fails, fix the cause (reword the commit, rename the branch, edit the text); never work around or disable the check.
 *   The shared project settings in `.claude/settings.json` switch off the tool's own commit and PR attribution. Do not remove or override them.
 
+## 8. Homey App Store Readme and Release Texts
+*   `no.tiwas.booleantoolbox/README.txt` is the text shown on the Homey App Store page. It must follow section 1.3 of the Homey App Store Guidelines (https://apps.developer.homey.app/app-store/guidelines#id-1.3.-readme). Athom asked for this when approving v1.10.38, because the readme had grown into a long technical feature list.
+*   Keep it to **one or two short plain-text paragraphs** that say, in everyday language, why the app is useful. No headings, no indentation and no bullet lists.
+*   **Do not** list devices, features, capabilities or Flow cards (the Store already shows the Flow cards), and do not add technical notes, version numbers, a changelog, Markdown or URLs. Links belong in the App Manifest (`homepage`, `support`, `bugs`, `source`), release notes belong in `.homeychangelog.json`, and details belong on the documentation site.
+*   A release that adds a feature does **not** add it to `README.txt`. Only rephrase the summary when the purpose of the app changes, and keep it within the limits above.
+*   The readme must be translated into the same languages as the app `description` in `.homeycompose/app.json`. When `README.txt` changes, update every `README.<lang>.txt` in the same change so they say the same thing. `.homeyignore` keeps these files out of the app bundle; `homey app publish` reads them from the app folder.
+*   The app `description` (guideline 1.2) is a one-line tagline: no app name and no repeat of the readme.
+*   `HOMEY_COMMUNITY_LISTING.md` keeps a single *What's new* section for the current release. Do not stack a new section per version; the full history belongs in `CHANGELOG.md`, and feature descriptions carry no version tags.
+
 ---
 *Failure to adhere to these rules may result in system instability and data loss.*

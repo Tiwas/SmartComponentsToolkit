@@ -139,7 +139,7 @@ THEN: Pop state (restore previous) [Homey Flow delay: 5 minutes]
 
 ---
 
-### Circadian Light Group *(stable v1.10.16 / test v1.10.38)*
+### Circadian Light Group *(v1.10.38)*
 
 Virtual light device that adjusts brightness and color temperature for a group of real lights based on time, sun position or ambient lux.
 

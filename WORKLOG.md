@@ -1,5 +1,28 @@
 # Worklog
 
+## 2026-10-30 — v1.10.38 live: Store readme and community listing clean-up
+
+### Requested
+- v1.10.38 is now live in the Homey App Store. Update `HOMEY_COMMUNITY_LISTING.md` to say that store and test run the same version, and clean up the per-version sections in that file.
+- Act on Athom's review feedback for v1.10.38: the Store readme had become long and technical (device overview, list of standalone Flow cards, technical notes). It should be a short, engaging summary in one or two plain-text paragraphs (App Store Guidelines 1.3). Add the rule to the project rules for future releases.
+
+### Findings
+- The Athom app API reports `liveVersion` 1.10.38 and no separate `testVersion`.
+- Guideline 1.3: at most one or two paragraphs, plain text (Markdown is not rendered), no headers, no feature or Flow-card lists, no URLs (links belong in the App Manifest) and no changelog. Guideline 1.11: the readme should be translated into the same languages as the app description.
+- The app description exists in 11 languages, but only `README.txt` existed. `homey app publish` reads `README.<lang>.txt` from the app folder for every language code `homey-lib` accepts (all 10 used here, including `fi`). `README.txt` is already excluded from the app bundle by `.homeyignore`.
+
+### Implemented
+- Rewrote `no.tiwas.booleantoolbox/README.txt` as two plain-text paragraphs about what the app does in everyday use, with no lists, versions or URLs. Added matching translations `README.{no,da,sv,de,nl,fr,it,es,pl,fi}.txt`; German and Dutch use the formal form, like the existing locales. Added `README.*.txt` to `.homeyignore` next to `README.txt`.
+- Rewrote `HOMEY_COMMUNITY_LISTING.md` for v1.10.38 in store and test: new title, a single *What's new in v1.10.38* section that summarises everything since the previous store version (1.10.16) with links to the guides and the CHANGELOG, a Presence+ section, and version tags removed from the feature descriptions. The examples from the old per-version notes (Flow name, report-the-result, heat pump) moved into the matching sections; stale install links that said v1.10.32 now say v1.10.38.
+- `README.md`: the Circadian Light Group heading said *stable v1.10.16 / test v1.10.38*; it now says *v1.10.38*.
+- Added section 8 to `AI_RULES.md` (Store readme limits, no feature appends on release, translations kept in step, one *What's new* section in the community listing) and a short pointer in `CLAUDE.md`.
+
+### Verification
+- `homey app validate --level publish` passed.
+- `npm run test:package`: 912 files, 8.09 MB, 17 manifest assets verified; the bundle size and file count are unchanged, so the translated readmes stay out of the bundle.
+- All 11 readme files have two paragraphs and no URLs, Markdown markers or indentation.
+- No app code changed; the readme takes effect with the next published build.
+
 ## 2026-10-14 — Remove stale Composite Device badge
 
 ### Requested
